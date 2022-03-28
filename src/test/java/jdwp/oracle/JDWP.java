@@ -139,18 +139,18 @@ public class JDWP {
                  * <a href="#JDWP_TypeTag">Kind</a>
                  * of following reference type.
                  */
-                final byte refTypeTag;
+                public final byte refTypeTag;
 
                 /**
                  * Matching loaded reference type
                  */
-                final long typeID;
+                public final long typeID;
 
                 /**
                  * The current class
                  * <a href="#JDWP_ClassStatus">status.</a>
                  */
-                final int status;
+                public final int status;
 
                 private ClassInfo(VirtualMachineImpl vm, PacketStream ps) {
                     refTypeTag = ps.readByte();
@@ -172,9 +172,9 @@ public class JDWP {
             /**
              * Number of reference types that follow.
              */
-            final ClassInfo[] classes;
+            public final ClassInfo[] classes;
 
-            private ClassesBySignature(VirtualMachineImpl vm, PacketStream ps) {
+            public ClassesBySignature(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.ClassesBySignature"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }

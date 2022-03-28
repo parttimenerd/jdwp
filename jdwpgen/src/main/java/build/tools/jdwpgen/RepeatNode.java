@@ -64,18 +64,17 @@ class RepeatNode extends TypeNode.AbstractTypeNode {
     }
 
     String javaType() {
-        return member.javaType() + "[]";
+        return "ListValue<" + member.javaType() + ">";
     }
 
     public void genJavaWrite(PrintWriter writer, int depth,
                              String writeLabel) {
-        genJavaDebugWrite(writer, depth, writeLabel, "\"\"");
         indent(writer, depth);
-        writer.println("ps.writeInt(" + writeLabel + ".length);");
-        indent(writer, depth);
-        writer.println("for (int i = 0; i < " + writeLabel + ".length; i++) {;");
-        ((TypeNode)member).genJavaWrite(writer, depth+1, writeLabel + "[i]");
-        indent(writer, depth);
+        writer.println("ps.writeInt(" + writeLabel + ".size());");
+        indent(writer, depth - 1);
+        writer.println("for (int i = 0; i < " + writeLabel + ".size(); i++) {;");
+        ((TypeNode)member).genJavaWrite(writer, depth, writeLabel + ".get(i)");
+        indent(writer, depth - 1);
         writer.println("}");
     }
 
@@ -86,17 +85,22 @@ class RepeatNode extends TypeNode.AbstractTypeNode {
 
     public void genJavaRead(PrintWriter writer, int depth,
                             String readLabel) {
-        genJavaDebugRead(writer, depth, readLabel, "\"\"");
-        String cntLbl = readLabel + "Count";
+        var variable = readLabel.split(" ")[1];
+        String cntLbl = variable + "Count";
+        String listLbl = variable + "TmpList";
         indent(writer, depth);
         writer.println("int " + cntLbl + " = ps.readInt();");
         indent(writer, depth);
-        writer.println(readLabel + " = new " + member.javaType() +
-                       "[" + cntLbl + "];");
+        writer.println("List<" + member.javaType() + "> " + listLbl + " = new ArrayList<>(" + cntLbl + ");");
         indent(writer, depth);
-        writer.println("for (int i = 0; i < " + cntLbl + "; i++) {;");
-        member.genJavaRead(writer, depth+1, readLabel + "[i]");
+        writer.println("for (int i = 0; i < " + cntLbl + "; i++) {");
+        member.genJavaRead(writer, depth + 1, member.javaType() + " tmp");
+        writer.println();
+        indent(writer, depth + 1);
+        writer.println(listLbl + ".add(tmp);");
         indent(writer, depth);
         writer.println("}");
+        indent(writer, depth);
+        writer.println(readLabel + " = new ListValue<>(Value.typeForClass(" + member.javaType() + ".class), " + listLbl + ")");
     }
 }

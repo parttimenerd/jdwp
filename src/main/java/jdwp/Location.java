@@ -4,14 +4,13 @@ import jdwp.PrimitiveValue.LongValue;
 import jdwp.Reference.MethodReference;
 import jdwp.Reference.TypeReference;
 import jdwp.Value.CombinedValue;
-import jdwp.Value.WritableValue;
 import lombok.EqualsAndHashCode;
 
 import java.util.Arrays;
 import java.util.List;
 
-@EqualsAndHashCode
-public class Location extends CombinedValue implements WritableValue {
+@EqualsAndHashCode(callSuper = false)
+public class Location extends CombinedValue {
 
     final TypeReference declaringType;
     final MethodReference methodRef;

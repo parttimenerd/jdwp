@@ -26,7 +26,6 @@
 package jdwp;
 
 import jdwp.Value.BasicValue;
-import jdwp.Value.WritableValue;
 
 import java.io.ByteArrayOutputStream;
 
@@ -170,7 +169,7 @@ class PacketStream {
         ref.write(this);
     }
 
-    void writeWritableUntagged(WritableValue val) {
+    void writeWritableUntagged(Value val) {
         val.write(this);
     }
 

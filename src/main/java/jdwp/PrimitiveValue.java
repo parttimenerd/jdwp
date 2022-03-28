@@ -2,11 +2,8 @@ package jdwp;
 
 import jdwp.JDWP.Tag;
 import jdwp.Value.BasicValue;
-import jdwp.Value.WritableValue;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
-
-import static jdwp.JDWP.Tag.BYTE;
 
 /**
  * Primitive values
@@ -15,13 +12,11 @@ import static jdwp.JDWP.Tag.BYTE;
  */
 @EqualsAndHashCode
 @ToString
-public abstract class PrimitiveValue<T> extends BasicValue<T> implements WritableValue {
+public abstract class PrimitiveValue<T> extends BasicValue<T> {
 
     private PrimitiveValue(Type type, T value) {
         super(type, value);
     }
-
-    public abstract void write(PacketStream packetStream);
 
     public static ByteValue wrap(byte val) { return new ByteValue(val); }
 

@@ -3,12 +3,10 @@ package jdwp;
 import jdwp.JDWP.Tag;
 import jdwp.JDWP.TypeTag;
 import jdwp.Value.BasicValue;
-import jdwp.Value.WritableValue;
 import lombok.EqualsAndHashCode;
 
 /** reference to an object, thread, ... */
-@EqualsAndHashCode
-public class Reference extends BasicValue<Long> implements WritableValue {
+public class Reference extends BasicValue<Long> {
 
     public Reference(Type type, long ref) {
         super(type, ref);

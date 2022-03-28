@@ -94,13 +94,18 @@ internal class CommandNode : AbstractCommandNode() {
     private val replyClassName: String
         get() = commandClassName + "Reply"
 
+    private fun Node.findGroupNodes(): List<GroupNode> = components
+        .flatMap { (if (it is GroupNode) listOf(it) else emptyList()) + it.findGroupNodes() }
+
     private fun genJava(out: OutNode, reply: ReplyNode, error: ErrorSetNode, onlyReads: OnlyReadsNode): String {
         val fields = out.components.map { t: Node -> t as AbstractTypeNode }
         val replyFields = reply.components.map { t: Node -> t as AbstractTypeNode }
-        return genRequestClass(fields, onlyReads.boolean).toString() + "\n" + genReplyClass(replyFields)
+        return genRequestClass(fields, onlyReads.boolean).toString() + "\n" + genReplyClass(replyFields) + "\n"
     }
 
     fun TypeSpec.Builder.genCommon(valType: String, defaultFlag: Int, fields: List<AbstractTypeNode>): TypeSpec.Builder {
+
+        addTypes(fields.flatMap {  it.findGroupNodes() } .map { genGroupClass(it) })
 
         `public static final field`(TypeName.INT, "COMMAND") { `=`(nameNode.value()) }
 
@@ -161,7 +166,7 @@ internal class CommandNode : AbstractCommandNode() {
         }
 
         `private static final field`(pt("List", "String"), "KEYS") {
-            `=`("Arrays.asList(${fields.joinToString(",") { "\"${it.name}\"" }})")
+            `=`("Arrays.asList(${fields.joinToString(", ") { "\"${it.name}\"" }})")
         }
 
         `public`(pt("List", "String"), "getKeys") {
@@ -273,6 +278,57 @@ internal class CommandNode : AbstractCommandNode() {
                 `@`(Override::class)
                 _return("String.format(\"$replyClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\", " +
                         fields.joinToString(", ") { it.name } + ")");
+            }
+        }
+    }
+
+    private fun genGroupClass(node: GroupNode): TypeSpec {
+        val fields = node.components.map { it as AbstractTypeNode }
+        return return `public static class`(node.name) {
+            extends("Value.CombinedValue")
+
+            for (f in fields) {
+                `public final field`(f.javaType(), f.name)
+            }
+
+            `public constructor`(
+                fields.map { param(it.javaType(), it.name()) }) {
+                statement("super(Type.OBJECT)")
+                for (f in fields) {
+                    statement("this.\$N = \$N", f.name(), f.name())
+                }
+                this
+            }
+
+            `public`(bg("Value"), "get", param("String", "key")) {
+                `@`(Override::class)
+                switch("key") {
+                    for (f in fields) {
+                        case(f.name.S) {
+                            _return(f.name)
+                        }
+                    }
+                    default {
+                        `throw new2`(java.util.NoSuchElementException::class, "\"Unknown field \" + key")
+                    }
+                    this
+                }
+            }
+
+            `private static final field`(pt("List", "String"), "KEYS") {
+                `=`("Arrays.asList(${fields.joinToString(", ") { "\"${it.name}\"" }})")
+            }
+
+            `public`(pt("List", "String"), "getKeys") {
+                `@`(Override::class)
+                _return("KEYS");
+            }
+
+            `public static`(bg(node.name), "parse", param("PacketStream", "ps")) {
+                for (f in fields) {
+                    statement(f.genJavaRead(f.javaType() + " " + f.name()))
+                }
+                _return("new ${node.name}(${fields.joinToString(", ") { it.name }})")
             }
         }
     }

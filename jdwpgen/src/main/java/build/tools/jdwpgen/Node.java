@@ -143,7 +143,7 @@ abstract class Node {
 
     void genJavaDebugWrite(PrintWriter writer, int depth,
                            String writeLabel) {
-        genJavaDebugWrite(writer, depth, writeLabel, debugValue(writeLabel));
+        //genJavaDebugWrite(writer, depth, writeLabel, debugValue(writeLabel));
     }
 
     void genJavaDebugWrite(PrintWriter writer, int depth,

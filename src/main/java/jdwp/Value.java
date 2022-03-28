@@ -1,6 +1,7 @@
 package jdwp;
 
 import jdwp.Reference.ArrayReference;
+import lombok.EqualsAndHashCode;
 
 import java.util.*;
 import java.util.stream.IntStream;
@@ -21,7 +22,9 @@ public abstract class Value {
         return false;
     }
 
-    static <T extends Value> Type typeForClass(Class<T> klass) {
+    public abstract void write(PacketStream ps);
+
+    public static <T extends Value> Type typeForClass(Class<T> klass) {
         return classTypeMap.getOrDefault(klass, Type.OBJECT);
     }
 
@@ -94,10 +97,6 @@ public abstract class Value {
         }
     }
 
-    public interface WritableValue {
-        void write(PacketStream ps);
-    }
-
     public static abstract class WalkableValue<K> extends Value {
         protected WalkableValue(Type type) {
             super(type);
@@ -138,10 +137,15 @@ public abstract class Value {
         abstract List<String> getKeys();
 
         abstract Value get(String key);
+
+        @Override
+        public void write(PacketStream ps) {
+            getKeys().forEach(k -> get(k).write(ps));
+        }
     }
 
     /** fields and methods */
-    public static class TypeComponent extends CombinedValue {
+    /*public static class TypeComponent extends CombinedValue {
         final Reference ref;
         final jdwp.PrimitiveValue<String> name;
         final jdwp.PrimitiveValue<String> signature;
@@ -184,7 +188,7 @@ public abstract class Value {
                     return keyError(key);
             }
         }
-    }
+    }*/
 
     public static class ListValue<T extends Value> extends WalkableValue<Integer> {
 
@@ -211,11 +215,21 @@ public abstract class Value {
             values.set(key, value);
         }
 
+        void add(T value) {
+            values.add(value);
+        }
+
         int size() { return values.size(); }
+
+        @Override
+        public void write(PacketStream ps) {
+            ps.writeInt(values.size());
+            values.forEach(value -> value.write(ps));
+        }
     }
 
     /** also known as array region */
-    public static class BasicListValue<T extends BasicValue<?>> extends ListValue<T> implements WritableValue {
+    public static class BasicListValue<T extends BasicValue<?>> extends ListValue<T> {
 
         protected BasicListValue(Type entryType, List<T> values) {
             super(entryType, values);
@@ -288,7 +302,8 @@ public abstract class Value {
     }
 
     /** Consists only of a single data field */
-    public static abstract class BasicValue<T> extends Value implements WritableValue {
+    @EqualsAndHashCode(callSuper = false)
+    public static abstract class BasicValue<T> extends Value {
 
         public final T value;
 

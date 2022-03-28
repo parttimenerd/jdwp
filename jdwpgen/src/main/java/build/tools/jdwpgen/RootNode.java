@@ -80,8 +80,8 @@ class RootNode extends AbstractNamedNode {
     void genJava(PrintWriter writer, int depth) {
         writer.printf("package jdwp;");
         writer.println();
-        writer.println("import com.sun.jdi.*;");
         writer.println("import java.util.*;");
+        writer.println("import static jdwp.Value.*;");
         writer.println("import static jdwp.PrimitiveValue.*;");
         writer.println();
 

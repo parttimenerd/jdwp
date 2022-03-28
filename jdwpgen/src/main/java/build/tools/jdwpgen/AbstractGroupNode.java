@@ -90,7 +90,6 @@ abstract class AbstractGroupNode extends AbstractTypeListNode {
 
     public void genJavaWrite(PrintWriter writer, int depth,
                              String writeLabel) {
-        genJavaDebugWrite(writer, depth, writeLabel, "\"\"");
         indent(writer, depth);
         writer.println(writeLabel + ".write(ps);");
     }
@@ -102,11 +101,8 @@ abstract class AbstractGroupNode extends AbstractTypeListNode {
 
     public void genJavaRead(PrintWriter writer, int depth,
                             String readLabel) {
-        genJavaDebugRead(writer, depth, readLabel, "\"\"");
         indent(writer, depth);
         writer.print(readLabel);
-        writer.print(" = new ");
-        writer.print(name());
-        writer.println("(vm, ps);");
+        writer.print(" = " + name() + ".parse(ps);");
     }
 }
