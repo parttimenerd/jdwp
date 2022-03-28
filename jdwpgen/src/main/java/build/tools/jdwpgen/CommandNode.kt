@@ -98,12 +98,12 @@ internal class CommandNode : AbstractCommandNode() {
         .flatMap { (if (it is GroupNode) listOf(it) else emptyList()) + it.findGroupNodes() }
 
     private fun genJava(out: OutNode, reply: ReplyNode, error: ErrorSetNode, onlyReads: OnlyReadsNode): String {
-        val fields = out.components.map { t: Node -> t as AbstractTypeNode }
-        val replyFields = reply.components.map { t: Node -> t as AbstractTypeNode }
-        return genRequestClass(fields, onlyReads.boolean).toString() + "\n" + genReplyClass(replyFields) + "\n"
+        return genRequestClass(out, onlyReads.boolean).toString() + "\n" + genReplyClass(reply) + "\n"
     }
 
-    fun TypeSpec.Builder.genCommon(valType: String, defaultFlag: Int, fields: List<AbstractTypeNode>): TypeSpec.Builder {
+    fun TypeSpec.Builder.genCommon(node: AbstractTypeListNode, valType: String, defaultFlag: Int, fields: List<AbstractTypeNode>): TypeSpec.Builder {
+
+        addJavadoc(node.parent.commentList.joinToString("\n"))
 
         addTypes(fields.flatMap {  it.findGroupNodes() } .map { genGroupClass(it) })
 
@@ -113,7 +113,7 @@ internal class CommandNode : AbstractCommandNode() {
         `public final field`(TypeName.SHORT, "flags");
 
         for (f in fields) {
-            `public final field`(f.javaType(), f.name)
+            `public final field`(f.javaType(), f.name) { addJavadoc(f.comment()) }
         }
 
         `public constructor`(
@@ -196,12 +196,13 @@ internal class CommandNode : AbstractCommandNode() {
         return this
     }
 
-    private fun genRequestClass(fields: List<AbstractTypeNode>, onlyReads: Boolean): TypeSpec {
+    private fun genRequestClass(out: OutNode, onlyReads: Boolean): TypeSpec {
+        val fields = out.components.map { t: Node -> t as AbstractTypeNode }
         return `public static class`(requestClassName) {
             extends("Value.CombinedValue")
             implements(pt("Request", replyClassName))
 
-            genCommon("Type.REQUEST", 0, fields)
+            genCommon(out, "Type.REQUEST", 0, fields)
 
             `public static`(
                 bg(requestClassName), "parse",
@@ -242,12 +243,13 @@ internal class CommandNode : AbstractCommandNode() {
         }
     }
 
-    private fun genReplyClass(fields: List<AbstractTypeNode>): TypeSpec {
+    private fun genReplyClass(reply: ReplyNode): TypeSpec {
+        val fields = reply.components.map { t: Node -> t as AbstractTypeNode }
         return `public static class`(replyClassName) {
             extends("Value.CombinedValue")
             implements("Reply")
 
-            genCommon("Type.REPLY", 0x8, fields)
+            genCommon(reply,"Type.REPLY", 0x8, fields)
 
             `public static`(
                 pt("ReplyOrError", replyClassName), "parse",
@@ -265,7 +267,7 @@ internal class CommandNode : AbstractCommandNode() {
                     _return("new ReplyOrError<>(ps.id(), ps.flags(), ps.errorCode())")
                 }.`else` {
                     for (f in fields) {
-                        statement(f.genJavaRead(f.javaType() + " " + f.name))
+                        addCode(f.genJavaRead(f.javaType() + " " + f.name) + ";\n")
                     }
                     statement("return new ReplyOrError<>(ps.id(), ps.flags(), new \$T(\$N))",
                         bg(replyClassName),
@@ -288,7 +290,7 @@ internal class CommandNode : AbstractCommandNode() {
             extends("Value.CombinedValue")
 
             for (f in fields) {
-                `public final field`(f.javaType(), f.name)
+                `public final field`(f.javaType(), f.name) { addJavadoc(f.comment()) }
             }
 
             `public constructor`(
