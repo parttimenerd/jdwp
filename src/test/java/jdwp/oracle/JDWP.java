@@ -46,29 +46,29 @@ public class JDWP {
             /**
              * Text information on the VM version
              */
-            final String description;
+            public final String description;
 
             /**
              * Major JDWP Version number
              */
-            final int jdwpMajor;
+            public final int jdwpMajor;
 
             /**
              * Minor JDWP Version number
              */
-            final int jdwpMinor;
+            public final int jdwpMinor;
 
             /**
              * Target VM JRE version, as in the java.version property
              */
-            final String vmVersion;
+            public final String vmVersion;
 
             /**
              * Target VM name, as in the java.vm.name property
              */
-            final String vmName;
+            public final String vmName;
 
-            private Version(VirtualMachineImpl vm, PacketStream ps) {
+            public Version(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Version"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }

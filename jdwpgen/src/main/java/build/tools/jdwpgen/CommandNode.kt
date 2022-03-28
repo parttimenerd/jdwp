@@ -126,8 +126,8 @@ internal class CommandNode : AbstractCommandNode() {
         `public constructor`(
             mutableListOf(param(TypeName.INT, "id")) +
                     fields.map { param(it.javaType(), it.name()) }) {
-            statement("this(id, (short)${defaultFlag}, \$N)",
-                fields.joinToString(", ") { it.name }
+            statement("this(\$N)",
+                (listOf("id", "(short)$defaultFlag") + fields.map { it.name }).joinToString(", ")
             )
         }
 
@@ -213,16 +213,16 @@ internal class CommandNode : AbstractCommandNode() {
                 for (f in fields) {
                     statement(f.genJavaRead(f.javaType() + " " + f.name))
                 }
-                statement("return new \$T(ps.id(), ps.flags(), \$N)",
+                statement("return new \$T(\$N)",
                     bg(requestClassName),
-                    fields.joinToString(", ") { it.name }
+                    (listOf("ps.id()", "ps.flags()") + fields.map { it.name }).joinToString(", ")
                 )
             }
 
             `public`(String::class, "toString") {
                 `@`(Override::class)
-                _return("String.format(\"$replyClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\", " +
-                        fields.joinToString(", ") { it.name } + ")");
+                _return("String.format( " +
+                        (listOf("\"$replyClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\"") + fields.map { it.name }).joinToString(", ") + ")");
             }
 
             `public`(pt("ReplyOrError", replyClassName), "parseReply", param("PacketStream", "ps")) {
@@ -262,9 +262,9 @@ internal class CommandNode : AbstractCommandNode() {
                     for (f in fields) {
                         statement(f.genJavaRead(f.javaType() + " " + f.name))
                     }
-                    statement("return new ReplyOrError<>(ps.id(), ps.flags(), new \$T(ps.id(), ps.flags(), \$N))",
+                    statement("return new ReplyOrError<>(ps.id(), ps.flags(), new \$T(\$N))",
                         bg(replyClassName),
-                        fields.joinToString(", ") { it.name }
+                        (listOf("ps.id()", "ps.flags()") + fields.map { it.name }).joinToString(", ")
                     )
                 }.end()
             }
@@ -309,12 +309,12 @@ internal class CommandNode : AbstractCommandNode() {
                                 case("${cmd.commandClassName}Request.COMMAND") {
                                     _return("${cmd.commandClassName}Request.parse(ps)")
                                 }
-                                default {
-                                    `throw new2`(
-                                        java.util.NoSuchElementException::class,
-                                        "\"Unknown command \" + ps.command()"
-                                    )
-                                }
+                            }
+                            default {
+                                `throw new2`(
+                                    java.util.NoSuchElementException::class,
+                                    "\"Unknown command \" + ps.command()"
+                                )
                             }
                             this
                         }
@@ -341,12 +341,12 @@ internal class CommandNode : AbstractCommandNode() {
                                 case("${cmdSet.name}.COMMAND_SET") {
                                     _return("${cmdSet.name}.parse(ps)")
                                 }
-                                default {
-                                    `throw new2`(
-                                        java.util.NoSuchElementException::class,
-                                        "\"Unknown command set \" + ps.commandSet()"
-                                    )
-                                }
+                            }
+                            default {
+                                `throw new2`(
+                                    java.util.NoSuchElementException::class,
+                                    "\"Unknown command set \" + ps.commandSet()"
+                                )
                             }
                             this
                         }

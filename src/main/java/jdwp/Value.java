@@ -109,6 +109,19 @@ public abstract class Value {
         protected Value keyError(Object key) {
             throw new AssertionError("Unknown key %s".formatted(key));
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (!(obj instanceof WalkableValue<?>)) {
+                return false;
+            }
+            return getKeyStream().allMatch(k -> ((WalkableValue) obj).get(k).equals(get(k)));
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getKeyStream().toArray());
+        }
     }
 
     public static abstract class CombinedValue extends WalkableValue<String> {
