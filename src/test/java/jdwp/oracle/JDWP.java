@@ -8,9 +8,9 @@ import java.util.*;
 /**
  * Java(tm) Debug Wire Protocol
  */
-class JDWP {
+public class JDWP {
 
-    static class VirtualMachine {
+    public static class VirtualMachine {
         static final int COMMAND_SET = 1;
         private VirtualMachine() {}  // hide constructor
 
@@ -18,7 +18,7 @@ class JDWP {
          * Returns the JDWP version implemented by the target VM.
          * The version string format is implementation dependent.
          */
-        static class Version {
+        public static class Version {
             static final int COMMAND = 1;
 
             static Version process(VirtualMachineImpl vm)
@@ -27,7 +27,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Version"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -103,7 +103,7 @@ class JDWP {
          * The search is confined to loaded classes only; no attempt is made
          * to load a class of the given signature.
          */
-        static class ClassesBySignature {
+        public static class ClassesBySignature {
             static final int COMMAND = 2;
 
             static ClassesBySignature process(VirtualMachineImpl vm,
@@ -113,7 +113,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                String signature) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -133,7 +133,7 @@ class JDWP {
                 return new ClassesBySignature(vm, ps);
             }
 
-            static class ClassInfo {
+            public static class ClassInfo {
 
                 /**
                  * <a href="#JDWP_TypeTag">Kind</a>
@@ -197,7 +197,7 @@ class JDWP {
          * target VM.
          * See <a href="../jvmti.html#GetLoadedClasses">JVM TI GetLoadedClasses</a>.
          */
-        static class AllClasses {
+        public static class AllClasses {
             static final int COMMAND = 3;
 
             static AllClasses process(VirtualMachineImpl vm)
@@ -206,7 +206,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.AllClasses"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -221,7 +221,7 @@ class JDWP {
                 return new AllClasses(vm, ps);
             }
 
-            static class ClassInfo {
+            public static class ClassInfo {
 
                 /**
                  * <a href="#JDWP_TypeTag">Kind</a>
@@ -298,7 +298,7 @@ class JDWP {
          * and threads that have completed their execution are not
          * included in the returned list.
          */
-        static class AllThreads {
+        public static class AllThreads {
             static final int COMMAND = 4;
 
             static AllThreads process(VirtualMachineImpl vm)
@@ -307,7 +307,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.AllThreads"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -351,7 +351,7 @@ class JDWP {
          * may be used as the first step in building a tree (or trees) of the
          * existing thread groups.
          */
-        static class TopLevelThreadGroups {
+        public static class TopLevelThreadGroups {
             static final int COMMAND = 5;
 
             static TopLevelThreadGroups process(VirtualMachineImpl vm)
@@ -360,7 +360,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.TopLevelThreadGroups"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -424,7 +424,7 @@ class JDWP {
          * this VirtualMachine (ObjectReferences, ReferenceTypes, etc.)
          * will become invalid.
          */
-        static class Dispose {
+        public static class Dispose {
             static final int COMMAND = 6;
 
             static Dispose process(VirtualMachineImpl vm)
@@ -433,7 +433,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Dispose"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -461,7 +461,7 @@ class JDWP {
          * The returned values indicate the number of bytes used by the
          * identifiers in command and reply packets.
          */
-        static class IDSizes {
+        public static class IDSizes {
             static final int COMMAND = 7;
 
             static IDSizes process(VirtualMachineImpl vm)
@@ -470,7 +470,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.IDSizes"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -549,7 +549,7 @@ class JDWP {
          * or the <a href="#JDWP_ThreadReference_Resume">thread-level resume</a> command
          * the same number of times it has been suspended.
          */
-        static class Suspend {
+        public static class Suspend {
             static final int COMMAND = 8;
 
             static Suspend process(VirtualMachineImpl vm)
@@ -558,7 +558,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Suspend"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -588,7 +588,7 @@ class JDWP {
          * counted. If a particular thread is suspended n times, it must
          * resumed n times before it will continue.
          */
-        static class Resume {
+        public static class Resume {
             static final int COMMAND = 9;
 
             static Resume process(VirtualMachineImpl vm)
@@ -597,7 +597,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Resume"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -629,7 +629,7 @@ class JDWP {
          * A thread death exception is not thrown and
          * finally blocks are not run.
          */
-        static class Exit {
+        public static class Exit {
             static final int COMMAND = 10;
 
             static Exit process(VirtualMachineImpl vm,
@@ -639,7 +639,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                int exitCode) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -671,7 +671,7 @@ class JDWP {
          * Creates a new string object in the target VM and returns
          * its id.
          */
-        static class CreateString {
+        public static class CreateString {
             static final int COMMAND = 11;
 
             static CreateString process(VirtualMachineImpl vm,
@@ -681,7 +681,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                String utf) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -725,7 +725,7 @@ class JDWP {
          * return the NOT_IMPLEMENTED error if the cabability is not
          * available.
          */
-        static class Capabilities {
+        public static class Capabilities {
             static final int COMMAND = 12;
 
             static Capabilities process(VirtualMachineImpl vm)
@@ -734,7 +734,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Capabilities"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -830,7 +830,7 @@ class JDWP {
          * If the classpath is not defined, returns an empty list. If the
          * bootclasspath is not defined returns an empty list.
          */
-        static class ClassPaths {
+        public static class ClassPaths {
             static final int COMMAND = 13;
 
             static ClassPaths process(VirtualMachineImpl vm)
@@ -839,7 +839,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.ClassPaths"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -932,10 +932,10 @@ class JDWP {
          * a back-end may use any implementation which operates
          * equivalently.
          */
-        static class DisposeObjects {
+        public static class DisposeObjects {
             static final int COMMAND = 14;
 
-            static class Request {
+            public static class Request {
 
                 /**
                  * The object ID
@@ -976,7 +976,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                Request[] requests) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -1023,7 +1023,7 @@ class JDWP {
          * command. If events are already being held, this command is
          * ignored.
          */
-        static class HoldEvents {
+        public static class HoldEvents {
             static final int COMMAND = 15;
 
             static HoldEvents process(VirtualMachineImpl vm)
@@ -1032,7 +1032,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.HoldEvents"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -1061,7 +1061,7 @@ class JDWP {
          * there is no current HoldEvents command in effect, this command is
          * ignored.
          */
-        static class ReleaseEvents {
+        public static class ReleaseEvents {
             static final int COMMAND = 16;
 
             static ReleaseEvents process(VirtualMachineImpl vm)
@@ -1070,7 +1070,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.ReleaseEvents"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -1101,7 +1101,7 @@ class JDWP {
          * available.
          * Since JDWP version 1.4.
          */
-        static class CapabilitiesNew {
+        public static class CapabilitiesNew {
             static final int COMMAND = 17;
 
             static CapabilitiesNew process(VirtualMachineImpl vm)
@@ -1110,7 +1110,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.CapabilitiesNew"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -1457,10 +1457,10 @@ class JDWP {
          * or the canUnrestrictedlyRedefineClasses capability to redefine classes in ways
          * that are normally restricted.
          */
-        static class RedefineClasses {
+        public static class RedefineClasses {
             static final int COMMAND = 18;
 
-            static class ClassDef {
+            public static class ClassDef {
 
                 /**
                  * The reference type.
@@ -1502,7 +1502,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ClassDef[] classes) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -1540,7 +1540,7 @@ class JDWP {
          * Set the default stratum. Requires canSetDefaultStratum capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class SetDefaultStratum {
+        public static class SetDefaultStratum {
             static final int COMMAND = 19;
 
             static SetDefaultStratum process(VirtualMachineImpl vm,
@@ -1550,7 +1550,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                String stratumID) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -1588,7 +1588,7 @@ class JDWP {
          * <cite>The Java Virtual Machine Specification</cite>.
          * Since JDWP version 1.5.
          */
-        static class AllClassesWithGeneric {
+        public static class AllClassesWithGeneric {
             static final int COMMAND = 20;
 
             static AllClassesWithGeneric process(VirtualMachineImpl vm)
@@ -1597,7 +1597,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.AllClassesWithGeneric"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -1612,7 +1612,7 @@ class JDWP {
                 return new AllClassesWithGeneric(vm, ps);
             }
 
-            static class ClassInfo {
+            public static class ClassInfo {
 
                 /**
                  * <a href="#JDWP_TypeTag">Kind</a>
@@ -1698,7 +1698,7 @@ class JDWP {
          * <p>Since JDWP version 1.6. Requires canGetInstanceInfo capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class InstanceCounts {
+        public static class InstanceCounts {
             static final int COMMAND = 21;
 
             static InstanceCounts process(VirtualMachineImpl vm,
@@ -1708,7 +1708,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl[] refTypesCount) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -1762,7 +1762,7 @@ class JDWP {
          * Returns all modules in the target VM.
          * <p>Since JDWP version 9.
          */
-        static class AllModules {
+        public static class AllModules {
             static final int COMMAND = 22;
 
             static AllModules process(VirtualMachineImpl vm)
@@ -1771,7 +1771,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.AllModules"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -1811,7 +1811,7 @@ class JDWP {
         }
     }
 
-    static class ReferenceType {
+    public static class ReferenceType {
         static final int COMMAND_SET = 2;
         private ReferenceType() {}  // hide constructor
 
@@ -1820,7 +1820,7 @@ class JDWP {
          * Type signature formats are the same as specified in
          * <a href="../jvmti.html#GetClassSignature">JVM TI GetClassSignature</a>.
          */
-        static class Signature {
+        public static class Signature {
             static final int COMMAND = 1;
 
             static Signature process(VirtualMachineImpl vm,
@@ -1830,7 +1830,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -1872,7 +1872,7 @@ class JDWP {
          * a given reference type. If the reference type was loaded by the
          * system class loader, the returned object ID is null.
          */
-        static class ClassLoader {
+        public static class ClassLoader {
             static final int COMMAND = 2;
 
             static ClassLoader process(VirtualMachineImpl vm,
@@ -1882,7 +1882,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -1926,7 +1926,7 @@ class JDWP {
          * a primitive class (for example, java.lang.Integer.TYPE), the
          * value of the returned bit mask is undefined.
          */
-        static class Modifiers {
+        public static class Modifiers {
             static final int COMMAND = 3;
 
             static Modifiers process(VirtualMachineImpl vm,
@@ -1936,7 +1936,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -1981,7 +1981,7 @@ class JDWP {
          * by the compiler.
          * Fields are returned in the order they occur in the class file.
          */
-        static class Fields {
+        public static class Fields {
             static final int COMMAND = 4;
 
             static Fields process(VirtualMachineImpl vm,
@@ -1991,7 +1991,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2011,7 +2011,7 @@ class JDWP {
                 return new Fields(vm, ps);
             }
 
-            static class FieldInfo {
+            public static class FieldInfo {
 
                 /**
                  * Field ID.
@@ -2092,7 +2092,7 @@ class JDWP {
          * if present, and any synthetic methods created by the compiler.
          * Methods are returned in the order they occur in the class file.
          */
-        static class Methods {
+        public static class Methods {
             static final int COMMAND = 5;
 
             static Methods process(VirtualMachineImpl vm,
@@ -2102,7 +2102,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2122,7 +2122,7 @@ class JDWP {
                 return new Methods(vm, ps);
             }
 
-            static class MethodInfo {
+            public static class MethodInfo {
 
                 /**
                  * Method ID.
@@ -2202,10 +2202,10 @@ class JDWP {
          * Access control is not enforced; for example, the values of private
          * fields can be obtained.
          */
-        static class GetValues {
+        public static class GetValues {
             static final int COMMAND = 6;
 
-            static class Field {
+            public static class Field {
 
                 /**
                  * A field to get
@@ -2232,7 +2232,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType,
                                                Field[] fields) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -2292,7 +2292,7 @@ class JDWP {
          * Returns the name of source file in which a reference type was
          * declared.
          */
-        static class SourceFile {
+        public static class SourceFile {
             static final int COMMAND = 7;
 
             static SourceFile process(VirtualMachineImpl vm,
@@ -2302,7 +2302,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2344,7 +2344,7 @@ class JDWP {
          * Returns the classes and interfaces directly nested within this type.
          * Types further nested within those types are not included.
          */
-        static class NestedTypes {
+        public static class NestedTypes {
             static final int COMMAND = 8;
 
             static NestedTypes process(VirtualMachineImpl vm,
@@ -2354,7 +2354,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2374,7 +2374,7 @@ class JDWP {
                 return new NestedTypes(vm, ps);
             }
 
-            static class TypeInfo {
+            public static class TypeInfo {
 
                 /**
                  * <a href="#JDWP_TypeTag">Kind</a>
@@ -2435,7 +2435,7 @@ class JDWP {
          * The returned status bits are undefined for array types and for
          * primitive classes (such as java.lang.Integer.TYPE).
          */
-        static class Status {
+        public static class Status {
             static final int COMMAND = 9;
 
             static Status process(VirtualMachineImpl vm,
@@ -2445,7 +2445,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2488,7 +2488,7 @@ class JDWP {
          * Interfaces indirectly implemented (extended by the implemented
          * interface or implemented by a superclass) are not included.
          */
-        static class Interfaces {
+        public static class Interfaces {
             static final int COMMAND = 10;
 
             static Interfaces process(VirtualMachineImpl vm,
@@ -2498,7 +2498,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2545,7 +2545,7 @@ class JDWP {
         /**
          * Returns the class object corresponding to this type.
          */
-        static class ClassObject {
+        public static class ClassObject {
             static final int COMMAND = 11;
 
             static ClassObject process(VirtualMachineImpl vm,
@@ -2555,7 +2555,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2597,7 +2597,7 @@ class JDWP {
          * Since JDWP version 1.4. Requires canGetSourceDebugExtension capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class SourceDebugExtension {
+        public static class SourceDebugExtension {
             static final int COMMAND = 12;
 
             static SourceDebugExtension process(VirtualMachineImpl vm,
@@ -2607,7 +2607,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2652,7 +2652,7 @@ class JDWP {
          * <cite>The Java Virtual Machine Specification</cite>.
          * Since JDWP version 1.5.
          */
-        static class SignatureWithGeneric {
+        public static class SignatureWithGeneric {
             static final int COMMAND = 13;
 
             static SignatureWithGeneric process(VirtualMachineImpl vm,
@@ -2662,7 +2662,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2721,7 +2721,7 @@ class JDWP {
          * <cite>The Java Virtual Machine Specification</cite>.
          * Since JDWP version 1.5.
          */
-        static class FieldsWithGeneric {
+        public static class FieldsWithGeneric {
             static final int COMMAND = 14;
 
             static FieldsWithGeneric process(VirtualMachineImpl vm,
@@ -2731,7 +2731,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2751,7 +2751,7 @@ class JDWP {
                 return new FieldsWithGeneric(vm, ps);
             }
 
-            static class FieldInfo {
+            public static class FieldInfo {
 
                 /**
                  * Field ID.
@@ -2847,7 +2847,7 @@ class JDWP {
          * <cite>The Java Virtual Machine Specification</cite>.
          * Since JDWP version 1.5.
          */
-        static class MethodsWithGeneric {
+        public static class MethodsWithGeneric {
             static final int COMMAND = 15;
 
             static MethodsWithGeneric process(VirtualMachineImpl vm,
@@ -2857,7 +2857,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -2877,7 +2877,7 @@ class JDWP {
                 return new MethodsWithGeneric(vm, ps);
             }
 
-            static class MethodInfo {
+            public static class MethodInfo {
 
                 /**
                  * Method ID.
@@ -2967,7 +2967,7 @@ class JDWP {
          * <p>Since JDWP version 1.6. Requires canGetInstanceInfo capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class Instances {
+        public static class Instances {
             static final int COMMAND = 16;
 
             static Instances process(VirtualMachineImpl vm,
@@ -2978,7 +2978,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType,
                                                int maxInstances) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -3032,7 +3032,7 @@ class JDWP {
          * file format of the Java Virtual Machine specification.
          * <p>Since JDWP version 1.6.
          */
-        static class ClassFileVersion {
+        public static class ClassFileVersion {
             static final int COMMAND = 17;
 
             static ClassFileVersion process(VirtualMachineImpl vm,
@@ -3042,7 +3042,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -3096,7 +3096,7 @@ class JDWP {
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          *
          */
-        static class ConstantPool {
+        public static class ConstantPool {
             static final int COMMAND = 18;
 
             static ConstantPool process(VirtualMachineImpl vm,
@@ -3106,7 +3106,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -3163,7 +3163,7 @@ class JDWP {
          * Returns the module that this reference type belongs to.
          * <p>Since JDWP version 9.
          */
-        static class Module {
+        public static class Module {
             static final int COMMAND = 19;
 
             static Module process(VirtualMachineImpl vm,
@@ -3173,7 +3173,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -3211,14 +3211,14 @@ class JDWP {
         }
     }
 
-    static class ClassType {
+    public static class ClassType {
         static final int COMMAND_SET = 3;
         private ClassType() {}  // hide constructor
 
         /**
          * Returns the immediate superclass of a class.
          */
-        static class Superclass {
+        public static class Superclass {
             static final int COMMAND = 1;
 
             static Superclass process(VirtualMachineImpl vm,
@@ -3228,7 +3228,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ClassTypeImpl clazz) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -3276,13 +3276,13 @@ class JDWP {
          * widening reference conversion from the value's type to the
          * field's type and the field's type must be loaded.
          */
-        static class SetValues {
+        public static class SetValues {
             static final int COMMAND = 2;
 
             /**
              * A Field/Value pair.
              */
-            static class FieldValue {
+            public static class FieldValue {
 
                 /**
                  * Field to set.
@@ -3319,7 +3319,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ClassTypeImpl clazz,
                                                FieldValue[] values) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -3414,7 +3414,7 @@ class JDWP {
          * If the target VM is disconnected during the invoke (for example, through
          * the VirtualMachine dispose command) the method invocation continues.
          */
-        static class InvokeMethod {
+        public static class InvokeMethod {
             static final int COMMAND = 3;
 
             static InvokeMethod process(VirtualMachineImpl vm,
@@ -3428,7 +3428,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ClassTypeImpl clazz,
                                                ThreadReferenceImpl thread,
                                                long methodID,
@@ -3554,7 +3554,7 @@ class JDWP {
          * If the target VM is disconnected during the invoke (for example, through
          * the VirtualMachine dispose command) the method invocation continues.
          */
-        static class NewInstance {
+        public static class NewInstance {
             static final int COMMAND = 4;
 
             static NewInstance process(VirtualMachineImpl vm,
@@ -3568,7 +3568,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ClassTypeImpl clazz,
                                                ThreadReferenceImpl thread,
                                                long methodID,
@@ -3642,14 +3642,14 @@ class JDWP {
         }
     }
 
-    static class ArrayType {
+    public static class ArrayType {
         static final int COMMAND_SET = 4;
         private ArrayType() {}  // hide constructor
 
         /**
          * Creates a new array object of this type with a given length.
          */
-        static class NewInstance {
+        public static class NewInstance {
             static final int COMMAND = 1;
 
             static NewInstance process(VirtualMachineImpl vm,
@@ -3660,7 +3660,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ArrayTypeImpl arrType,
                                                int length) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -3703,7 +3703,7 @@ class JDWP {
         }
     }
 
-    static class InterfaceType {
+    public static class InterfaceType {
         static final int COMMAND_SET = 5;
         private InterfaceType() {}  // hide constructor
 
@@ -3762,7 +3762,7 @@ class JDWP {
          * If the target VM is disconnected during the invoke (for example, through
          * the VirtualMachine dispose command) the method invocation continues.
          */
-        static class InvokeMethod {
+        public static class InvokeMethod {
             static final int COMMAND = 1;
 
             static InvokeMethod process(VirtualMachineImpl vm,
@@ -3776,7 +3776,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                InterfaceTypeImpl clazz,
                                                ThreadReferenceImpl thread,
                                                long methodID,
@@ -3849,7 +3849,7 @@ class JDWP {
         }
     }
 
-    static class Method {
+    public static class Method {
         static final int COMMAND_SET = 6;
         private Method() {}  // hide constructor
 
@@ -3861,7 +3861,7 @@ class JDWP {
          * information is constant unless a new class definition is installed
          * using <a href="#JDWP_VirtualMachine_RedefineClasses">RedefineClasses</a>.
          */
-        static class LineTable {
+        public static class LineTable {
             static final int COMMAND = 1;
 
             static LineTable process(VirtualMachineImpl vm,
@@ -3872,7 +3872,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType,
                                                long methodID) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -3897,7 +3897,7 @@ class JDWP {
                 return new LineTable(vm, ps);
             }
 
-            static class LineInfo {
+            public static class LineInfo {
 
                 /**
                  * Initial code index of the line,
@@ -3970,7 +3970,7 @@ class JDWP {
          * instance methods, the "this" reference is included in the
          * table. Also, synthetic variables may be present.
          */
-        static class VariableTable {
+        public static class VariableTable {
             static final int COMMAND = 2;
 
             static VariableTable process(VirtualMachineImpl vm,
@@ -3981,7 +3981,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType,
                                                long methodID) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -4009,7 +4009,7 @@ class JDWP {
             /**
              * Information about the variable.
              */
-            static class SlotInfo {
+            public static class SlotInfo {
 
                 /**
                  * First code index at which the variable is visible (unsigned).
@@ -4105,7 +4105,7 @@ class JDWP {
          * Requires canGetBytecodes capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class Bytecodes {
+        public static class Bytecodes {
             static final int COMMAND = 3;
 
             static Bytecodes process(VirtualMachineImpl vm,
@@ -4116,7 +4116,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType,
                                                long methodID) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -4170,7 +4170,7 @@ class JDWP {
          * the same except for indices into the constant pool and the referenced constants are
          * equal.
          */
-        static class IsObsolete {
+        public static class IsObsolete {
             static final int COMMAND = 4;
 
             static IsObsolete process(VirtualMachineImpl vm,
@@ -4181,7 +4181,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType,
                                                long methodID) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -4236,7 +4236,7 @@ class JDWP {
          * <cite>The Java Virtual Machine Specification</cite>.
          * Since JDWP version 1.5.
          */
-        static class VariableTableWithGeneric {
+        public static class VariableTableWithGeneric {
             static final int COMMAND = 5;
 
             static VariableTableWithGeneric process(VirtualMachineImpl vm,
@@ -4247,7 +4247,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ReferenceTypeImpl refType,
                                                long methodID) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -4275,7 +4275,7 @@ class JDWP {
             /**
              * Information about the variable.
              */
-            static class SlotInfo {
+            public static class SlotInfo {
 
                 /**
                  * First code index at which the variable is visible (unsigned).
@@ -4376,12 +4376,12 @@ class JDWP {
         }
     }
 
-    static class Field {
+    public static class Field {
         static final int COMMAND_SET = 8;
         private Field() {}  // hide constructor
     }
 
-    static class ObjectReference {
+    public static class ObjectReference {
         static final int COMMAND_SET = 9;
         private ObjectReference() {}  // hide constructor
 
@@ -4389,7 +4389,7 @@ class JDWP {
          * Returns the runtime type of the object.
          * The runtime type will be a class or an array.
          */
-        static class ReferenceType {
+        public static class ReferenceType {
             static final int COMMAND = 1;
 
             static ReferenceType process(VirtualMachineImpl vm,
@@ -4399,7 +4399,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -4453,10 +4453,10 @@ class JDWP {
          * Access control is not enforced; for example, the values of private
          * fields can be obtained.
          */
-        static class GetValues {
+        public static class GetValues {
             static final int COMMAND = 2;
 
-            static class Field {
+            public static class Field {
 
                 /**
                  * Field to get.
@@ -4483,7 +4483,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object,
                                                Field[] fields) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -4552,13 +4552,13 @@ class JDWP {
          * widening reference conversion from the value's type to the
          * field's type and the field's type must be loaded.
          */
-        static class SetValues {
+        public static class SetValues {
             static final int COMMAND = 3;
 
             /**
              * A Field/Value pair.
              */
-            static class FieldValue {
+            public static class FieldValue {
 
                 /**
                  * Field to set.
@@ -4595,7 +4595,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object,
                                                FieldValue[] values) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -4640,7 +4640,7 @@ class JDWP {
          * Requires canGetMonitorInfo capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class MonitorInfo {
+        public static class MonitorInfo {
             static final int COMMAND = 5;
 
             static MonitorInfo process(VirtualMachineImpl vm,
@@ -4650,7 +4650,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -4769,7 +4769,7 @@ class JDWP {
          * If the target VM is disconnected during the invoke (for example, through
          * the VirtualMachine dispose command) the method invocation continues.
          */
-        static class InvokeMethod {
+        public static class InvokeMethod {
             static final int COMMAND = 6;
 
             static InvokeMethod process(VirtualMachineImpl vm,
@@ -4784,7 +4784,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object,
                                                ThreadReferenceImpl thread,
                                                ClassTypeImpl clazz,
@@ -4882,7 +4882,7 @@ class JDWP {
          * consequently, may result in application behavior under the
          * debugger that differs from its non-debugged behavior.
          */
-        static class DisableCollection {
+        public static class DisableCollection {
             static final int COMMAND = 7;
 
             static DisableCollection process(VirtualMachineImpl vm,
@@ -4892,7 +4892,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -4928,7 +4928,7 @@ class JDWP {
          * the <a href="#JDWP_ObjectReference_DisableCollection">DisableCollection</a>
          * command.
          */
-        static class EnableCollection {
+        public static class EnableCollection {
             static final int COMMAND = 8;
 
             static EnableCollection process(VirtualMachineImpl vm,
@@ -4938,7 +4938,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -4970,7 +4970,7 @@ class JDWP {
          * Determines whether an object has been garbage collected in the
          * target VM.
          */
-        static class IsCollected {
+        public static class IsCollected {
             static final int COMMAND = 9;
 
             static IsCollected process(VirtualMachineImpl vm,
@@ -4980,7 +4980,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5027,7 +5027,7 @@ class JDWP {
          * <p>Since JDWP version 1.6. Requires canGetInstanceInfo capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class ReferringObjects {
+        public static class ReferringObjects {
             static final int COMMAND = 10;
 
             static ReferringObjects process(VirtualMachineImpl vm,
@@ -5038,7 +5038,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl object,
                                                int maxReferrers) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -5088,14 +5088,14 @@ class JDWP {
         }
     }
 
-    static class StringReference {
+    public static class StringReference {
         static final int COMMAND_SET = 10;
         private StringReference() {}  // hide constructor
 
         /**
          * Returns the characters contained in the string.
          */
-        static class Value {
+        public static class Value {
             static final int COMMAND = 1;
 
             static Value process(VirtualMachineImpl vm,
@@ -5105,7 +5105,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ObjectReferenceImpl stringObject) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5143,14 +5143,14 @@ class JDWP {
         }
     }
 
-    static class ThreadReference {
+    public static class ThreadReference {
         static final int COMMAND_SET = 11;
         private ThreadReference() {}  // hide constructor
 
         /**
          * Returns the thread name.
          */
-        static class Name {
+        public static class Name {
             static final int COMMAND = 1;
 
             static Name process(VirtualMachineImpl vm,
@@ -5160,7 +5160,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5184,9 +5184,9 @@ class JDWP {
             /**
              * The thread name.
              */
-            final String threadName;
+            public final String threadName;
 
-            private Name(VirtualMachineImpl vm, PacketStream ps) {
+            public Name(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.ThreadReference.Name"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -5221,7 +5221,7 @@ class JDWP {
          * For example, if it was
          * Running, it will still appear running to other threads.
          */
-        static class Suspend {
+        public static class Suspend {
             static final int COMMAND = 2;
 
             static Suspend process(VirtualMachineImpl vm,
@@ -5231,7 +5231,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5267,7 +5267,7 @@ class JDWP {
          * decremented. If it is decremented to 0, the thread will
          * continue to execute.
          */
-        static class Resume {
+        public static class Resume {
             static final int COMMAND = 3;
 
             static Resume process(VirtualMachineImpl vm,
@@ -5277,7 +5277,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5311,7 +5311,7 @@ class JDWP {
          * the suspend status provides information on the thread's
          * suspension, if any.
          */
-        static class Status {
+        public static class Status {
             static final int COMMAND = 4;
 
             static Status process(VirtualMachineImpl vm,
@@ -5321,7 +5321,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5372,7 +5372,7 @@ class JDWP {
         /**
          * Returns the thread group that contains a given thread.
          */
-        static class ThreadGroup {
+        public static class ThreadGroup {
             static final int COMMAND = 5;
 
             static ThreadGroup process(VirtualMachineImpl vm,
@@ -5382,7 +5382,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5426,7 +5426,7 @@ class JDWP {
          * and so on. The thread must be suspended, and the returned
          * frameID is valid only while the thread is suspended.
          */
-        static class Frames {
+        public static class Frames {
             static final int COMMAND = 6;
 
             static Frames process(VirtualMachineImpl vm,
@@ -5438,7 +5438,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread,
                                                int startFrame,
                                                int length) {
@@ -5468,7 +5468,7 @@ class JDWP {
                 return new Frames(vm, ps);
             }
 
-            static class Frame {
+            public static class Frame {
 
                 /**
                  * The ID of this frame.
@@ -5522,7 +5522,7 @@ class JDWP {
          * count is valid only while the thread is suspended.
          * Returns JDWP.Error.errorThreadNotSuspended if not suspended.
          */
-        static class FrameCount {
+        public static class FrameCount {
             static final int COMMAND = 7;
 
             static FrameCount process(VirtualMachineImpl vm,
@@ -5532,7 +5532,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5576,7 +5576,7 @@ class JDWP {
          * Requires canGetOwnedMonitorInfo capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class OwnedMonitors {
+        public static class OwnedMonitors {
             static final int COMMAND = 8;
 
             static OwnedMonitors process(VirtualMachineImpl vm,
@@ -5586,7 +5586,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5640,7 +5640,7 @@ class JDWP {
          * Requires canGetCurrentContendedMonitor capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class CurrentContendedMonitor {
+        public static class CurrentContendedMonitor {
             static final int COMMAND = 9;
 
             static CurrentContendedMonitor process(VirtualMachineImpl vm,
@@ -5650,7 +5650,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5691,7 +5691,7 @@ class JDWP {
         /**
          * Stops the thread with an asynchronous exception.
          */
-        static class Stop {
+        public static class Stop {
             static final int COMMAND = 10;
 
             static Stop process(VirtualMachineImpl vm,
@@ -5702,7 +5702,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread,
                                                ObjectReferenceImpl throwable) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -5738,7 +5738,7 @@ class JDWP {
         /**
          * Interrupt the thread, as if done by java.lang.Thread.interrupt
          */
-        static class Interrupt {
+        public static class Interrupt {
             static final int COMMAND = 11;
 
             static Interrupt process(VirtualMachineImpl vm,
@@ -5748,7 +5748,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5781,7 +5781,7 @@ class JDWP {
          * number of times the thread has been suspended through the
          * thread-level or VM-level suspend commands without a corresponding resume
          */
-        static class SuspendCount {
+        public static class SuspendCount {
             static final int COMMAND = 12;
 
             static SuspendCount process(VirtualMachineImpl vm,
@@ -5791,7 +5791,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5839,7 +5839,7 @@ class JDWP {
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          * <p>Since JDWP version 1.6.
          */
-        static class OwnedMonitorsStackDepthInfo {
+        public static class OwnedMonitorsStackDepthInfo {
             static final int COMMAND = 13;
 
             static OwnedMonitorsStackDepthInfo process(VirtualMachineImpl vm,
@@ -5849,7 +5849,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -5869,7 +5869,7 @@ class JDWP {
                 return new OwnedMonitorsStackDepthInfo(vm, ps);
             }
 
-            static class monitor {
+            public static class monitor {
 
                 /**
                  * An owned monitor
@@ -5960,7 +5960,7 @@ class JDWP {
          * Since JDWP version 1.6. Requires canForceEarlyReturn capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class ForceEarlyReturn {
+        public static class ForceEarlyReturn {
             static final int COMMAND = 14;
 
             static ForceEarlyReturn process(VirtualMachineImpl vm,
@@ -5971,7 +5971,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread,
                                                ValueImpl value) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -6005,14 +6005,14 @@ class JDWP {
         }
     }
 
-    static class ThreadGroupReference {
+    public static class ThreadGroupReference {
         static final int COMMAND_SET = 12;
         private ThreadGroupReference() {}  // hide constructor
 
         /**
          * Returns the thread group name.
          */
-        static class Name {
+        public static class Name {
             static final int COMMAND = 1;
 
             static Name process(VirtualMachineImpl vm,
@@ -6022,7 +6022,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadGroupReferenceImpl group) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -6062,7 +6062,7 @@ class JDWP {
         /**
          * Returns the thread group, if any, which contains a given thread group.
          */
-        static class Parent {
+        public static class Parent {
             static final int COMMAND = 2;
 
             static Parent process(VirtualMachineImpl vm,
@@ -6072,7 +6072,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadGroupReferenceImpl group) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -6119,7 +6119,7 @@ class JDWP {
          * See <a href=../../api/java.base/java/lang/ThreadGroup.html>java.lang.ThreadGroup </a>
          * for information about active ThreadGroups.
          */
-        static class Children {
+        public static class Children {
             static final int COMMAND = 3;
 
             static Children process(VirtualMachineImpl vm,
@@ -6129,7 +6129,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadGroupReferenceImpl group) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -6190,14 +6190,14 @@ class JDWP {
         }
     }
 
-    static class ArrayReference {
+    public static class ArrayReference {
         static final int COMMAND_SET = 13;
         private ArrayReference() {}  // hide constructor
 
         /**
          * Returns the number of components in a given array.
          */
-        static class Length {
+        public static class Length {
             static final int COMMAND = 1;
 
             static Length process(VirtualMachineImpl vm,
@@ -6207,7 +6207,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ArrayReferenceImpl arrayObject) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -6248,7 +6248,7 @@ class JDWP {
          * Returns a range of array components. The specified range must
          * be within the bounds of the array.
          */
-        static class GetValues {
+        public static class GetValues {
             static final int COMMAND = 2;
 
             static GetValues process(VirtualMachineImpl vm,
@@ -6260,7 +6260,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ArrayReferenceImpl arrayObject,
                                                int firstIndex,
                                                int length) {
@@ -6317,7 +6317,7 @@ class JDWP {
          * widening reference conversion from the value's type to the
          * array component type and the array component type must be loaded.
          */
-        static class SetValues {
+        public static class SetValues {
             static final int COMMAND = 3;
 
             static SetValues process(VirtualMachineImpl vm,
@@ -6329,7 +6329,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ArrayReferenceImpl arrayObject,
                                                int firstIndex,
                                                ValueImpl[] values) {
@@ -6374,7 +6374,7 @@ class JDWP {
         }
     }
 
-    static class ClassLoaderReference {
+    public static class ClassLoaderReference {
         static final int COMMAND_SET = 14;
         private ClassLoaderReference() {}  // hide constructor
 
@@ -6397,7 +6397,7 @@ class JDWP {
          * <p>
          * See <a href="../jvmti.html#GetClassLoaderClasses">JVM TI GetClassLoaderClasses</a>.
          */
-        static class VisibleClasses {
+        public static class VisibleClasses {
             static final int COMMAND = 1;
 
             static VisibleClasses process(VirtualMachineImpl vm,
@@ -6407,7 +6407,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ClassLoaderReferenceImpl classLoaderObject) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -6427,7 +6427,7 @@ class JDWP {
                 return new VisibleClasses(vm, ps);
             }
 
-            static class ClassInfo {
+            public static class ClassInfo {
 
                 /**
                  * <a href="#JDWP_TypeTag">Kind</a>
@@ -6477,7 +6477,7 @@ class JDWP {
         }
     }
 
-    static class EventRequest {
+    public static class EventRequest {
         static final int COMMAND_SET = 15;
         private EventRequest() {}  // hide constructor
 
@@ -6489,11 +6489,11 @@ class JDWP {
          * the VM Death Event which are automatically generated events - see
          * <a href="#JDWP_Event_Composite">Composite Command</a> for further details.
          */
-        static class Set {
+        public static class Set {
             static final int COMMAND = 1;
 
-            static class Modifier {
-                abstract static class ModifierCommon {
+            public static class Modifier {
+                abstract public static class ModifierCommon {
                     abstract void write(PacketStream ps);
                 }
 
@@ -6529,7 +6529,7 @@ class JDWP {
                  * this request.
                  * This modifier can be used with any event kind.
                  */
-                static class Count extends ModifierCommon {
+                public static class Count extends ModifierCommon {
                     static final byte ALT_ID = 1;
                     static Modifier create(int count) {
                         return new Modifier(ALT_ID, new Count(count));
@@ -6555,7 +6555,7 @@ class JDWP {
                 /**
                  * Conditional on expression
                  */
-                static class Conditional extends ModifierCommon {
+                public static class Conditional extends ModifierCommon {
                     static final byte ALT_ID = 2;
                     static Modifier create(int exprID) {
                         return new Modifier(ALT_ID, new Conditional(exprID));
@@ -6584,7 +6584,7 @@ class JDWP {
                  * This modifier can be used with any event kind
                  * except for class unload.
                  */
-                static class ThreadOnly extends ModifierCommon {
+                public static class ThreadOnly extends ModifierCommon {
                     static final byte ALT_ID = 3;
                     static Modifier create(ThreadReferenceImpl thread) {
                         return new Modifier(ALT_ID, new ThreadOnly(thread));
@@ -6622,7 +6622,7 @@ class JDWP {
                  * This modifier can be used with any event kind except
                  * class unload, thread start, and thread end.
                  */
-                static class ClassOnly extends ModifierCommon {
+                public static class ClassOnly extends ModifierCommon {
                     static final byte ALT_ID = 4;
                     static Modifier create(ReferenceTypeImpl clazz) {
                         return new Modifier(ALT_ID, new ClassOnly(clazz));
@@ -6657,7 +6657,7 @@ class JDWP {
                  * This modifier can be used with any event kind except
                  * thread start and thread end.
                  */
-                static class ClassMatch extends ModifierCommon {
+                public static class ClassMatch extends ModifierCommon {
                     static final byte ALT_ID = 5;
                     static Modifier create(String classPattern) {
                         return new Modifier(ALT_ID, new ClassMatch(classPattern));
@@ -6696,7 +6696,7 @@ class JDWP {
                  * This modifier can be used with any event kind except
                  * thread start and thread end.
                  */
-                static class ClassExclude extends ModifierCommon {
+                public static class ClassExclude extends ModifierCommon {
                     static final byte ALT_ID = 6;
                     static Modifier create(String classPattern) {
                         return new Modifier(ALT_ID, new ClassExclude(classPattern));
@@ -6730,7 +6730,7 @@ class JDWP {
                  * breakpoint, field access, field modification,
                  * step, and exception event kinds.
                  */
-                static class LocationOnly extends ModifierCommon {
+                public static class LocationOnly extends ModifierCommon {
                     static final byte ALT_ID = 7;
                     static Modifier create(Location loc) {
                         return new Modifier(ALT_ID, new LocationOnly(loc));
@@ -6759,7 +6759,7 @@ class JDWP {
                  * This modifier can be used with
                  * exception event kinds only.
                  */
-                static class ExceptionOnly extends ModifierCommon {
+                public static class ExceptionOnly extends ModifierCommon {
                     static final byte ALT_ID = 8;
                     static Modifier create(ReferenceTypeImpl exceptionOrNull, boolean caught, boolean uncaught) {
                         return new Modifier(ALT_ID, new ExceptionOnly(exceptionOrNull, caught, uncaught));
@@ -6818,7 +6818,7 @@ class JDWP {
                  * This modifier can be used with
                  * field access and field modification event kinds only.
                  */
-                static class FieldOnly extends ModifierCommon {
+                public static class FieldOnly extends ModifierCommon {
                     static final byte ALT_ID = 9;
                     static Modifier create(ReferenceTypeImpl declaring, long fieldID) {
                         return new Modifier(ALT_ID, new FieldOnly(declaring, fieldID));
@@ -6858,7 +6858,7 @@ class JDWP {
                  * This modifier can be used with
                  * step event kinds only.
                  */
-                static class Step extends ModifierCommon {
+                public static class Step extends ModifierCommon {
                     static final byte ALT_ID = 10;
                     static Modifier create(ThreadReferenceImpl thread, int size, int depth) {
                         return new Modifier(ALT_ID, new Step(thread, size, depth));
@@ -6911,7 +6911,7 @@ class JDWP {
                  * except class prepare, class unload, thread start,
                  * and thread end. Introduced in JDWP version 1.4.
                  */
-                static class InstanceOnly extends ModifierCommon {
+                public static class InstanceOnly extends ModifierCommon {
                     static final byte ALT_ID = 11;
                     static Modifier create(ObjectReferenceImpl instance) {
                         return new Modifier(ALT_ID, new InstanceOnly(instance));
@@ -6947,7 +6947,7 @@ class JDWP {
                  * capability - see
                  * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
                  */
-                static class SourceNameMatch extends ModifierCommon {
+                public static class SourceNameMatch extends ModifierCommon {
                     static final byte ALT_ID = 12;
                     static Modifier create(String sourceNamePattern) {
                         return new Modifier(ALT_ID, new SourceNameMatch(sourceNamePattern));
@@ -6984,7 +6984,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                byte eventKind,
                                                byte suspendPolicy,
                                                Modifier[] modifiers) {
@@ -7045,7 +7045,7 @@ class JDWP {
          * generated events do not have a corresponding event request and may not be cleared
          * using this command.
          */
-        static class Clear {
+        public static class Clear {
             static final int COMMAND = 2;
 
             static Clear process(VirtualMachineImpl vm,
@@ -7056,7 +7056,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                byte eventKind,
                                                int requestID) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -7092,7 +7092,7 @@ class JDWP {
         /**
          * Removes all set breakpoints, a no-op if there are no breakpoints set.
          */
-        static class ClearAllBreakpoints {
+        public static class ClearAllBreakpoints {
             static final int COMMAND = 3;
 
             static ClearAllBreakpoints process(VirtualMachineImpl vm)
@@ -7101,7 +7101,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm) {
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
                     vm.printTrace("Sending Command(id=" + ps.pkt.id + ") JDWP.EventRequest.ClearAllBreakpoints"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:""));
@@ -7125,7 +7125,7 @@ class JDWP {
         }
     }
 
-    static class StackFrame {
+    public static class StackFrame {
         static final int COMMAND_SET = 16;
         private StackFrame() {}  // hide constructor
 
@@ -7138,10 +7138,10 @@ class JDWP {
          * index can be determined for method arguments from the method
          * signature without access to the local variable table information.)
          */
-        static class GetValues {
+        public static class GetValues {
             static final int COMMAND = 1;
 
-            static class SlotInfo {
+            public static class SlotInfo {
 
                 /**
                  * The local variable's index in the frame.
@@ -7180,7 +7180,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread,
                                                long frame,
                                                SlotInfo[] slots) {
@@ -7255,10 +7255,10 @@ class JDWP {
          * index can be determined for method arguments from the method
          * signature without access to the local variable table information.)
          */
-        static class SetValues {
+        public static class SetValues {
             static final int COMMAND = 2;
 
-            static class SlotInfo {
+            public static class SlotInfo {
 
                 /**
                  * The slot ID.
@@ -7296,7 +7296,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread,
                                                long frame,
                                                SlotInfo[] slotValues) {
@@ -7345,7 +7345,7 @@ class JDWP {
          * If the frame's method is static or native, the reply
          * will contain the null object reference.
          */
-        static class ThisObject {
+        public static class ThisObject {
             static final int COMMAND = 3;
 
             static ThisObject process(VirtualMachineImpl vm,
@@ -7356,7 +7356,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread,
                                                long frame) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -7410,7 +7410,7 @@ class JDWP {
          * Since JDWP version 1.4. Requires canPopFrames capability - see
          * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
          */
-        static class PopFrames {
+        public static class PopFrames {
             static final int COMMAND = 4;
 
             static PopFrames process(VirtualMachineImpl vm,
@@ -7421,7 +7421,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ThreadReferenceImpl thread,
                                                long frame) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
@@ -7455,14 +7455,14 @@ class JDWP {
         }
     }
 
-    static class ClassObjectReference {
+    public static class ClassObjectReference {
         static final int COMMAND_SET = 17;
         private ClassObjectReference() {}  // hide constructor
 
         /**
          * Returns the reference type reflected by this class object.
          */
-        static class ReflectedType {
+        public static class ReflectedType {
             static final int COMMAND = 1;
 
             static ReflectedType process(VirtualMachineImpl vm,
@@ -7472,7 +7472,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ClassObjectReferenceImpl classObject) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -7520,7 +7520,7 @@ class JDWP {
         }
     }
 
-    static class ModuleReference {
+    public static class ModuleReference {
         static final int COMMAND_SET = 18;
         private ModuleReference() {}  // hide constructor
 
@@ -7528,7 +7528,7 @@ class JDWP {
          * Returns the name of this module.
          * <p>Since JDWP version 9.
          */
-        static class Name {
+        public static class Name {
             static final int COMMAND = 1;
 
             static Name process(VirtualMachineImpl vm,
@@ -7538,7 +7538,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ModuleReferenceImpl module) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -7579,7 +7579,7 @@ class JDWP {
          * Returns the class loader of this module.
          * <p>Since JDWP version 9.
          */
-        static class ClassLoader {
+        public static class ClassLoader {
             static final int COMMAND = 2;
 
             static ClassLoader process(VirtualMachineImpl vm,
@@ -7589,7 +7589,7 @@ class JDWP {
                 return waitForReply(vm, ps);
             }
 
-            static PacketStream enqueueCommand(VirtualMachineImpl vm,
+            public static PacketStream enqueueCommand(VirtualMachineImpl vm,
                                                ModuleReferenceImpl module) {
                 PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND);
                 if ((vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {
@@ -7627,7 +7627,7 @@ class JDWP {
         }
     }
 
-    static class Event {
+    public static class Event {
         static final int COMMAND_SET = 64;
         private Event() {}  // hide constructor
 
@@ -7717,11 +7717,11 @@ class JDWP {
          * The automatically generated VM Death Event will have the suspendPolicy set to
          * NONE.
          */
-        static class Composite {
+        public static class Composite {
             static final int COMMAND = 100;
 
-            static class Events {
-                abstract static class EventsCommon {
+            public static class Events {
+                abstract public static class EventsCommon {
                     abstract byte eventKind();
                 }
 
@@ -7803,7 +7803,7 @@ class JDWP {
                  * This event is always generated by the target VM, even
                  * if not explicitly requested.
                  */
-                static class VMStart extends EventsCommon {
+                public static class VMStart extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.VM_START;
                     byte eventKind() {
                         return ALT_ID;
@@ -7836,7 +7836,7 @@ class JDWP {
                  * Notification of step completion in the target VM. The step event
                  * is generated before the code at its location is executed.
                  */
-                static class SingleStep extends EventsCommon {
+                public static class SingleStep extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.SINGLE_STEP;
                     byte eventKind() {
                         return ALT_ID;
@@ -7877,7 +7877,7 @@ class JDWP {
                  * Notification of a breakpoint in the target VM. The breakpoint event
                  * is generated before the code at its location is executed.
                  */
-                static class Breakpoint extends EventsCommon {
+                public static class Breakpoint extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.BREAKPOINT;
                     byte eventKind() {
                         return ALT_ID;
@@ -7924,7 +7924,7 @@ class JDWP {
                  * before its thread start event occurs if methods are called
                  * as part of the thread's initialization.
                  */
-                static class MethodEntry extends EventsCommon {
+                public static class MethodEntry extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.METHOD_ENTRY;
                     byte eventKind() {
                         return ALT_ID;
@@ -7969,7 +7969,7 @@ class JDWP {
                  * methods. Method exit events are not generated if the method terminates
                  * with a thrown exception.
                  */
-                static class MethodExit extends EventsCommon {
+                public static class MethodExit extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.METHOD_EXIT;
                     byte eventKind() {
                         return ALT_ID;
@@ -8014,7 +8014,7 @@ class JDWP {
                  * methods. Method exit events are not generated if the method terminates
                  * with a thrown exception. <p>Since JDWP version 1.6.
                  */
-                static class MethodExitWithReturnValue extends EventsCommon {
+                public static class MethodExitWithReturnValue extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.METHOD_EXIT_WITH_RETURN_VALUE;
                     byte eventKind() {
                         return ALT_ID;
@@ -8067,7 +8067,7 @@ class JDWP {
                  * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
                  * <p>Since JDWP version 1.6.
                  */
-                static class MonitorContendedEnter extends EventsCommon {
+                public static class MonitorContendedEnter extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.MONITOR_CONTENDED_ENTER;
                     byte eventKind() {
                         return ALT_ID;
@@ -8120,7 +8120,7 @@ class JDWP {
                  * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
                  * <p>Since JDWP version 1.6.
                  */
-                static class MonitorContendedEntered extends EventsCommon {
+                public static class MonitorContendedEntered extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.MONITOR_CONTENDED_ENTERED;
                     byte eventKind() {
                         return ALT_ID;
@@ -8172,7 +8172,7 @@ class JDWP {
                  * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
                  * <p>Since JDWP version 1.6.
                  */
-                static class MonitorWait extends EventsCommon {
+                public static class MonitorWait extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.MONITOR_WAIT;
                     byte eventKind() {
                         return ALT_ID;
@@ -8234,7 +8234,7 @@ class JDWP {
                  * a monitor object.
                  * <p>Since JDWP version 1.6.
                  */
-                static class MonitorWaited extends EventsCommon {
+                public static class MonitorWaited extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.MONITOR_WAITED;
                     byte eventKind() {
                         return ALT_ID;
@@ -8298,7 +8298,7 @@ class JDWP {
                  * is generated at the first non-native location reached after the exception
                  * is thrown.
                  */
-                static class Exception extends EventsCommon {
+                public static class Exception extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.EXCEPTION;
                     byte eventKind() {
                         return ALT_ID;
@@ -8402,7 +8402,7 @@ class JDWP {
                  * about the creation of the thread object which may have happened
                  * much earlier, depending on the VM being debugged.
                  */
-                static class ThreadStart extends EventsCommon {
+                public static class ThreadStart extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.THREAD_START;
                     byte eventKind() {
                         return ALT_ID;
@@ -8441,7 +8441,7 @@ class JDWP {
                  * about the lifetime of the thread object. It may or may not be collected
                  * soon depending on what references exist in the target VM.
                  */
-                static class ThreadDeath extends EventsCommon {
+                public static class ThreadDeath extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.THREAD_DEATH;
                     byte eventKind() {
                         return ALT_ID;
@@ -8475,7 +8475,7 @@ class JDWP {
                  * events are not generated for primtiive classes (for example,
                  * java.lang.Integer.TYPE).
                  */
-                static class ClassPrepare extends EventsCommon {
+                public static class ClassPrepare extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.CLASS_PREPARE;
                     byte eventKind() {
                         return ALT_ID;
@@ -8561,7 +8561,7 @@ class JDWP {
                  * There are severe constraints on the debugger back-end during
                  * garbage collection, so unload information is greatly limited.
                  */
-                static class ClassUnload extends EventsCommon {
+                public static class ClassUnload extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.CLASS_UNLOAD;
                     byte eventKind() {
                         return ALT_ID;
@@ -8596,7 +8596,7 @@ class JDWP {
                  * Requires canWatchFieldAccess capability - see
                  * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
                  */
-                static class FieldAccess extends EventsCommon {
+                public static class FieldAccess extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.FIELD_ACCESS;
                     byte eventKind() {
                         return ALT_ID;
@@ -8675,7 +8675,7 @@ class JDWP {
                  * Requires canWatchFieldModification capability - see
                  * <a href="#JDWP_VirtualMachine_CapabilitiesNew">CapabilitiesNew</a>.
                  */
-                static class FieldModification extends EventsCommon {
+                public static class FieldModification extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.FIELD_MODIFICATION;
                     byte eventKind() {
                         return ALT_ID;
@@ -8758,7 +8758,7 @@ class JDWP {
                     }
                 }
 
-                static class VMDeath extends EventsCommon {
+                public static class VMDeath extends EventsCommon {
                     static final byte ALT_ID = JDWP.EventKind.VM_DEATH;
                     byte eventKind() {
                         return ALT_ID;
@@ -8812,7 +8812,7 @@ class JDWP {
         }
     }
 
-    static class Error {
+    public static class Error {
         static final int NONE = 0;
         static final int INVALID_THREAD = 10;
         static final int INVALID_THREAD_GROUP = 11;
@@ -8874,7 +8874,7 @@ class JDWP {
         static final int INVALID_COUNT = 512;
     }
 
-    static class EventKind {
+    public static class EventKind {
         static final int SINGLE_STEP = 1;
         static final int BREAKPOINT = 2;
         static final int FRAME_POP = 3;
@@ -8902,7 +8902,7 @@ class JDWP {
         static final int VM_DISCONNECTED = 100;
     }
 
-    static class ThreadStatus {
+    public static class ThreadStatus {
         static final int ZOMBIE = 0;
         static final int RUNNING = 1;
         static final int SLEEPING = 2;
@@ -8910,24 +8910,24 @@ class JDWP {
         static final int WAIT = 4;
     }
 
-    static class SuspendStatus {
+    public static class SuspendStatus {
         static final int SUSPEND_STATUS_SUSPENDED = 0x1;
     }
 
-    static class ClassStatus {
+    public static class ClassStatus {
         static final int VERIFIED = 1;
         static final int PREPARED = 2;
         static final int INITIALIZED = 4;
         static final int ERROR = 8;
     }
 
-    static class TypeTag {
+    public static class TypeTag {
         static final int CLASS = 1;
         static final int INTERFACE = 2;
         static final int ARRAY = 3;
     }
 
-    static class Tag {
+    public static class Tag {
         static final int ARRAY = 91;
         static final int BYTE = 66;
         static final int CHAR = 67;
@@ -8946,18 +8946,18 @@ class JDWP {
         static final int CLASS_OBJECT = 99;
     }
 
-    static class StepDepth {
+    public static class StepDepth {
         static final int INTO = 0;
         static final int OVER = 1;
         static final int OUT = 2;
     }
 
-    static class StepSize {
+    public static class StepSize {
         static final int MIN = 0;
         static final int LINE = 1;
     }
 
-    static class SuspendPolicy {
+    public static class SuspendPolicy {
         static final int NONE = 0;
         static final int EVENT_THREAD = 1;
         static final int ALL = 2;
@@ -8966,7 +8966,7 @@ class JDWP {
     /**
      * The invoke options are a combination of zero or more of the following bit flags:
      */
-    static class InvokeOptions {
+    public static class InvokeOptions {
         static final int INVOKE_SINGLE_THREADED = 0x01;
         static final int INVOKE_NONVIRTUAL = 0x02;
     }

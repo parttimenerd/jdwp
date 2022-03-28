@@ -50,10 +50,14 @@ import com.sun.jdi.VirtualMachine;
 public class ObjectReferenceImpl extends ValueImpl
              implements ObjectReference, VMListener
 {
-    protected long ref;
+    public long ref;
     private ReferenceType type = null;
     private int gcDisableCount = 0;
     boolean addedListener = false;
+
+    public ObjectReferenceImpl() {
+        super(null);
+    }
 
     // This is cached only while the VM is suspended
     protected static class Cache {

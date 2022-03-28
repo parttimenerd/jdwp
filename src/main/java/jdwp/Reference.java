@@ -1,15 +1,13 @@
 package jdwp;
 
-import com.sun.jdi.StringReference;
 import jdwp.JDWP.Tag;
 import jdwp.JDWP.TypeTag;
 import jdwp.Value.BasicValue;
 import jdwp.Value.WritableValue;
-import jdwp.old.Field;
-import jdwp.old.JDWP.TypeTag;
-import jdwp.old.Method;
+import lombok.EqualsAndHashCode;
 
 /** reference to an object, thread, ... */
+@EqualsAndHashCode
 public class Reference extends BasicValue<Long> implements WritableValue {
 
     public Reference(Type type, long ref) {

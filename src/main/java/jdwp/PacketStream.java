@@ -25,7 +25,6 @@
 
 package jdwp;
 
-import com.sun.jdi.InvalidTypeException;
 import jdwp.Value.BasicValue;
 import jdwp.Value.WritableValue;
 
@@ -391,13 +390,13 @@ class PacketStream {
     }
 
     static boolean isObjectTag(byte tag) {
-        return (tag == jdwp.old.JDWP.Tag.OBJECT) ||
-               (tag == jdwp.old.JDWP.Tag.ARRAY) ||
-               (tag == jdwp.old.JDWP.Tag.STRING) ||
-               (tag == jdwp.old.JDWP.Tag.THREAD) ||
-               (tag == jdwp.old.JDWP.Tag.THREAD_GROUP) ||
-               (tag == jdwp.old.JDWP.Tag.CLASS_LOADER) ||
-               (tag == jdwp.old.JDWP.Tag.CLASS_OBJECT);
+        return (tag == jdwp.JDWP.Tag.OBJECT) ||
+               (tag == jdwp.JDWP.Tag.ARRAY) ||
+               (tag == jdwp.JDWP.Tag.STRING) ||
+               (tag == jdwp.JDWP.Tag.THREAD) ||
+               (tag == jdwp.JDWP.Tag.THREAD_GROUP) ||
+               (tag == jdwp.JDWP.Tag.CLASS_LOADER) ||
+               (tag == jdwp.JDWP.Tag.CLASS_OBJECT);
     }
 
     public short flags() {

@@ -58,7 +58,7 @@ internal class CommandNode : AbstractCommandNode() {
                 error("Expected 'Event' item, got: $evt")
             }
         } else {
-            error("Command must have Out and Reply items or ErrorSet item")
+            error("Command " + name + " must have Out and Reply items or ErrorSet item with OnlyReads item")
         }
         super.constrain(ctx)
     }
@@ -100,7 +100,7 @@ internal class CommandNode : AbstractCommandNode() {
         return genRequestClass(fields, onlyReads.boolean).toString() + "\n" + genReplyClass(replyFields)
     }
 
-    fun TypeSpec.Builder.genCommon(valType: String, fields: List<AbstractTypeNode>): TypeSpec.Builder {
+    fun TypeSpec.Builder.genCommon(valType: String, defaultFlag: Int, fields: List<AbstractTypeNode>): TypeSpec.Builder {
 
         `public static final field`(TypeName.INT, "COMMAND") { `=`(nameNode.value()) }
 
@@ -121,6 +121,14 @@ internal class CommandNode : AbstractCommandNode() {
                 statement("this.\$N = \$N", f.name(), f.name())
             }
             this
+        }
+
+        `public constructor`(
+            mutableListOf(param(TypeName.INT, "id")) +
+                    fields.map { param(it.javaType(), it.name()) }) {
+            statement("this(id, (short)${defaultFlag}, \$N)",
+                fields.joinToString(", ") { it.name }
+            )
         }
 
         `public`(
@@ -188,7 +196,7 @@ internal class CommandNode : AbstractCommandNode() {
             extends("Value.CombinedValue")
             implements(pt("Request", replyClassName))
 
-            genCommon("Type.REQUEST", fields)
+            genCommon("Type.REQUEST", 0, fields)
 
             `public static`(
                 bg(requestClassName), "parse",
@@ -234,7 +242,7 @@ internal class CommandNode : AbstractCommandNode() {
             extends("Value.CombinedValue")
             implements("Reply")
 
-            genCommon("Type.REPLY", fields)
+            genCommon("Type.REPLY", 0x8, fields)
 
             `public static`(
                 pt("ReplyOrError", replyClassName), "parse",
@@ -328,7 +336,7 @@ internal class CommandNode : AbstractCommandNode() {
                         pt("Request", "?"), "parse",
                         param("PacketStream", "ps")
                     ) {
-                        switch("ps.command()") {
+                        switch("ps.commandSet()") {
                             for (cmdSet in nodes) {
                                 case("${cmdSet.name}.COMMAND_SET") {
                                     _return("${cmdSet.name}.parse(ps)")

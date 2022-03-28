@@ -8,10 +8,10 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
     private final int id;
     private final short flags;
     @Nullable
-    private final Reply reply;
+    private final R reply;
     private final short errorCode;
 
-    public ReplyOrError(int id, short flags, Reply reply) {
+    public ReplyOrError(int id, short flags, R reply) {
         this.reply = reply;
         this.errorCode = 0;
         this.id = id;
@@ -23,6 +23,14 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
         this.errorCode = errorCode;
         this.id = id;
         this.flags = flags;
+    }
+
+    public ReplyOrError(int id, short errorCode) {
+        this(id, Packet.Reply, errorCode);
+    }
+
+    public ReplyOrError(int id, R reply) {
+        this(id, Packet.Reply, reply);
     }
 
     public boolean hasError() {
@@ -38,7 +46,7 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
         return errorCode;
     }
 
-    public Reply getReply() {
+    public R getReply() {
         assert hasReply();
         return reply;
     }

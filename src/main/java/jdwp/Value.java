@@ -5,6 +5,7 @@ import jdwp.Reference.ArrayReference;
 import java.util.*;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import static jdwp.JDWP.Tag;
 
 public abstract class Value {
 

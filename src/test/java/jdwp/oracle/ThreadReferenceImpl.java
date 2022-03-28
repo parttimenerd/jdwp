@@ -79,6 +79,10 @@ public class ThreadReferenceImpl extends ObjectReferenceImpl
     // This is cached for the life of the thread
     private ThreadGroupReference threadGroup;
 
+    public ThreadReferenceImpl() {
+
+    }
+
     // This is cached only while this one thread is suspended.  Each time
     // the thread is resumed, we abandon the current cache object and
     // create a new initialized one.
@@ -134,7 +138,7 @@ public class ThreadReferenceImpl extends ObjectReferenceImpl
     // Listeners - synchronized on vm.state()
     private List<WeakReference<ThreadListener>> listeners = new ArrayList<>();
 
-    ThreadReferenceImpl(VirtualMachine aVm, long aRef) {
+    public ThreadReferenceImpl(VirtualMachine aVm, long aRef) {
         super(aVm, aRef);
         resetLocalCache();
         vm.state().addListener(this);

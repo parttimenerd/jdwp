@@ -38,11 +38,11 @@ public class Packet extends Object {
     // Note! flags, cmdSet, and cmd are all byte values.
     // We represent them as shorts to make them easier
     // to work with.
-    int id;
+    public int id;
     short flags;
     short cmdSet;
     short cmd;
-    short errorCode;
+    public short errorCode;
     byte[] data;
     volatile boolean replied = false;
 

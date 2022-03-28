@@ -3,6 +3,8 @@ package jdwp;
 import jdwp.JDWP.Tag;
 import jdwp.Value.BasicValue;
 import jdwp.Value.WritableValue;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import static jdwp.JDWP.Tag.BYTE;
 
@@ -11,6 +13,8 @@ import static jdwp.JDWP.Tag.BYTE;
  *
  * @param <T> wrapped type
  */
+@EqualsAndHashCode
+@ToString
 public abstract class PrimitiveValue<T> extends BasicValue<T> implements WritableValue {
 
     private PrimitiveValue(Type type, T value) {

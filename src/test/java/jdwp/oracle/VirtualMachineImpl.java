@@ -78,25 +78,25 @@ import com.sun.jdi.request.BreakpointRequest;
 import com.sun.jdi.request.EventRequest;
 import com.sun.jdi.request.EventRequestManager;
 
-class VirtualMachineImpl extends MirrorImpl
+public class VirtualMachineImpl extends MirrorImpl
              implements PathSearchingVirtualMachine, ThreadListener {
     // VM Level exported variables, these
     // are unique to a given vm
-    public final int sizeofFieldRef;
-    public final int sizeofMethodRef;
-    public final int sizeofObjectRef;
-    public final int sizeofClassRef;
-    public final int sizeofFrameRef;
-    public final int sizeofModuleRef;
+    public final int sizeofFieldRef = 8;
+    public final int sizeofMethodRef = 8;
+    public final int sizeofObjectRef = 8;
+    public final int sizeofClassRef = 8;
+    public final int sizeofFrameRef = 8;
+    public final int sizeofModuleRef = 8;
 
     final int sequenceNumber;
 
-    private final TargetVM target;
-    private final EventQueueImpl eventQueue;
-    private final EventRequestManagerImpl internalEventRequestManager;
-    private final EventRequestManagerImpl eventRequestManager;
+    private TargetVM target;
+    private EventQueueImpl eventQueue;
+    private EventRequestManagerImpl internalEventRequestManager = null;
+    private EventRequestManagerImpl eventRequestManager;
     final VirtualMachineManagerImpl vmManager;
-    private final ThreadGroup threadGroupForJDI;
+    private ThreadGroup threadGroupForJDI;
 
     // Allow direct access to this field so that that tracing code slows down
     // JDI as little as possible when not enabled.
@@ -194,9 +194,9 @@ class VirtualMachineImpl extends MirrorImpl
         return true;
     }
 
-    VirtualMachineImpl(VirtualMachineManager manager,
-                       Connection connection, Process process,
-                       int sequenceNumber) {
+    public VirtualMachineImpl(VirtualMachineManager manager,
+                              Connection connection, Process process,
+                              int sequenceNumber) {
         super(null);  // Can't use super(this)
         vm = this;
 
@@ -207,35 +207,35 @@ class VirtualMachineImpl extends MirrorImpl
         /* Create ThreadGroup to be used by all threads servicing
          * this VM.
          */
-        threadGroupForJDI = new ThreadGroup(vmManager.mainGroupForJDI(),
+        /*threadGroupForJDI = new ThreadGroup(vmManager.mainGroupForJDI(),
                                             "JDI [" +
-                                            this.hashCode() + "]");
+                                            this.hashCode() + "]");*/
 
         /*
          * Set up a thread to communicate with the target VM over
          * the specified transport.
          */
-        target = new TargetVM(this, connection);
+        /*target = new TargetVM(this, connection);*/
 
         /*
          * Set up a thread to handle events processed internally
          * the JDI implementation.
          */
-        EventQueueImpl internalEventQueue = new EventQueueImpl(this, target);
-        new InternalEventHandler(this, internalEventQueue);
+        //EventQueueImpl internalEventQueue = new EventQueueImpl(this, target);
+        //new InternalEventHandler(this, internalEventQueue);
         /*
          * Initialize client access to event setting and handling
          */
-        eventQueue = new EventQueueImpl(this, target);
-        eventRequestManager = new EventRequestManagerImpl(this);
+        //eventQueue = new EventQueueImpl(this, target);
+        //eventRequestManager = new EventRequestManagerImpl(this);
 
-        target.start();
+        //target.start();
 
         /*
          * Many ids are variably sized, depending on target VM.
          * Find out the sizes right away.
          */
-        JDWP.VirtualMachine.IDSizes idSizes;
+        /*JDWP.VirtualMachine.IDSizes idSizes;
         try {
             idSizes = JDWP.VirtualMachine.IDSizes.process(vm);
         } catch (JDWPException exc) {
@@ -246,7 +246,7 @@ class VirtualMachineImpl extends MirrorImpl
         sizeofObjectRef = idSizes.objectIDSize;
         sizeofClassRef = idSizes.referenceTypeIDSize;
         sizeofFrameRef  = idSizes.frameIDSize;
-        sizeofModuleRef = idSizes.objectIDSize;
+        sizeofModuleRef = idSizes.objectIDSize;*/
 
         /**
          * Set up requests needed by internal event handler.
@@ -260,19 +260,19 @@ class VirtualMachineImpl extends MirrorImpl
          * with external events in the same set, suspend policy is not
          * correctly determined for the internal vs. external event sets)
          */
-        internalEventRequestManager = new EventRequestManagerImpl(this);
+        /*internalEventRequestManager = new EventRequestManagerImpl(this);
         EventRequest er = internalEventRequestManager.createClassPrepareRequest();
         er.setSuspendPolicy(EventRequest.SUSPEND_NONE);
         er.enable();
         er = internalEventRequestManager.createClassUnloadRequest();
         er.setSuspendPolicy(EventRequest.SUSPEND_NONE);
-        er.enable();
+        er.enable();*
 
         /*
          * Tell other threads, notably TargetVM, that initialization
          * is complete.
          */
-        notifyInitCompletion();
+        //notifyInitCompletion();
     }
 
     EventRequestManagerImpl getInternalEventRequestManager() {

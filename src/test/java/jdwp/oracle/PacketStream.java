@@ -49,12 +49,13 @@ import com.sun.jdi.Value;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-class PacketStream {
+public class PacketStream {
     final VirtualMachineImpl vm;
     private int inCursor = 0;
-    final Packet pkt;
+    public final Packet pkt;
     private ByteArrayOutputStream dataStream = new ByteArrayOutputStream();
     private boolean isCommitted = false;
+    public Packet finishedPacket;
 
     PacketStream(VirtualMachineImpl vm, int cmdSet, int cmd) {
         this.vm = vm;
@@ -63,7 +64,7 @@ class PacketStream {
         pkt.cmd = (short)cmd;
     }
 
-    PacketStream(VirtualMachineImpl vm, Packet pkt) {
+    public PacketStream(VirtualMachineImpl vm, Packet pkt) {
         this.vm = vm;
         this.pkt = pkt;
         this.isCommitted = true; /* read only stream */
@@ -76,7 +77,9 @@ class PacketStream {
     void send() {
         if (!isCommitted) {
             pkt.data = dataStream.toByteArray();
-            vm.sendToTarget(pkt);
+            pkt.id = 0;
+            finishedPacket = pkt;
+            // vm.sendToTarget(pkt);
             isCommitted = true;
         }
     }

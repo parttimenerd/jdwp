@@ -116,13 +116,13 @@ class VM {
         return arrayTags.get(id);
     }
     
-    public void setSizes(jdwp.old.JDWP.VirtualMachine.IDSizes idSizes) {
+    /*public void setSizes(jdwp.old.JDWP.VirtualMachine.IDSizes idSizes) {
         sizeofFieldRef = idSizes.fieldIDSize;
         sizeofMethodRef = idSizes.methodIDSize;
         sizeofObjectRef = idSizes.objectIDSize;
         sizeofClassRef = idSizes.referenceTypeIDSize;
         sizeofFrameRef = idSizes.frameIDSize;
         sizeofModuleRef = idSizes.objectIDSize;
-    }
+    }*/
 
 }
