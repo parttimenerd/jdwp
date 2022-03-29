@@ -4,6 +4,7 @@ import com.squareup.javapoet.*
 import com.squareup.javapoet.ParameterSpec
 import com.squareup.javapoet.TypeName
 import com.squareup.javapoet.TypeSpec
+import java.lang.reflect.Method
 import javax.lang.model.element.Modifier
 import javax.lang.model.element.Modifier.*
 import kotlin.reflect.KClass
@@ -89,3 +90,5 @@ fun MethodSpec.Builder.`throw new2`(type: ClassName, arg: String)
 
 fun MethodSpec.Builder.`throw new2`(type: KClass<*>, arg: String)
         = addStatement("throw new \$T($arg)", type.java)!!
+
+fun MethodSpec.Builder.`@Override`() = `@`(ClassName.bestGuess("Override"))

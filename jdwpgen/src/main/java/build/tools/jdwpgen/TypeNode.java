@@ -115,11 +115,11 @@ interface TypeNode {
         public void genJavaWrite(PrintWriter writer, int depth,
                                  String writeLabel) {
             indent(writer, depth);
-            writer.println(writeLabel + ".write(ps)");
+            writer.println(writeLabel + ".write(ps);");
         }
 
         String javaRead() {
-            return javaType() + ".read(ps)";
+            return javaType() + ".read(ps);";
         }
     }
 
@@ -472,7 +472,7 @@ interface TypeNode {
         public void genJavaWrite(PrintWriter writer, int depth,
                                  String writeLabel) {
             indent(writer, depth);
-            writer.println(writeLabel + ".write(ps)");
+            writer.println(writeLabel + ".write(ps);");
         }
 
         String javaRead() {

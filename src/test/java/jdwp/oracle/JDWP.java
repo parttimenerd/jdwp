@@ -227,23 +227,23 @@ public class JDWP {
                  * <a href="#JDWP_TypeTag">Kind</a>
                  * of following reference type.
                  */
-                final byte refTypeTag;
+                public final byte refTypeTag;
 
                 /**
                  * Loaded reference type
                  */
-                final long typeID;
+                public final long typeID;
 
                 /**
                  * The JNI signature of the loaded reference type
                  */
-                final String signature;
+                public final String signature;
 
                 /**
                  * The current class
                  * <a href="#JDWP_ClassStatus">status.</a>
                  */
-                final int status;
+                public final int status;
 
                 private ClassInfo(VirtualMachineImpl vm, PacketStream ps) {
                     refTypeTag = ps.readByte();
@@ -269,9 +269,9 @@ public class JDWP {
             /**
              * Number of reference types that follow.
              */
-            final ClassInfo[] classes;
+            public final ClassInfo[] classes;
 
-            private AllClasses(VirtualMachineImpl vm, PacketStream ps) {
+            public AllClasses(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.AllClasses"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -326,9 +326,9 @@ public class JDWP {
             /**
              * Number of threads that follow.
              */
-            final ThreadReferenceImpl[] threads;
+            public final ThreadReferenceImpl[] threads;
 
-            private AllThreads(VirtualMachineImpl vm, PacketStream ps) {
+            public AllThreads(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.AllThreads"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -379,9 +379,9 @@ public class JDWP {
             /**
              * Number of thread groups that follow.
              */
-            final ThreadGroupReferenceImpl[] groups;
+            public final ThreadGroupReferenceImpl[] groups;
 
-            private TopLevelThreadGroups(VirtualMachineImpl vm, PacketStream ps) {
+            public TopLevelThreadGroups(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.TopLevelThreadGroups"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -449,7 +449,7 @@ public class JDWP {
             }
 
 
-            private Dispose(VirtualMachineImpl vm, PacketStream ps) {
+            public Dispose(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Dispose"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }

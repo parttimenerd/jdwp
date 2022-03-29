@@ -71,10 +71,11 @@ class RepeatNode extends TypeNode.AbstractTypeNode {
                              String writeLabel) {
         indent(writer, depth);
         writer.println("ps.writeInt(" + writeLabel + ".size());");
-        indent(writer, depth - 1);
-        writer.println("for (int i = 0; i < " + writeLabel + ".size(); i++) {;");
-        ((TypeNode)member).genJavaWrite(writer, depth, writeLabel + ".get(i)");
-        indent(writer, depth - 1);
+        indent(writer, depth);
+        writer.println("for (int i = 0; i < " + writeLabel + ".size(); i++) {");
+        indent(writer, depth);
+        ((TypeNode)member).genJavaWrite(writer, depth + 1, writeLabel + ".get(i)");
+        indent(writer, depth);
         writer.println("}");
     }
 
@@ -94,7 +95,8 @@ class RepeatNode extends TypeNode.AbstractTypeNode {
         writer.println("List<" + member.javaType() + "> " + listLbl + " = new ArrayList<>(" + cntLbl + ");");
         indent(writer, depth);
         writer.println("for (int i = 0; i < " + cntLbl + "; i++) {");
-        member.genJavaRead(writer, depth + 1, member.javaType() + " tmp");
+        indent(writer, depth + 1);
+        member.genJavaRead(writer, depth, member.javaType() + " tmp");
         writer.println();
         indent(writer, depth + 1);
         writer.println(listLbl + ".add(tmp);");

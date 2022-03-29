@@ -1374,27 +1374,27 @@ public class VirtualMachineImpl extends MirrorImpl
     synchronized ObjectReferenceImpl objectMirror(long id, int tag) {
 
         // Handle any queue elements that are not strongly reachable
-        processQueue();
+        // processQueue();
 
-        if (id == 0) {
+        /*if (id == 0) {
             return null;
-        }
+        }*/
         ObjectReferenceImpl object = null;
-        Long key = id;
+        /*Long key = id;*
 
         /*
          * Attempt to retrieve an existing object reference
          */
-        SoftObjectReference ref = objectsByID.get(key);
+        /*SoftObjectReference ref = objectsByID.get(key);
         if (ref != null) {
             object = ref.object();
-        }
+        }*/
 
         /*
          * If the object wasn't in the table, or it's soft reference was
          * cleared, create a new instance.
          */
-        if (object == null) {
+        //if (object == null) {
             switch (tag) {
                 case JDWP.Tag.OBJECT:
                     object = new ObjectReferenceImpl(vm, id);
@@ -1423,20 +1423,20 @@ public class VirtualMachineImpl extends MirrorImpl
                 default:
                     throw new IllegalArgumentException("Invalid object tag: " + tag);
             }
-            ref = new SoftObjectReference(key, object, referenceQueue);
+            //ref = new SoftObjectReference(key, object, referenceQueue);
 
             /*
              * If there was no previous entry in the table, we add one here
              * If the previous entry was cleared, we replace it here.
              */
-            objectsByID.put(key, ref);
+            /*objectsByID.put(key, ref);
             if ((traceFlags & TRACE_OBJREFS) != 0) {
                 printTrace("Creating new " +
                            object.getClass().getName() + " (id = " + id + ")");
             }
         } else {
             ref.incrementCount();
-        }
+        }*/
 
         return object;
     }

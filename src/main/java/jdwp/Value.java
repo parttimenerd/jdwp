@@ -4,6 +4,7 @@ import jdwp.Reference.ArrayReference;
 import lombok.EqualsAndHashCode;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import static jdwp.JDWP.Tag;
@@ -199,6 +200,13 @@ public abstract class Value {
             super(Type.LIST);
             this.entryType = entryType;
             this.values = values;
+        }
+
+        @SafeVarargs
+        protected ListValue(T value, T... values) {
+            super(Type.LIST);
+            this.entryType = Value.typeForClass(value.getClass());
+            this.values = Stream.concat(Stream.of(value), Stream.of(values)).collect(Collectors.toList());
         }
 
         @Override

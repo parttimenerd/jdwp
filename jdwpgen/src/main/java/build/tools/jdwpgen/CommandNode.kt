@@ -140,9 +140,10 @@ internal class CommandNode : AbstractCommandNode() {
             bg("Packet"), "toPacket",
             param("VM", "vm")
         ) {
+            `@Override`()
             statement("PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND)")
             for (f in fields) {
-                statement(f.genJavaWrite(f.name))
+                addCode(f.genJavaWrite(f.name) + ";\n")
             }
             statement("Packet packet = ps.toPacket()")
             statement("packet.id = id")
@@ -151,46 +152,59 @@ internal class CommandNode : AbstractCommandNode() {
         }
 
         `public`(bg("Value"), "get", param("String", "key")) {
-            `@`(Override::class)
-            switch("key") {
-                for (f in fields) {
-                    case(f.name.S) {
-                        _return(f.name)
+            `@Override`()
+            val exCode = { `throw new2`(java.util.NoSuchElementException::class, "\"Unknown field \" + key") }
+            when (fields.size) {
+                0 -> exCode()
+                1 -> {
+                    val first = fields.first().name
+                    `if` ("key.equals(${first.S})") {
+                        _return(first)
+                    }.end()
+                    exCode()
+                }
+                else -> {
+                    switch("key") {
+                        for (f in fields) {
+                            case(f.name.S) {
+                                _return(f.name)
+                            }
+                        }
+                        default {
+                            exCode()
+                        }
+                        this
                     }
                 }
-                default {
-                    `throw new2`(java.util.NoSuchElementException::class, "\"Unknown field \" + key")
-                }
-                this
             }
         }
 
         `private static final field`(pt("List", "String"), "KEYS") {
-            `=`("Arrays.asList(${fields.joinToString(", ") { "\"${it.name}\"" }})")
+            `=`("List.of(${fields.joinToString(", ") { "\"${it.name}\"" }})")
         }
 
         `public`(pt("List", "String"), "getKeys") {
-            `@`(Override::class)
+            `@Override`()
             _return("KEYS");
         }
 
         `public`(TypeName.INT, "getCommand") {
-            `@`(Override::class)
+            `@Override`()
             _return("COMMAND")
         }
 
         `public`(TypeName.INT, "getCommandSet") {
-            `@`(Override::class)
+            `@Override`()
             _return("COMMAND_SET")
         }
 
         `public`(TypeName.INT, "getId") {
-            `@`(Override::class)
+            `@Override`()
             _return("id")
         }
 
         `public`(TypeName.SHORT, "getFlags") {
-            `@`(Override::class)
+            `@Override`()
             _return("flags")
         }
         return this
@@ -226,18 +240,18 @@ internal class CommandNode : AbstractCommandNode() {
             }
 
             `public`(String::class, "toString") {
-                `@`(Override::class)
+                `@Override`()
                 _return("String.format( " +
-                        (listOf("\"$replyClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\"") + fields.map { it.name }).joinToString(", ") + ")");
+                        (listOf("\"$requestClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\"") + fields.map { it.name }).joinToString(", ") + ")");
             }
 
             `public`(pt("ReplyOrError", replyClassName), "parseReply", param("PacketStream", "ps")) {
-                `@`(Override::class)
+                `@Override`()
                 _return("$replyClassName.parse(ps)")
             }
 
             `public`(TypeName.BOOLEAN, "onlyReads") {
-                `@`(Override::class)
+                `@Override`()
                 _return(onlyReads.L)
             }
         }
@@ -277,9 +291,9 @@ internal class CommandNode : AbstractCommandNode() {
             }
 
             `public`(String::class, "toString") {
-                `@`(Override::class)
-                _return("String.format(\"$replyClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\", " +
-                        fields.joinToString(", ") { it.name } + ")");
+                `@Override`()
+                _return("String.format( " +
+                        (listOf("\"$replyClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\"") + fields.map { it.name }).joinToString(", ") + ")");
             }
         }
     }
@@ -303,7 +317,7 @@ internal class CommandNode : AbstractCommandNode() {
             }
 
             `public`(bg("Value"), "get", param("String", "key")) {
-                `@`(Override::class)
+                `@Override`()
                 switch("key") {
                     for (f in fields) {
                         case(f.name.S) {
@@ -318,11 +332,11 @@ internal class CommandNode : AbstractCommandNode() {
             }
 
             `private static final field`(pt("List", "String"), "KEYS") {
-                `=`("Arrays.asList(${fields.joinToString(", ") { "\"${it.name}\"" }})")
+                `=`("List.of(${fields.joinToString(", ") { "\"${it.name}\"" }})")
             }
 
             `public`(pt("List", "String"), "getKeys") {
-                `@`(Override::class)
+                `@Override`()
                 _return("KEYS");
             }
 
