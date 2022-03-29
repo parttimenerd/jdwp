@@ -13,11 +13,13 @@ import jdwp.oracle.Packet;
 import jdwp.oracle.PacketStream;
 import jdwp.oracle.*;
 import lombok.SneakyThrows;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -126,21 +128,36 @@ class JDWPTest {
     @Test
     public void testVirtualMachine_AllClassesRequestParsing() throws IOException {
         // can we generate the same package as the oracle
-        var oraclePacket = JDWP.VirtualMachine.AllClasses.enqueueCommand(ovm).finishedPacket;
-        var packet = new jdwp.JDWP.VirtualMachine.AllClassesRequest(0, (short) 0).toPacket(vm);
+        var oraclePs = JDWP.VirtualMachine.AllClasses.enqueueCommand(ovm);
+        oraclePs.pkt.id = 1;
+        var oraclePacket = oraclePs.finishedPacket;
+        var packet = new jdwp.JDWP.VirtualMachine.AllClassesRequest(1, (short) 0).toPacket(vm);
         assertPacketsEqual(oraclePacket, packet);
 
         // can we parse the package?
         var readPkg =
                 jdwp.JDWP.VirtualMachine.AllClassesRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
         assertPacketsEqual(packet, readPkg.toPacket(vm));
-        assertEquals(0, readPkg.id);
+        assertEquals(1, readPkg.id);
 
         // test getKeys()
         assertEquals(0, readPkg.getKeys().size());
 
         // test JDWP.parse
         assertInstanceOf(AllClassesRequest.class, jdwp.JDWP.parse(vm, packet));
+
+        // test parsing the related reply
+        var reply = new AllClassesReply(1,
+                new ListValue<>(new AllClassesReply.ClassInfo(wrap((byte)1), Reference.klass(1), wrap("bla"), wrap(1))));
+        var preply = readPkg.parseReply(new jdwp.PacketStream(vm, reply.toPacket(vm))).getReply();
+        assertEquals(reply.classes.size(), preply.classes.size());
+        assertEquals(reply.classes.get(0).signature, preply.classes.get(0).signature);
+
+        // test parsing a related reply with different id
+        Assertions.assertThrows(Reply.IdMismatchException.class, () -> {
+            readPkg.parseReply(new jdwp.PacketStream(vm, new AllClassesReply(10,
+                    new ListValue<>(Type.OBJECT)).toPacket(vm)));
+        });
     }
 
     @Test
@@ -209,6 +226,40 @@ class JDWPTest {
     }
 
     @Test
+    public void testVirtualMachine_IDSizesRequestParsing() throws IOException {
+        testBasicRequestParsing(IDSizes.enqueueCommand(ovm), new IDSizesRequest(0));
+    }
+
+    @Test
+    public void testVirtualMachine_IDSizesReplyParsing() {
+        testReplyParsing(IDSizes::new,
+                new IDSizesReply(1011, wrap(9), wrap(1), wrap(10), wrap(8), wrap(10)),
+                (o, r) -> {
+                    assertEquals2(10, o.frameIDSize, r.frameIDSize);
+                    assertEquals2(9, o.fieldIDSize, r.fieldIDSize);
+                });
+    }
+
+    @Test
+    public void testVirtualMachine_SuspendResumeExitRequestParsing() throws IOException {
+        Assertions.assertAll(
+                () -> testBasicRequestParsing(Suspend.enqueueCommand(ovm), new SuspendRequest(0)),
+                () -> testBasicRequestParsing(Resume.enqueueCommand(ovm), new ResumeRequest(0)),
+                () -> testBasicRequestParsing(Exit.enqueueCommand(ovm, 10), new ExitRequest(0, wrap(10)))
+                );
+    }
+
+    @Test
+    public void testVirtualMachine_SuspendResumeExitReplyParsing() {
+        BiConsumer<Object, CombinedValue> empty = (o, r) -> assertEquals(0, r.getKeyStream().count());
+        Assertions.assertAll(
+                () -> testReplyParsing(Suspend::new, new SuspendReply(0), empty),
+                () -> testReplyParsing(Resume::new, new ResumeReply(0), empty),
+                () -> testReplyParsing(Exit::new, new ExitReply(10), empty)
+        );
+    }
+
+    @Test
     public void testThreadReference_NameRequestParsing() throws IOException {
         // can we generate the same package as the oracle
         var t = new ThreadReferenceImpl();
@@ -244,7 +295,7 @@ class JDWPTest {
     @SuppressWarnings("unchecked")
     <O, R extends Reply> void testReplyParsing(BiFunction<VirtualMachineImpl, PacketStream, O> oracleSupplier,
                                                R reply,
-                                               BiConsumer<O, R> checker) {
+                                               BiConsumer<? super O, ? super R> checker) {
         var producedPacket = reply.toPacket(vm);
         var oracleObj = oracleSupplier.apply(ovm, oraclePacketStream(producedPacket));
         checker.accept(oracleObj, reply);
@@ -288,7 +339,7 @@ class JDWPTest {
             e.printStackTrace();
         }
         assertPacketsEqual(packet, readPkg.toPacket(vm));
-        assertEquals(0, readPkg.getId());
+        assertEquals(request.getId(), readPkg.getId());
         assertEquals(0, readPkg.getFlags());
 
         // test getKeys()

@@ -109,9 +109,6 @@ internal class CommandNode : AbstractCommandNode() {
 
         `public static final field`(TypeName.INT, "COMMAND") { `=`(nameNode.value()) }
 
-        `public final field`(TypeName.INT, "id");
-        `public final field`(TypeName.SHORT, "flags");
-
         for (f in fields) {
             `public final field`(f.javaType(), f.name) { addJavadoc(f.comment()) }
         }
@@ -119,9 +116,7 @@ internal class CommandNode : AbstractCommandNode() {
         `public constructor`(
             mutableListOf(param(TypeName.INT, "id"), param(TypeName.SHORT, "flags")) +
                     fields.map { param(it.javaType(), it.name()) }) {
-            statement("super(Type.REQUEST)")
-            statement("this.id = id")
-            statement("this.flags = flags")
+            statement("super(Type.REQUEST, id, flags)")
             for (f in fields) {
                 statement("this.\$N = \$N", f.name(), f.name())
             }
@@ -197,23 +192,13 @@ internal class CommandNode : AbstractCommandNode() {
             `@Override`()
             _return("COMMAND_SET")
         }
-
-        `public`(TypeName.INT, "getId") {
-            `@Override`()
-            _return("id")
-        }
-
-        `public`(TypeName.SHORT, "getFlags") {
-            `@Override`()
-            _return("flags")
-        }
         return this
     }
 
     private fun genRequestClass(out: OutNode, onlyReads: Boolean): TypeSpec {
         val fields = out.components.map { t: Node -> t as AbstractTypeNode }
         return `public static class`(requestClassName) {
-            extends("Value.CombinedValue")
+            extends("AbstractParsedPacket")
             implements(pt("Request", replyClassName))
 
             genCommon(out, "Type.REQUEST", 0, fields)
@@ -241,12 +226,15 @@ internal class CommandNode : AbstractCommandNode() {
 
             `public`(String::class, "toString") {
                 `@Override`()
-                _return("String.format( " +
+                _return("String.format(" +
                         (listOf("\"$requestClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\"") + fields.map { it.name }).joinToString(", ") + ")");
             }
 
             `public`(pt("ReplyOrError", replyClassName), "parseReply", param("PacketStream", "ps")) {
                 `@Override`()
+                `if`("ps.pkt.id != id") {
+                    `throw new2`(bg("Reply.IdMismatchException"), "id, ps.pkt.id")
+                }.end()
                 _return("$replyClassName.parse(ps)")
             }
 
@@ -260,7 +248,7 @@ internal class CommandNode : AbstractCommandNode() {
     private fun genReplyClass(reply: ReplyNode): TypeSpec {
         val fields = reply.components.map { t: Node -> t as AbstractTypeNode }
         return `public static class`(replyClassName) {
-            extends("Value.CombinedValue")
+            extends("AbstractParsedPacket")
             implements("Reply")
 
             genCommon(reply,"Type.REPLY", 0x8, fields)
@@ -292,7 +280,7 @@ internal class CommandNode : AbstractCommandNode() {
 
             `public`(String::class, "toString") {
                 `@Override`()
-                _return("String.format( " +
+                _return("String.format(" +
                         (listOf("\"$replyClassName(${fields.joinToString(", ") { "${it.name}=%s" }})\"") + fields.map { it.name }).joinToString(", ") + ")");
             }
         }

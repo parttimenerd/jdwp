@@ -202,6 +202,10 @@ public abstract class Value {
             this.values = values;
         }
 
+        protected ListValue(Type entryType) {
+            this(entryType, Collections.emptyList());
+        }
+
         @SafeVarargs
         protected ListValue(T value, T... values) {
             super(Type.LIST);
@@ -217,14 +221,6 @@ public abstract class Value {
         @Override
         T get(Integer key) {
             return values.get(key);
-        }
-
-        void set(Integer key, T value) {
-            values.set(key, value);
-        }
-
-        void add(T value) {
-            values.add(value);
         }
 
         int size() { return values.size(); }

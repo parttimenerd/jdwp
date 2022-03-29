@@ -489,7 +489,7 @@ public class JDWP {
             /**
              * fieldID size in bytes
              */
-            final int fieldIDSize;
+            public final int fieldIDSize;
 
             /**
              * methodID size in bytes
@@ -509,9 +509,9 @@ public class JDWP {
             /**
              * frameID size in bytes
              */
-            final int frameIDSize;
+            public final int frameIDSize;
 
-            private IDSizes(VirtualMachineImpl vm, PacketStream ps) {
+            public IDSizes(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.IDSizes"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -574,7 +574,7 @@ public class JDWP {
             }
 
 
-            private Suspend(VirtualMachineImpl vm, PacketStream ps) {
+            public Suspend(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Suspend"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -613,7 +613,7 @@ public class JDWP {
             }
 
 
-            private Resume(VirtualMachineImpl vm, PacketStream ps) {
+            public Resume(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Resume"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -660,7 +660,7 @@ public class JDWP {
             }
 
 
-            private Exit(VirtualMachineImpl vm, PacketStream ps) {
+            public Exit(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.VirtualMachine.Exit"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
