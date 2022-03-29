@@ -25,6 +25,7 @@
 
 package jdwp;
 
+import jdwp.Reference.ArrayReference;
 import jdwp.Value.BasicValue;
 import lombok.val;
 
@@ -367,6 +368,10 @@ class PacketStream {
 
     BasicValue<?> readUntaggedFieldValue(Reference.FieldReference field) {
         return readUntaggedValue(vm.getFieldTag(field.value));
+    }
+
+    public BasicValue<?> readUntaggedArrayValue(ArrayReference arrayObject) {
+        return readUntaggedValue(vm.getArrayTag(arrayObject.value));
     }
 
     byte[] readByteArray(int length) {

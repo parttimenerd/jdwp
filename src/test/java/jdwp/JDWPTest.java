@@ -1,15 +1,24 @@
 package jdwp;
 
+import jdwp.JDWP.ArrayReference;
+import jdwp.JDWP.ArrayReference.GetValuesReply;
+import jdwp.JDWP.ArrayReference.GetValuesRequest;
+import jdwp.JDWP.ArrayReference.LengthReply;
+import jdwp.JDWP.ArrayReference.LengthRequest;
 import jdwp.JDWP.ClassType.*;
 import jdwp.JDWP.ThreadReference.NameReply;
 import jdwp.JDWP.ThreadReference.NameRequest;
 import jdwp.JDWP.VirtualMachine.*;
 import jdwp.JDWP.VirtualMachine.ClassesBySignatureReply.ClassInfo;
+import jdwp.PrimitiveValue.IntValue;
 import jdwp.PrimitiveValue.StringValue;
 import jdwp.VM.NoTagPresentException;
 import jdwp.Value.*;
 import jdwp.oracle.JDWP;
+import jdwp.oracle.JDWP.ArrayReference.GetValues;
+import jdwp.oracle.JDWP.ArrayReference.Length;
 import jdwp.oracle.JDWP.ClassType.InvokeMethod;
+import jdwp.oracle.JDWP.ClassType.SetValues;
 import jdwp.oracle.JDWP.ClassType.Superclass;
 import jdwp.oracle.JDWP.ThreadReference.Name;
 import jdwp.oracle.JDWP.VirtualMachine.*;
@@ -336,6 +345,13 @@ class JDWPTest {
     }
 
     @Test
+    public void testClassType_SetValuesReplyParsing() {
+        testReplyParsing(SetValues::new,
+                new SetValuesReply(0),
+                (o, r) -> { assertEquals(0, r.getKeys().size() );});
+    }
+
+    @Test
     public void testClassType_InvokeMethodRequestParsing() throws IOException {
         // can we generate the same package as the oracle
         var oraclePacket = InvokeMethod.enqueueCommand(ovm,
@@ -382,6 +398,62 @@ class JDWPTest {
                     assertEquals(10, ((IntegerValueImpl)o.returnValue).value());
                     assertEquals(10, r.returnValue.value);
                 });
+    }
+
+    @Test
+    public void testArrayReference_LengthRequestParsing() {
+        testBasicRequestParsing(Length.enqueueCommand(ovm, new ArrayReferenceImpl(ovm, 9)),
+                new LengthRequest(0, Reference.array(9)));
+    }
+
+    @Test
+    public void testArrayReference_LengthReplyParsing() {
+        testReplyParsing(Length::new,
+                new LengthReply(0, wrap(10)),
+                (o, r) -> {
+                    assertEquals2(10, o.arrayLength, r.arrayLength);
+                });
+    }
+
+    @Test
+    public void testArrayReference_GetValuesRequestParsing() {
+        testBasicRequestParsing(GetValues.enqueueCommand(ovm, new ArrayReferenceImpl(ovm, 9), 10, 11),
+                new GetValuesRequest(0, Reference.array(9), wrap(10), wrap(11)));
+    }
+
+    @Test
+    public void testArrayReference_GetValuesReplyParsing() {
+        testReplyParsing(GetValues::new,
+                new GetValuesReply(0, new BasicListValue<>(Type.INT, List.of(wrap(11)))),
+                (o, r) -> {
+                    assertEquals2(11, ((IntegerValueImpl)o.values.get(0)).intValue(), (IntValue)r.values.get(0));
+                });
+    }
+
+    @Test
+    public void testArrayReference_SetValuesRequestParsing() {
+        // this is interesting as it uses untagged values with an array reference
+        // we cannot therefore use the oracle here
+
+        // first we assume that the field has a known type
+        var array = 1;
+        var type = Type.INT;
+        vm.addArrayTag(array, (byte)type.tag);
+        var request = new ArrayReference.SetValuesRequest(0, Reference.array(array), wrap(1),
+                new ListValue<>(wrap(1), wrap(2), wrap(3)));
+        var packet = request.toPacket(vm);
+        assertEquals(request, jdwp.JDWP.parse(vm, packet));
+
+        // we then assume that the field has an unknown type
+        vm.reset();
+        Assertions.assertThrows(NoTagPresentException.class, () -> jdwp.JDWP.parse(vm, packet));
+    }
+
+    @Test
+    public void testArrayReference_SetValuesReplyParsing() {
+        testReplyParsing(JDWP.ArrayReference.SetValues::new,
+                new ArrayReference.SetValuesReply(0),
+                (o, r) -> { assertEquals(0, r.getKeys().size() );});
     }
 
     @Test

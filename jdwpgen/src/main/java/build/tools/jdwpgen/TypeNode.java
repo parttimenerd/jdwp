@@ -479,15 +479,16 @@ interface TypeNode {
             // we add special cases for all appearing untagged values
             // this is far easier than generalizing it
             // and there are currently only two different cases
-            switch (parent.javaType()) {
-                case "FieldValue":
-                    // we know here that the result is a basic value
-                    String fieldVarName = ((FieldTypeNode) this.parent.components.get(0)).name;
-                    // we get the actual type by using the vm and the field id
-                    return String.format("ps.readUntaggedFieldValue(%s)", fieldVarName);
-                default:
-                    throw new AssertionError(String.format("%s not supported with untagged values", parent.javaType()));
+            if (parent.javaType().equals("FieldValue")) {
+                // we know here that the result is a basic value
+                String fieldVarName = ((FieldTypeNode) this.parent.components.get(0)).name;
+                // we get the actual type by using the vm and the field id
+                return String.format("ps.readUntaggedFieldValue(%s)", fieldVarName);
             }
+            if (((ArrayObjectTypeNode)this.parent.parent.components.get(0)).name().equals("arrayObject")) {
+                return String.format("ps.readUntaggedArrayValue(arrayObject);");
+            }
+            throw new AssertionError();
         }
     }
 

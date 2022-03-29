@@ -3351,7 +3351,7 @@ public class JDWP {
             }
 
 
-            private SetValues(VirtualMachineImpl vm, PacketStream ps) {
+            public SetValues(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.ClassType.SetValues"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -6231,9 +6231,9 @@ public class JDWP {
             /**
              * The length of the array.
              */
-            final int arrayLength;
+            public final int arrayLength;
 
-            private Length(VirtualMachineImpl vm, PacketStream ps) {
+            public Length(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.ArrayReference.Length"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -6296,9 +6296,9 @@ public class JDWP {
              * are objects, they are tagged-values;
              * otherwise, they are untagged-values
              */
-            final List<?> values;
+            public final List<?> values;
 
-            private GetValues(VirtualMachineImpl vm, PacketStream ps) {
+            public GetValues(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.ArrayReference.GetValues"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -6366,7 +6366,7 @@ public class JDWP {
             }
 
 
-            private SetValues(VirtualMachineImpl vm, PacketStream ps) {
+            public SetValues(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.ArrayReference.SetValues"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }

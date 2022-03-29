@@ -272,7 +272,6 @@ public abstract class Value {
                 T value = (T)ps.readUntaggedValue(tag);
                 values.add(value);
             }
-            BasicListValue<?> v = BasicListValue.read(ps);
             return new BasicListValue<>(Type.forTag(tag), values);
         }
 
