@@ -41,7 +41,7 @@ public class ArrayReferenceImpl extends ObjectReferenceImpl
 {
     int length = -1;
 
-    ArrayReferenceImpl(VirtualMachine aVm, long aRef) {
+    public ArrayReferenceImpl(VirtualMachine aVm, long aRef) {
         super(aVm, aRef);
     }
 

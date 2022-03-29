@@ -103,8 +103,6 @@ internal class CommandNode : AbstractCommandNode() {
 
     fun TypeSpec.Builder.genCommon(node: AbstractTypeListNode, valType: String, defaultFlag: Int, fields: List<AbstractTypeNode>): TypeSpec.Builder {
 
-        addJavadoc(node.parent.commentList.joinToString("\n"))
-
         addTypes(fields.flatMap {  it.findGroupNodes() } .map { genGroupClass(it) })
 
         `public static final field`(TypeName.INT, "COMMAND") { `=`(nameNode.value()) }
@@ -201,6 +199,8 @@ internal class CommandNode : AbstractCommandNode() {
             extends("AbstractParsedPacket")
             implements(pt("Request", replyClassName))
 
+            addJavadoc(out.parent.commentList.joinToString("\n"))
+
             genCommon(out, "Type.REQUEST", 0, fields)
 
             `public static`(
@@ -216,7 +216,7 @@ internal class CommandNode : AbstractCommandNode() {
                 param("PacketStream", "ps")
             ) {
                 for (f in fields) {
-                    statement(f.genJavaRead(f.javaType() + " " + f.name))
+                    addCode(f.genJavaRead(f.javaType() + " " + f.name) + ";\n")
                 }
                 statement("return new \$T(\$N)",
                     bg(requestClassName),
@@ -250,6 +250,8 @@ internal class CommandNode : AbstractCommandNode() {
         return `public static class`(replyClassName) {
             extends("AbstractParsedPacket")
             implements("Reply")
+
+            addJavadoc("@see $requestClassName")
 
             genCommon(reply,"Type.REPLY", 0x8, fields)
 
@@ -330,9 +332,19 @@ internal class CommandNode : AbstractCommandNode() {
 
             `public static`(bg(node.name), "parse", param("PacketStream", "ps")) {
                 for (f in fields) {
-                    statement(f.genJavaRead(f.javaType() + " " + f.name()))
+                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
                 }
                 _return("new ${node.name}(${fields.joinToString(", ") { it.name }})")
+            }
+
+            `public`(
+                TypeName.VOID, "write", param("PacketStream", "ps")
+            ) {
+                `@Override`()
+                for (f in fields) {
+                    addCode(f.genJavaWrite(f.name) + ";\n")
+                }
+                this
             }
         }
     }

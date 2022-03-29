@@ -34,7 +34,7 @@ public class ClassObjectReferenceImpl extends ObjectReferenceImpl
 {
     private ReferenceType reflectedType;
 
-    ClassObjectReferenceImpl(VirtualMachine vm, long ref) {
+    public ClassObjectReferenceImpl(VirtualMachine vm, long ref) {
         super(vm, ref);
     }
 

@@ -48,7 +48,7 @@ public class ClassLoaderReferenceImpl extends ObjectReferenceImpl
         return new Cache();
     }
 
-    ClassLoaderReferenceImpl(VirtualMachine aVm, long ref) {
+    public ClassLoaderReferenceImpl(VirtualMachine aVm, long ref) {
         super(aVm, ref);
         vm.state().addListener(this);
     }

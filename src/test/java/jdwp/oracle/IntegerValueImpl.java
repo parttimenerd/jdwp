@@ -34,7 +34,7 @@ public class IntegerValueImpl extends PrimitiveValueImpl
                               implements IntegerValue {
     private int value;
 
-    IntegerValueImpl(VirtualMachine aVm, int aValue) {
+    public IntegerValueImpl(VirtualMachine aVm, int aValue) {
         super(aVm);
         value = aValue;
     }

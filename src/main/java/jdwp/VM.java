@@ -25,7 +25,7 @@
 
 package jdwp;
 
-import jdwp.VM.NoTagPresent.Source;
+import jdwp.VM.NoTagPresentException.Source;
 import lombok.Getter;
 
 import java.util.*;
@@ -34,13 +34,13 @@ import java.util.*;
 @Getter
 class VM {
 
-    static class NoTagPresent extends RuntimeException {
+    public static class NoTagPresentException extends RuntimeException {
         enum Source {
             FIELD, ARRAY
         }
         private final Source source;
         private final long id;
-        NoTagPresent(Source source, long id) {
+        NoTagPresentException(Source source, long id) {
             super(String.format("No tag present for %s %d", source.name(), id));
             this.source = source;
             this.id = id;
@@ -71,6 +71,8 @@ class VM {
         this.id = id;
         this.fieldTags = new HashMap<>();
         this.classFieldIds = new HashMap<>();
+        this.classForSignature = new HashMap<>();
+        this.arrayTags = new HashMap<>();
     }
 
     public void addClass(String signature, long id) {
@@ -79,6 +81,7 @@ class VM {
     }
 
     public void addField(long klass, long id, byte tag) {
+        classFieldIds.putIfAbsent(klass, new ArrayList<>());
         classFieldIds.get(klass).add(id);
         fieldTags.put(id, tag);
     }
@@ -94,8 +97,8 @@ class VM {
 
     /** might throw a NoTagPresent exception */
     public byte getFieldTag(long field) {
-        if (!hasFieldTag(id)) {
-            throw new NoTagPresent(Source.FIELD, id);
+        if (!hasFieldTag(field)) {
+            throw new NoTagPresentException(Source.FIELD, id);
         }
         return fieldTags.get(field);
     }
@@ -111,7 +114,7 @@ class VM {
     /** might throw a NoTagPresent exception */
     public byte getArrayTag(long id) {
         if (!hasArrayTag(id)) {
-            throw new NoTagPresent(Source.ARRAY, id);
+            throw new NoTagPresentException(Source.ARRAY, id);
         }
         return arrayTags.get(id);
     }
@@ -125,4 +128,11 @@ class VM {
         sizeofModuleRef = idSizes.objectIDSize;
     }*/
 
+    /** clear tags info and classForSignature */
+    public void reset() {
+        fieldTags.clear();
+        classFieldIds.clear();
+        classForSignature.clear();
+        arrayTags.clear();
+    }
 }

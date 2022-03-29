@@ -57,7 +57,7 @@ public class PacketStream {
     private boolean isCommitted = false;
     public Packet finishedPacket;
 
-    PacketStream(VirtualMachineImpl vm, int cmdSet, int cmd) {
+    public PacketStream(VirtualMachineImpl vm, int cmdSet, int cmd) {
         this.vm = vm;
         this.pkt = new Packet();
         pkt.cmdSet = (short)cmdSet;
@@ -74,7 +74,7 @@ public class PacketStream {
         return pkt.id;
     }
 
-    void send() {
+    public void send() {
         if (!isCommitted) {
             pkt.data = dataStream.toByteArray();
             pkt.id = 0;
@@ -225,7 +225,7 @@ public class PacketStream {
         }
     }
 
-    void writeValueChecked(Value val) throws InvalidTypeException {
+    public void writeValueChecked(Value val) throws InvalidTypeException {
         writeByte(ValueImpl.typeValueKey(val));
         writeUntaggedValue(val);
     }

@@ -3252,9 +3252,9 @@ public class JDWP {
             /**
              * The superclass (null if the class ID for java.lang.Object is specified).
              */
-            final ClassTypeImpl superclass;
+            public final ClassTypeImpl superclass;
 
-            private Superclass(VirtualMachineImpl vm, PacketStream ps) {
+            public Superclass(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.ClassType.Superclass"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }
@@ -3478,14 +3478,14 @@ public class JDWP {
             /**
              * The returned value.
              */
-            final ValueImpl returnValue;
+            public final ValueImpl returnValue;
 
             /**
              * The thrown exception.
              */
             final ObjectReferenceImpl exception;
 
-            private InvokeMethod(VirtualMachineImpl vm, PacketStream ps) {
+            public InvokeMethod(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.ClassType.InvokeMethod"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }

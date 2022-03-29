@@ -110,7 +110,7 @@ public class ObjectReferenceImpl extends ValueImpl
         return (ClassTypeImpl)referenceType();
     }
 
-    ObjectReferenceImpl(VirtualMachine aVm,long aRef) {
+    public ObjectReferenceImpl(VirtualMachine aVm, long aRef) {
         super(aVm);
 
         ref = aRef;

@@ -26,6 +26,7 @@
 package jdwp;
 
 import jdwp.Value.BasicValue;
+import lombok.val;
 
 import java.io.ByteArrayOutputStream;
 
@@ -175,11 +176,11 @@ class PacketStream {
 
     void writeValueTagged(jdwp.Reference val) {
         byte tag = (byte) val.type.tag;
-        if (isObjectTag(tag)) {
+        /*if (isObjectTag(tag)) {
             writeByte((byte)Value.Type.OBJECT.tag);
-        } else {
+        } else {*/
             writeByte((byte) val.type.tag);
-        }
+        //}
         val.write(this);
     }
 
@@ -362,6 +363,10 @@ class PacketStream {
            return Reference.readReference(this, tag);
        }
        return PrimitiveValue.readValue(this, tag);
+    }
+
+    BasicValue<?> readUntaggedFieldValue(Reference.FieldReference field) {
+        return readUntaggedValue(vm.getFieldTag(field.value));
     }
 
     byte[] readByteArray(int length) {

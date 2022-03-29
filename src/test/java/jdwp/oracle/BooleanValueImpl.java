@@ -34,7 +34,7 @@ public class BooleanValueImpl extends PrimitiveValueImpl
 {
     private boolean value;
 
-    BooleanValueImpl(VirtualMachine aVm, boolean aValue) {
+    public BooleanValueImpl(VirtualMachine aVm, boolean aValue) {
         super(aVm);
         value = aValue;
     }

@@ -88,6 +88,9 @@ abstract class Node {
     void indentAndPrintMultiline(PrintWriter writer, int depth, String content) {
         String indent = "    ".repeat(Math.max(0, depth));
         content.lines().forEach( s -> {
+            if (s.trim().equals(";")) {
+                return;
+            }
             if (s.endsWith(";;")) {
                 s = s.substring(0, s.length() - 1);
             }

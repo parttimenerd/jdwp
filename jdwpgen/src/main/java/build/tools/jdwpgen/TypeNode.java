@@ -55,7 +55,7 @@ interface TypeNode {
         public String genJavaWrite(String writeLabel) {
             StringWriter writer = new StringWriter();
             genJavaWrite(new PrintWriter(writer), 0, writeLabel);
-            return writer.toString().strip();
+            return writer.toString();
         }
 
         abstract String javaRead();
@@ -75,7 +75,7 @@ interface TypeNode {
         public String genJavaRead(String readLabel) {
             StringWriter writer = new StringWriter();
             genJavaRead(new PrintWriter(writer), 0, readLabel);
-            return writer.toString().strip();
+            return writer.toString().trim();
         }
 
         public void genJavaRead(PrintWriter writer, int depth,
@@ -434,7 +434,7 @@ interface TypeNode {
 
         public void genJavaWrite(PrintWriter writer, int depth,
                                  String writeLabel) {
-            writer.println(String.format("ps.writeValueTagged(%s)", writeLabel));
+            writer.println(String.format("ps.writeValueTagged(%s);", writeLabel));
         }
 
         String javaRead() {
@@ -455,11 +455,11 @@ interface TypeNode {
         public void genJavaWrite(PrintWriter writer, int depth,
                                  String writeLabel) {
             indent(writer, depth);
-            writer.println("ps.writeValueTagged(" + writeLabel + ")");
+            writer.println("ps.writeValueTagged(" + writeLabel + ");");
         }
 
         String javaRead() {
-            return "ps.readValue()";
+            return "ps.readValue();";
         }
     }
 
@@ -476,7 +476,18 @@ interface TypeNode {
         }
 
         String javaRead() {
-            return "ps.readUntaggedValue()";
+            // we add special cases for all appearing untagged values
+            // this is far easier than generalizing it
+            // and there are currently only two different cases
+            switch (parent.javaType()) {
+                case "FieldValue":
+                    // we know here that the result is a basic value
+                    String fieldVarName = ((FieldTypeNode) this.parent.components.get(0)).name;
+                    // we get the actual type by using the vm and the field id
+                    return String.format("ps.readUntaggedFieldValue(%s)", fieldVarName);
+                default:
+                    throw new AssertionError(String.format("%s not supported with untagged values", parent.javaType()));
+            }
         }
     }
 

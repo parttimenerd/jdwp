@@ -60,7 +60,7 @@ public final class InterfaceTypeImpl extends InvokableTypeImpl
 
     private SoftReference<List<InterfaceType>> superinterfacesRef = null;
 
-    protected InterfaceTypeImpl(VirtualMachine aVm,long aRef) {
+    public InterfaceTypeImpl(VirtualMachine aVm, long aRef) {
         super(aVm, aRef);
     }
 

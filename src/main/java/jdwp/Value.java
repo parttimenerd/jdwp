@@ -26,6 +26,9 @@ public abstract class Value {
     public abstract void write(PacketStream ps);
 
     public static <T extends Value> Type typeForClass(Class<T> klass) {
+        if (klass.equals(BasicValue.class)) {
+            return Type.VALUE;
+        }
         return classTypeMap.getOrDefault(klass, Type.OBJECT);
     }
 
@@ -52,7 +55,8 @@ public abstract class Value {
         THREAD_GROUP(Tag.THREAD_GROUP),
         CLASS_LOADER(Tag.CLASS_LOADER),
         CLASS_OBJECT(Tag.CLASS_OBJECT),
-        LOCATION(-1), TYPE(-1), ARRAY(Tag.ARRAY);
+        LOCATION(-1), TYPE(-1), ARRAY(Tag.ARRAY),
+        VALUE(-1);
         int tag;
         Type(int tag) {
             this.tag = tag;
@@ -80,6 +84,16 @@ public abstract class Value {
                     return Type.STRING;
                 case Tag.VOID:
                     return Type.VOID;
+                case Tag.OBJECT:
+                    return Type.OBJECT;
+                case Tag.THREAD:
+                    return Type.THREAD;
+                case Tag.THREAD_GROUP:
+                    return Type.THREAD_GROUP;
+                case Tag.CLASS_LOADER:
+                    return Type.CLASS_LOADER;
+                case Tag.CLASS_OBJECT:
+                    return CLASS_OBJECT;
                 default:
                     throw new AssertionError("unknown primitive tag " + (char)tag);
             }

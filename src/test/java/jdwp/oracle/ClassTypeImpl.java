@@ -66,7 +66,7 @@ public final class ClassTypeImpl extends InvokableTypeImpl
     private ClassType superclass = null;
     private List<InterfaceType> interfaces = null;
 
-    protected ClassTypeImpl(VirtualMachine aVm, long aRef) {
+    public ClassTypeImpl(VirtualMachine aVm, long aRef) {
         super(aVm, aRef);
     }
 

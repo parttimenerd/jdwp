@@ -49,7 +49,7 @@ public class ThreadGroupReferenceImpl extends ObjectReferenceImpl
         return new Cache();
     }
 
-    ThreadGroupReferenceImpl(VirtualMachine aVm, long aRef) {
+    public ThreadGroupReferenceImpl(VirtualMachine aVm, long aRef) {
         super(aVm, aRef);
         vm.state().addListener(this);
     }

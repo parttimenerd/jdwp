@@ -1,12 +1,16 @@
 package jdwp;
 
+import jdwp.JDWP.ClassType.*;
 import jdwp.JDWP.ThreadReference.NameReply;
 import jdwp.JDWP.ThreadReference.NameRequest;
 import jdwp.JDWP.VirtualMachine.*;
 import jdwp.JDWP.VirtualMachine.ClassesBySignatureReply.ClassInfo;
 import jdwp.PrimitiveValue.StringValue;
+import jdwp.VM.NoTagPresentException;
 import jdwp.Value.*;
 import jdwp.oracle.JDWP;
+import jdwp.oracle.JDWP.ClassType.InvokeMethod;
+import jdwp.oracle.JDWP.ClassType.Superclass;
 import jdwp.oracle.JDWP.ThreadReference.Name;
 import jdwp.oracle.JDWP.VirtualMachine.*;
 import jdwp.oracle.Packet;
@@ -14,12 +18,12 @@ import jdwp.oracle.PacketStream;
 import jdwp.oracle.*;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -33,6 +37,11 @@ class JDWPTest {
 
     private static final VirtualMachineImpl ovm = new VirtualMachineImpl(null, null, null, 1);
     private static final VM vm = new VM(0);
+
+    @BeforeEach
+    void clean() {
+        vm.reset();
+    }
 
     @Test
     public void testVirtualMachine_VersionRequestParsing() throws IOException {
@@ -179,7 +188,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testVirtualMachine_AllThreadsRequestParsing() throws IOException {
+    public void testVirtualMachine_AllThreadsRequestParsing() {
         testBasicRequestParsing(AllThreads.enqueueCommand(ovm), new AllThreadsRequest(0));
     }
 
@@ -195,7 +204,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testVirtualMachine_DisposeRequestParsing() throws IOException {
+    public void testVirtualMachine_DisposeRequestParsing() {
         testBasicRequestParsing(Dispose.enqueueCommand(ovm), new DisposeRequest(0));
         assertFalse(new DisposeRequest(0).onlyReads());
     }
@@ -210,7 +219,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testVirtualMachine_TopLevelThreadGroupsRequestParsing() throws IOException {
+    public void testVirtualMachine_TopLevelThreadGroupsRequestParsing() {
         testBasicRequestParsing(TopLevelThreadGroups.enqueueCommand(ovm), new TopLevelThreadGroupsRequest(0));
     }
 
@@ -226,7 +235,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testVirtualMachine_IDSizesRequestParsing() throws IOException {
+    public void testVirtualMachine_IDSizesRequestParsing() {
         testBasicRequestParsing(IDSizes.enqueueCommand(ovm), new IDSizesRequest(0));
     }
 
@@ -241,7 +250,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testVirtualMachine_SuspendResumeExitRequestParsing() throws IOException {
+    public void testVirtualMachine_SuspendResumeExitRequestParsing() {
         Assertions.assertAll(
                 () -> testBasicRequestParsing(Suspend.enqueueCommand(ovm), new SuspendRequest(0)),
                 () -> testBasicRequestParsing(Resume.enqueueCommand(ovm), new ResumeRequest(0)),
@@ -291,6 +300,110 @@ class JDWPTest {
                 });
     }
 
+    @Test
+    public void testClassType_SuperclassRequestParsing() {
+        testBasicRequestParsing(Superclass.enqueueCommand(ovm, new ClassTypeImpl(ovm, 10)),
+                new SuperclassRequest(0, Reference.classType(10)));
+    }
+
+    @Test
+    public void testClassType_SuperclassReplyParsing() {
+        testReplyParsing(Superclass::new,
+                new SuperclassReply(0, Reference.classType(10)),
+                (o, r) -> {
+                    assertEquals2(10L, o.superclass.ref, r.superclass);
+                });
+    }
+
+    @Test
+    public void testClassType_SetValuesRequestParsing() {
+        // this is interesting as it uses untagged values
+        // we cannot therefore use the oracle here
+
+        // first we assume that the field has a known type
+        var klass = 1;
+        var field = 2;
+        var type = Type.BOOLEAN;
+        vm.addField(klass, field, (byte)type.tag);
+        var request = new SetValuesRequest(0, Reference.classType(klass),
+                new ListValue<>(new SetValuesRequest.FieldValue(Reference.field(field), wrap(1))));
+        var packet = request.toPacket(vm);
+        assertEquals(request, jdwp.JDWP.parse(vm, packet));
+
+        // we then assume that the field has an unknown type
+        vm.reset();
+        Assertions.assertThrows(NoTagPresentException.class, () -> jdwp.JDWP.parse(vm, packet));
+    }
+
+    @Test
+    public void testClassType_InvokeMethodRequestParsing() throws IOException {
+        // can we generate the same package as the oracle
+        var oraclePacket = InvokeMethod.enqueueCommand(ovm,
+                new ClassTypeImpl(ovm, 1),
+                new ThreadReferenceImpl(ovm, 2),
+                3,
+                new ValueImpl[]{
+                        new BooleanValueImpl(ovm, true),
+                        new ClassLoaderReferenceImpl(ovm,2),
+                        new ThreadGroupReferenceImpl(ovm,3),
+                        new ThreadReferenceImpl(ovm, 4),
+                        new ClassObjectReferenceImpl(ovm,5),
+                        new ArrayReferenceImpl(ovm, 7)
+                }, 4).finishedPacket;
+        var packet = new InvokeMethodRequest(0,
+                Reference.classType(1),
+                Reference.thread(2),
+                Reference.method(3),
+                new ListValue<BasicValue<?>>(
+                        PrimitiveValue.wrap(true),
+                        Reference.classLoader(2),
+                        Reference.threadGroup(3),
+                        Reference.thread(4),
+                        Reference.classObject(5),
+                        Reference.array(7)),
+                PrimitiveValue.wrap(4)).toPacket(vm);
+        assertPacketsEqual(oraclePacket, packet);
+
+        // can we parse the package?
+        var readPkg =
+                InvokeMethodRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
+        assertPacketsEqual(packet, readPkg.toPacket(vm));
+        assertEquals(3, readPkg.methodID.value);
+        assertEquals(6, readPkg.arguments.size());
+        assertEquals(PrimitiveValue.wrap(true), readPkg.arguments.get(0));
+        assertEquals(Reference.threadGroup(3), readPkg.arguments.get(2));
+    }
+
+    @Test
+    public void testClassType_InvokeMethodReplyParsing() {
+        testReplyParsing(InvokeMethod::new,
+                new InvokeMethodReply(0, PrimitiveValue.wrap(10), Reference.objectReference(5)),
+                (o, r) -> {
+                    assertEquals(10, ((IntegerValueImpl)o.returnValue).value());
+                    assertEquals(10, r.returnValue.value);
+                });
+    }
+
+    @Test
+    public void testWriteValueChecked() {
+        Assertions.assertAll(
+                () -> twh(new ObjectReferenceImpl(ovm, 17), Reference.objectReference(17)),
+                () -> twh(new ThreadReferenceImpl(ovm, 17), Reference.thread(17)),
+                () -> twh(new BooleanValueImpl(ovm, true), wrap(true)),
+                () -> twh(new IntegerValueImpl(ovm, 1), wrap(1))
+        );
+    }
+
+    @SneakyThrows
+    private <T> void twh(ValueImpl oracleValue, BasicValue<T> value) {
+        var ops = new PacketStream(ovm, 0, 0);
+        ops.writeValueChecked(oracleValue);
+        ops.send();
+        var ps = new jdwp.PacketStream(vm, 0, 0);
+        ps.writeValueTagged(value);
+        assertArrayEquals(ops.finishedPacket.toByteArray(), ps.toPacket().toByteArray());
+    }
+
     @SneakyThrows
     @SuppressWarnings("unchecked")
     <O, R extends Reply> void testReplyParsing(BiFunction<VirtualMachineImpl, PacketStream, O> oracleSupplier,
@@ -322,8 +435,9 @@ class JDWPTest {
      * Should only be used for command replies that are similar to better tested ones
      */
     @SuppressWarnings("unchecked")
+    @SneakyThrows
     public <R extends WalkableValue<String> & Request<?>>
-        void testBasicRequestParsing(PacketStream expected, R request) throws IOException {
+        void testBasicRequestParsing(PacketStream expected, R request) {
         // can we generate the same package as the oracle
         var oraclePacket = expected.finishedPacket;
         var packet = request.toPacket(vm);

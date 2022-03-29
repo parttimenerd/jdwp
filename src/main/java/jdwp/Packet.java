@@ -116,17 +116,8 @@ public class Packet {
     }
 
     public Packet() {
-        id = uniqID();
+        id = 0;
         flags = NoFlags;
         data = nullData;
-    }
-
-    private static synchronized int uniqID() {
-        /*
-         * JDWP spec does not require this id to be sequential and
-         * increasing, but our implementation does. See
-         * VirtualMachine.notifySuspend, for example.
-         */
-        return uID++;
     }
 }

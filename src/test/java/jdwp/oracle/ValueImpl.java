@@ -30,7 +30,7 @@ import com.sun.jdi.InvalidTypeException;
 import com.sun.jdi.Value;
 import com.sun.jdi.VirtualMachine;
 
-abstract class ValueImpl extends MirrorImpl implements Value {
+public abstract class ValueImpl extends MirrorImpl implements Value {
 
     ValueImpl(VirtualMachine aVm) {
         super(aVm);

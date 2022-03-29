@@ -35,7 +35,7 @@ public class ByteValueImpl extends PrimitiveValueImpl
 {
     private byte value;
 
-    ByteValueImpl(VirtualMachine aVm, byte aValue) {
+    public ByteValueImpl(VirtualMachine aVm, byte aValue) {
         super(aVm);
         value = aValue;
     }

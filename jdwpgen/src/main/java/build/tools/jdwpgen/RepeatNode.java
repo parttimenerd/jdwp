@@ -103,6 +103,6 @@ class RepeatNode extends TypeNode.AbstractTypeNode {
         indent(writer, depth);
         writer.println("}");
         indent(writer, depth);
-        writer.println(readLabel + " = new ListValue<>(Value.typeForClass(" + member.javaType() + ".class), " + listLbl + ")");
+        writer.println(readLabel + " = new ListValue<>(Value.typeForClass(" + member.javaType().replace("<?>", "") + ".class), " + listLbl + ")");
     }
 }
