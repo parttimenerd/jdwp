@@ -3,9 +3,9 @@ package jdwp;
 import jdwp.JDWP.Tag;
 import jdwp.JDWP.TypeTag;
 import jdwp.Value.BasicValue;
-import lombok.EqualsAndHashCode;
 
 /** reference to an object, thread, ... */
+@SuppressWarnings("ALL")
 public class Reference extends BasicValue<Long> {
 
     public Reference(Type type, long ref) {
@@ -40,11 +40,11 @@ public class Reference extends BasicValue<Long> {
         }
     }
 
-    public static ObjectReference objectReference(long ref) {
+    public static ObjectReference object(long ref) {
         return new ObjectReference(ref);
     }
 
-    public static ObjectReference objectReference(Type type, long ref) {
+    public static ObjectReference object(Type type, long ref) {
         return new ObjectReference(type, ref);
     }
 
@@ -118,7 +118,7 @@ public class Reference extends BasicValue<Long> {
         }
     }
 
-    public static class TypeReference extends Reference {
+    public static abstract class TypeReference extends Reference {
         public final byte typeTag;
 
         TypeReference(byte typeTag, long ref) {
@@ -137,7 +137,17 @@ public class Reference extends BasicValue<Long> {
         }
 
         public static TypeReference read(PacketStream ps) {
-            return new TypeReference(ps.readByte(), ps.readClassRef());
+            byte tag = ps.readByte();
+            switch (tag) {
+                case TypeTag.CLASS:
+                    return ClassTypeReference.read(ps);
+                case TypeTag.INTERFACE:
+                    return InterfaceTypeReference.read(ps);
+                case TypeTag.ARRAY:
+                    return ArrayTypeReference.read(ps);
+                default:
+                    throw new AssertionError("Unknown type tag " + tag);
+            }
         }
     }
 
@@ -163,10 +173,10 @@ public class Reference extends BasicValue<Long> {
         }
     }
 
-    public static class ArrayTypeReference extends Reference {
+    public static class ArrayTypeReference extends TypeReference {
 
         ArrayTypeReference(long ref) {
-            super(Type.TYPE, ref);
+            super((byte)TypeTag.ARRAY, ref);
         }
 
         public static ArrayTypeReference read(PacketStream ps) {

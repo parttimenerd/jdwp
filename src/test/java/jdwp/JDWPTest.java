@@ -6,6 +6,12 @@ import jdwp.JDWP.ArrayReference.GetValuesRequest;
 import jdwp.JDWP.ArrayReference.LengthReply;
 import jdwp.JDWP.ArrayReference.LengthRequest;
 import jdwp.JDWP.ClassType.*;
+import jdwp.JDWP.Event;
+import jdwp.JDWP.Event.Events;
+import jdwp.JDWP.Event.Events.*;
+import jdwp.JDWP.Event.Events.Exception;
+import jdwp.JDWP.Event.Events.ThreadDeath;
+import jdwp.JDWP.SuspendPolicy;
 import jdwp.JDWP.ThreadReference.NameReply;
 import jdwp.JDWP.ThreadReference.NameRequest;
 import jdwp.JDWP.VirtualMachine.*;
@@ -20,6 +26,7 @@ import jdwp.oracle.JDWP.ArrayReference.Length;
 import jdwp.oracle.JDWP.ClassType.InvokeMethod;
 import jdwp.oracle.JDWP.ClassType.SetValues;
 import jdwp.oracle.JDWP.ClassType.Superclass;
+import jdwp.oracle.JDWP.Event.Composite;
 import jdwp.oracle.JDWP.ThreadReference.Name;
 import jdwp.oracle.JDWP.VirtualMachine.*;
 import jdwp.oracle.Packet;
@@ -166,16 +173,14 @@ class JDWPTest {
 
         // test parsing the related reply
         var reply = new AllClassesReply(1,
-                new ListValue<>(new AllClassesReply.ClassInfo(wrap((byte)1), Reference.klass(1), wrap("bla"), wrap(1))));
+                new ListValue<>(new AllClassesReply.ClassInfo(wrap((byte) 1), Reference.klass(1), wrap("bla"), wrap(1))));
         var preply = readPkg.parseReply(new jdwp.PacketStream(vm, reply.toPacket(vm))).getReply();
         assertEquals(reply.classes.size(), preply.classes.size());
         assertEquals(reply.classes.get(0).signature, preply.classes.get(0).signature);
 
         // test parsing a related reply with different id
-        Assertions.assertThrows(Reply.IdMismatchException.class, () -> {
-            readPkg.parseReply(new jdwp.PacketStream(vm, new AllClassesReply(10,
-                    new ListValue<>(Type.OBJECT)).toPacket(vm)));
-        });
+        Assertions.assertThrows(Reply.IdMismatchException.class, () -> readPkg.parseReply(new jdwp.PacketStream(vm, new AllClassesReply(10,
+                new ListValue<>(Type.OBJECT)).toPacket(vm))));
     }
 
     @Test
@@ -188,7 +193,7 @@ class JDWPTest {
                     assertEquals(5, r.classes.size());
                     assertEquals(5, o.classes.length);
                     for (int i = 0; i < 5; i++) {
-                        assertEquals2((byte)(1 + i), o.classes[i].refTypeTag, r.classes.get(i).refTypeTag);
+                        assertEquals2((byte) (1 + i), o.classes[i].refTypeTag, r.classes.get(i).refTypeTag);
                         assertEquals2(100L + i, o.classes[i].typeID, r.classes.get(i).typeID);
                         assertEquals2(101 + i, o.classes[i].status, r.classes.get(i).status);
                         assertEquals2("blabla" + i, o.classes[i].signature, r.classes.get(i).signature);
@@ -222,9 +227,7 @@ class JDWPTest {
     public void testVirtualMachine_DisposeReplyParsing() {
         testReplyParsing(Dispose::new,
                 new DisposeReply(0),
-                (o, r) -> {
-                    assertEquals(0, r.getKeys().size());
-                });
+                (o, r) -> assertEquals(0, r.getKeys().size()));
     }
 
     @Test
@@ -264,7 +267,7 @@ class JDWPTest {
                 () -> testBasicRequestParsing(Suspend.enqueueCommand(ovm), new SuspendRequest(0)),
                 () -> testBasicRequestParsing(Resume.enqueueCommand(ovm), new ResumeRequest(0)),
                 () -> testBasicRequestParsing(Exit.enqueueCommand(ovm, 10), new ExitRequest(0, wrap(10)))
-                );
+        );
     }
 
     @Test
@@ -305,7 +308,7 @@ class JDWPTest {
         testReplyParsing(Name::new, new jdwp.JDWP.ThreadReference.NameReply(0, wrap("a")),
                 (o, r) -> {
                     assertEquals("a", o.threadName);
-                    assertEquals("a", ((StringValue)r.get("threadName")).value);
+                    assertEquals("a", ((StringValue) r.get("threadName")).value);
                 });
     }
 
@@ -319,9 +322,7 @@ class JDWPTest {
     public void testClassType_SuperclassReplyParsing() {
         testReplyParsing(Superclass::new,
                 new SuperclassReply(0, Reference.classType(10)),
-                (o, r) -> {
-                    assertEquals2(10L, o.superclass.ref, r.superclass);
-                });
+                (o, r) -> assertEquals2(10L, o.superclass.ref, r.superclass));
     }
 
     @Test
@@ -333,9 +334,9 @@ class JDWPTest {
         var klass = 1;
         var field = 2;
         var type = Type.BOOLEAN;
-        vm.addField(klass, field, (byte)type.tag);
+        vm.addField(klass, field, (byte) type.tag);
         var request = new SetValuesRequest(0, Reference.classType(klass),
-                new ListValue<>(new SetValuesRequest.FieldValue(Reference.field(field), wrap(1))));
+                new ListValue<>(Type.OBJECT, new SetValuesRequest.FieldValue(Reference.field(field), wrap(true))));
         var packet = request.toPacket(vm);
         assertEquals(request, jdwp.JDWP.parse(vm, packet));
 
@@ -348,7 +349,7 @@ class JDWPTest {
     public void testClassType_SetValuesReplyParsing() {
         testReplyParsing(SetValues::new,
                 new SetValuesReply(0),
-                (o, r) -> { assertEquals(0, r.getKeys().size() );});
+                (o, r) -> assertEquals(0, r.getKeys().size()));
     }
 
     @Test
@@ -360,17 +361,17 @@ class JDWPTest {
                 3,
                 new ValueImpl[]{
                         new BooleanValueImpl(ovm, true),
-                        new ClassLoaderReferenceImpl(ovm,2),
-                        new ThreadGroupReferenceImpl(ovm,3),
+                        new ClassLoaderReferenceImpl(ovm, 2),
+                        new ThreadGroupReferenceImpl(ovm, 3),
                         new ThreadReferenceImpl(ovm, 4),
-                        new ClassObjectReferenceImpl(ovm,5),
+                        new ClassObjectReferenceImpl(ovm, 5),
                         new ArrayReferenceImpl(ovm, 7)
                 }, 4).finishedPacket;
         var packet = new InvokeMethodRequest(0,
                 Reference.classType(1),
                 Reference.thread(2),
                 Reference.method(3),
-                new ListValue<BasicValue<?>>(
+                new ListValue<>(
                         PrimitiveValue.wrap(true),
                         Reference.classLoader(2),
                         Reference.threadGroup(3),
@@ -393,9 +394,9 @@ class JDWPTest {
     @Test
     public void testClassType_InvokeMethodReplyParsing() {
         testReplyParsing(InvokeMethod::new,
-                new InvokeMethodReply(0, PrimitiveValue.wrap(10), Reference.objectReference(5)),
+                new InvokeMethodReply(0, PrimitiveValue.wrap(10), Reference.object(5)),
                 (o, r) -> {
-                    assertEquals(10, ((IntegerValueImpl)o.returnValue).value());
+                    assertEquals(10, ((IntegerValueImpl) o.returnValue).value());
                     assertEquals(10, r.returnValue.value);
                 });
     }
@@ -410,9 +411,7 @@ class JDWPTest {
     public void testArrayReference_LengthReplyParsing() {
         testReplyParsing(Length::new,
                 new LengthReply(0, wrap(10)),
-                (o, r) -> {
-                    assertEquals2(10, o.arrayLength, r.arrayLength);
-                });
+                (o, r) -> assertEquals2(10, o.arrayLength, r.arrayLength));
     }
 
     @Test
@@ -425,9 +424,7 @@ class JDWPTest {
     public void testArrayReference_GetValuesReplyParsing() {
         testReplyParsing(GetValues::new,
                 new GetValuesReply(0, new BasicListValue<>(Type.INT, List.of(wrap(11)))),
-                (o, r) -> {
-                    assertEquals2(11, ((IntegerValueImpl)o.values.get(0)).intValue(), (IntValue)r.values.get(0));
-                });
+                (o, r) -> assertEquals2(11, ((IntegerValueImpl) o.values.get(0)).intValue(), (IntValue) r.values.get(0)));
     }
 
     @Test
@@ -438,9 +435,9 @@ class JDWPTest {
         // first we assume that the field has a known type
         var array = 1;
         var type = Type.INT;
-        vm.addArrayTag(array, (byte)type.tag);
+        vm.addArrayTag(array, (byte) type.tag);
         var request = new ArrayReference.SetValuesRequest(0, Reference.array(array), wrap(1),
-                new ListValue<>(wrap(1), wrap(2), wrap(3)));
+                new ListValue<>(Type.VALUE, wrap(1), wrap(2), wrap(3)));
         var packet = request.toPacket(vm);
         assertEquals(request, jdwp.JDWP.parse(vm, packet));
 
@@ -453,13 +450,299 @@ class JDWPTest {
     public void testArrayReference_SetValuesReplyParsing() {
         testReplyParsing(JDWP.ArrayReference.SetValues::new,
                 new ArrayReference.SetValuesReply(0),
-                (o, r) -> { assertEquals(0, r.getKeys().size() );});
+                (o, r) -> assertEquals(0, r.getKeys().size()));
+    }
+
+    /**
+     * also tests parsing VMStart and SingleStep events
+     */
+    @Test
+    public void testEvent_parse() {
+        // basic round-trip parse
+        var vmStart = new VMStart(wrap(1), Reference.thread(10));
+        var singleStep = new SingleStep(wrap(10),
+                Reference.thread(100),
+                new Location(Reference.classType(1), Reference.method(7), wrap((long) 101)));
+        var events = new Events(0, wrap((byte) SuspendPolicy.NONE), new ListValue<>(vmStart, singleStep));
+
+        // basic check with oracle
+        var oparsed = new Composite(ovm, oraclePacketStream(events.toPacket(vm)));
+        assertEquals(events.suspendPolicy.value, oparsed.suspendPolicy);
+        assertEquals(events.size(), oparsed.events.length);
+
+        assertInstanceOf(Composite.Events.VMStart.class, oparsed.events[0].aEventsCommon);
+        var oVmStart = (Composite.Events.VMStart) oparsed.events[0].aEventsCommon;
+        assertEquals(vmStart.requestID.value, oVmStart.requestID);
+        assertEquals(vmStart.thread.value, oVmStart.thread.ref);
+
+        assertInstanceOf(Composite.Events.SingleStep.class, oparsed.events[1].aEventsCommon);
+        var oSingleStep = (Composite.Events.SingleStep) oparsed.events[1].aEventsCommon;
+        assertEquals(singleStep.requestID.value, oSingleStep.requestID);
+        assertEquals(singleStep.thread.value, oSingleStep.thread.ref);
+        var location = (LocationImpl) oSingleStep.location;
+        assertEquals(singleStep.location.codeIndex.value, location.codeIndex);
+        assertEquals(singleStep.location.methodRef.value, location.methodRef);
+
+        // test basic parse of produced packet
+        var parsed = Event.parse(vm, events.toPacket(vm));
+        var pparsed = Event.Events.parse(vm, events.toPacket(vm));
+        assertEquals(parsed, pparsed);
+        assertEquals(events, parsed);
+    }
+
+    @Test
+    public void testEvent_VMThreadStartThreadDeath() {
+        var vmStart = new VMStart(wrap(1), Reference.thread(10));
+        var ps = eventOraclePacketStream(vmStart);
+        var oVMStart = new Composite.Events.VMStart(ovm, ps);
+        assertEquals(vmStart.requestID.value, oVMStart.requestID);
+        assertEquals(vmStart.thread.value, oVMStart.thread.ref);
+        assertEquals(vmStart, VMStart.parse(eventPacketStream(vmStart)));
+
+        var threadStart = new ThreadStart(wrap(1), Reference.thread(10));
+        var ps2 = eventOraclePacketStream(threadStart);
+        var oThreadStart = new Composite.Events.ThreadStart(ovm, ps2);
+        assertEquals(threadStart.requestID.value, oThreadStart.requestID);
+        assertEquals(threadStart.thread.value, oThreadStart.thread.ref);
+        assertEquals(threadStart, ThreadStart.parse(eventPacketStream(threadStart)));
+
+        var threadDeath = new ThreadDeath(wrap(1), Reference.thread(10));
+        var ps3 = eventOraclePacketStream(threadDeath);
+        var oThreadDeath = new Composite.Events.ThreadDeath(ovm, ps3);
+        assertEquals(threadDeath.requestID.value, oThreadDeath.requestID);
+        assertEquals(threadDeath.thread.value, oThreadDeath.thread.ref);
+        assertEquals(threadDeath, ThreadDeath.parse(eventPacketStream(threadDeath)));
+    }
+
+    @Test
+    public void testEvent_SingleStep() {
+        var singleStep = new SingleStep(wrap(10),
+                Reference.thread(100),
+                new Location(Reference.classType(1), Reference.method(7), wrap((long) 101)));
+        var ps = eventOraclePacketStream(singleStep);
+        var oSingleStep = new Composite.Events.SingleStep(ovm, ps);
+        assertEquals(singleStep.requestID.value, oSingleStep.requestID);
+        assertEquals(singleStep.thread.value, oSingleStep.thread.ref);
+        var location = (LocationImpl) oSingleStep.location;
+        assertEquals(singleStep.location.codeIndex.value, location.codeIndex);
+        assertEquals(singleStep.location.methodRef.value, location.methodRef);
+    }
+
+    private final Location location =
+            new Location(Reference.classType(1010), Reference.method(79), wrap((long) 4345341));
+
+    private void assertLocationCorrect(com.sun.jdi.Location loc) {
+        var lo = (LocationImpl) loc;
+        assertEquals(location.codeIndex.value, lo.codeIndex);
+        assertEquals(location.methodRef.value, lo.methodRef);
+    }
+
+    @Test
+    public void testEvent_Breakpoint() {
+        var event = new Breakpoint(wrap(1), Reference.thread(10), location);
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.Breakpoint(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event, Breakpoint.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_MethodEntry() {
+        var event = new MethodEntry(wrap(1), Reference.thread(10), location);
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.MethodEntry(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event, MethodEntry.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_MethodExit() {
+        var event = new MethodExit(wrap(1), Reference.thread(10), location);
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.MethodExit(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event, MethodExit.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_MethodExitWithReturnValue() {
+        var event = new MethodExitWithReturnValue(wrap(1), Reference.thread(10), location, wrap(true));
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.MethodExitWithReturnValue(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event.value.value, ((BooleanValueImpl) oEvent.value).booleanValue());
+        assertEquals(event, MethodExitWithReturnValue.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_MonitorContendedEnter() {
+        var event = new MonitorContendedEnter(wrap(1), Reference.thread(10), Reference.object(345345345), location);
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.MonitorContendedEnter(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertEquals(event.object.value, oEvent.object.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event, MonitorContendedEnter.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_MonitorContendedEntered() {
+        var event = new MonitorContendedEntered(wrap(200), Reference.thread(1023434), Reference.object(345345345), location);
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.MonitorContendedEntered(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertEquals(event.object.value, oEvent.object.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event, MonitorContendedEntered.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_MonitorWaitWaited() {
+        var event = new MonitorWait(wrap(200),
+                Reference.thread(1023434), Reference.object(345345345),
+                location, wrap(Long.parseLong("100000000000")));
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.MonitorWait(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertEquals(event.object.value, oEvent.object.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event.timeout.value, oEvent.timeout);
+        assertEquals(event, MonitorWait.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_MonitorWaited() {
+        var event = new MonitorWaited(wrap(200),
+                Reference.thread(1023434), Reference.object(345345345),
+                location, wrap(true));
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.MonitorWaited(ovm, ps);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertEquals(event.timed_out.value, oEvent.timed_out);
+        assertEquals(event, MonitorWaited.parse(eventPacketStream(event)));
+
+    }
+
+    @Test
+    public void testEvent_Exception() {
+        var event = new Exception(wrap(200), Reference.thread(1023434),
+                location, Reference.object(Long.parseLong("8354762345873")),
+                location);
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.Exception(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertEquals(event.exception.value, oEvent.exception.ref);
+        assertLocationCorrect(oEvent.location);
+        assertLocationCorrect(oEvent.catchLocation);
+        assertEquals(event, Exception.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_ClassPrepare() {
+        var event = new ClassPrepare(wrap(1), Reference.thread(10), wrap((byte) 3),
+                Reference.klass(10000), wrap("dfgadfjg"), wrap(-100003));
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.ClassPrepare(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertEquals(event.refTypeTag.value, oEvent.refTypeTag);
+        assertEquals(event.signature.value, oEvent.signature);
+        assertEquals(event.status.value, oEvent.status);
+        assertEquals(event, ClassPrepare.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_ClassUnload() {
+        var event = new ClassUnload(wrap(1), wrap("345345345939873454"));
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.ClassUnload(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.signature.value, oEvent.signature);
+        assertEquals(event, ClassUnload.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_FieldAccess() {
+        var event = new FieldAccess(wrap(1), Reference.thread(10), location,
+                wrap((byte) 102), Reference.klass(234), Reference.field(1324),
+                Reference.object(3453345));
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.FieldAccess(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event.refTypeTag.value, oEvent.refTypeTag);
+        assertEquals(event.typeID.value, oEvent.typeID);
+        assertEquals(event.fieldID.value, oEvent.fieldID);
+        assertEquals(event.object.value, oEvent.object.ref);
+        assertEquals(event, FieldAccess.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_FieldModification() {
+        var event = new FieldModification(wrap(1), Reference.thread(10), location,
+                wrap((byte) 102), Reference.klass(234), Reference.field(1324),
+                Reference.object(3453345), wrap(1.0));
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.FieldModification(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event.thread.value, oEvent.thread.ref);
+        assertLocationCorrect(oEvent.location);
+        assertEquals(event.refTypeTag.value, oEvent.refTypeTag);
+        assertEquals(event.typeID.value, oEvent.typeID);
+        assertEquals(event.fieldID.value, oEvent.fieldID);
+        assertEquals(event.object.value, oEvent.object.ref);
+        assertEquals(event.valueToBe.value, ((DoubleValueImpl) oEvent.valueToBe).doubleValue());
+        assertEquals(event, FieldModification.parse(eventPacketStream(event)));
+    }
+
+    @Test
+    public void testEvent_VMDeath() {
+        var event = new VMDeath(wrap(134534));
+        var ps = eventOraclePacketStream(event);
+        var oEvent = new Composite.Events.VMDeath(ovm, ps);
+        assertEquals(event.requestID.value, oEvent.requestID);
+        assertEquals(event, VMDeath.parse(eventPacketStream(event)));
+    }
+
+    /**
+     * skips the type byte (but asserts that is correct)
+     */
+    private PacketStream eventOraclePacketStream(EventCommon event) {
+        var ps = new jdwp.PacketStream(vm, 0, 0);
+        event.write(ps);
+        var os = oraclePacketStream(ps.toPacket());
+        assertEquals(event.getKind(), os.readByte());
+        return os;
+    }
+
+    /**
+     * skips the type byte (but asserts that is correct)
+     */
+    private jdwp.PacketStream eventPacketStream(EventCommon event) {
+        var ps = new jdwp.PacketStream(vm, 0, 0);
+        event.write(ps);
+        var pps = new jdwp.PacketStream(vm, ps.toPacket());
+        assertEquals(event.getKind(), pps.readByte());
+        return pps;
     }
 
     @Test
     public void testWriteValueChecked() {
         Assertions.assertAll(
-                () -> twh(new ObjectReferenceImpl(ovm, 17), Reference.objectReference(17)),
+                () -> twh(new ObjectReferenceImpl(ovm, 17), Reference.object(17)),
                 () -> twh(new ThreadReferenceImpl(ovm, 17), Reference.thread(17)),
                 () -> twh(new BooleanValueImpl(ovm, true), wrap(true)),
                 () -> twh(new IntegerValueImpl(ovm, 1), wrap(1))
@@ -486,7 +769,7 @@ class JDWPTest {
         checker.accept(oracleObj, reply);
 
         // can we parse our package?
-        var rreply = ((ReplyOrError<R>)reply.getClass().getMethod("parse", VM.class, jdwp.Packet.class)
+        var rreply = ((ReplyOrError<R>) reply.getClass().getMethod("parse", VM.class, jdwp.Packet.class)
                 .invoke(null, vm, producedPacket)).getReply();
         assertEquals(reply, rreply);
     }
@@ -503,13 +786,13 @@ class JDWPTest {
 
     /**
      * Check that both packages are equal and that we can parse the package
-     *
+     * <p>
      * Should only be used for command replies that are similar to better tested ones
      */
     @SuppressWarnings("unchecked")
     @SneakyThrows
     public <R extends WalkableValue<String> & Request<?>>
-        void testBasicRequestParsing(PacketStream expected, R request) {
+    void testBasicRequestParsing(PacketStream expected, R request) {
         // can we generate the same package as the oracle
         var oraclePacket = expected.finishedPacket;
         var packet = request.toPacket(vm);
@@ -519,7 +802,7 @@ class JDWPTest {
         R readPkg =
                 null;
         try {
-            readPkg = (R)request.getClass().getMethod("parse", VM.class, jdwp.Packet.class)
+            readPkg = (R) request.getClass().getMethod("parse", VM.class, jdwp.Packet.class)
                     .invoke(null, vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
         } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
             e.printStackTrace();

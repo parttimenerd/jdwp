@@ -314,7 +314,7 @@ public class PacketStream {
     /**
      * Read byte represented as one bytes.
      */
-    byte readByte() {
+    public byte readByte() {
         byte ret = pkt.data[inCursor];
         inCursor += 1;
         return ret;
@@ -343,7 +343,7 @@ public class PacketStream {
     /**
      * Read short represented as two bytes.
      */
-    short readShort() {
+    public short readShort() {
         int b1, b2;
 
         b1 = pkt.data[inCursor++] & 0xff;
@@ -355,7 +355,7 @@ public class PacketStream {
     /**
      * Read int represented as four bytes.
      */
-    int readInt() {
+    public int readInt() {
         int b1,b2,b3,b4;
 
         b1 = pkt.data[inCursor++] & 0xff;

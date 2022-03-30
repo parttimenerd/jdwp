@@ -38,12 +38,9 @@ class VM {
         enum Source {
             FIELD, ARRAY
         }
-        private final Source source;
-        private final long id;
+
         NoTagPresentException(Source source, long id) {
             super(String.format("No tag present for %s %d", source.name(), id));
-            this.source = source;
-            this.id = id;
         }
     }
 
@@ -63,9 +60,9 @@ class VM {
     /** class id -> [field id] */
     private final Map<Long, List<Long>> classFieldIds;
     /** class signature -> class id */
-    private Map<String, Long> classForSignature;
+    private final Map<String, Long> classForSignature;
     /** array id -> tag */
-    private Map<Long, Byte> arrayTags;
+    private final Map<Long, Byte> arrayTags;
 
     public VM(int id) {
         this.id = id;

@@ -4,11 +4,15 @@ import jdwp.PrimitiveValue.LongValue;
 import jdwp.Reference.MethodReference;
 import jdwp.Reference.TypeReference;
 import jdwp.Value.CombinedValue;
+import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import static jdwp.util.Pair.p;
 
+@SuppressWarnings("ALL")
 @EqualsAndHashCode(callSuper = false)
 public class Location extends CombinedValue {
 
@@ -40,11 +44,12 @@ public class Location extends CombinedValue {
         return declaringType.typeTag == 0;
     }
 
-    private static final List<String> keys = Arrays.asList("declaringType", "methodRef", "codeIndex");
+    private static final List<String> KEYS = List.of("declaringType", "methodRef", "codeIndex");
+    private static final Set<String> KEY_SET = new HashSet<>(KEYS);
 
     @Override
     List<String> getKeys() {
-        return keys;
+        return KEYS;
     }
 
     @Override
@@ -59,5 +64,15 @@ public class Location extends CombinedValue {
             default:
                 return keyError(key);
         }
+    }
+
+    @Override
+    boolean containsKey(String key) {
+        return KEYS.contains(key);
+    }
+
+    @Override
+    List<Pair<String, Value>> getValues() {
+        return List.of(p("declaringType", declaringType), p("methodRef", methodRef), p("codeIndex", codeIndex));
     }
 }

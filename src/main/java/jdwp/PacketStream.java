@@ -27,12 +27,12 @@ package jdwp;
 
 import jdwp.Reference.ArrayReference;
 import jdwp.Value.BasicValue;
-import lombok.val;
 
 import java.io.ByteArrayOutputStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+@SuppressWarnings("ALL")
 class PacketStream {
     final VM vm;
     private int inCursor = 0;
@@ -199,7 +199,7 @@ class PacketStream {
     }
 
     /**
-     * Read byte represented as one bytes.
+     * Read byte represented as one byte.
      */
     byte readByte() {
         byte ret = pkt.data[inCursor];

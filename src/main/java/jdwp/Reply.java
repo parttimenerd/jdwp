@@ -1,8 +1,8 @@
 package jdwp;
 
 public interface Reply extends ParsedPacket {
-    public int getCommand();
-    public int getCommandSet();
+    int getCommand();
+    int getCommandSet();
 
     /** Thrown if the id of a reply does not match the id of the request which should parse it*/
     class IdMismatchException extends RuntimeException {

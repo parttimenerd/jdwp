@@ -10,8 +10,7 @@ import lombok.ToString;
  *
  * @param <T> wrapped type
  */
-@EqualsAndHashCode
-@ToString
+@SuppressWarnings("ALL")
 public abstract class PrimitiveValue<T> extends BasicValue<T> {
 
     private PrimitiveValue(Type type, T value) {
@@ -217,7 +216,7 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
             super(Type.VOID, 0);
         }
 
-        public static VoidValue VALUE = new VoidValue();
+        public static final VoidValue VALUE = new VoidValue();
 
 
         @Override

@@ -1,7 +1,9 @@
 package jdwp;
 
 import jdwp.Reference.ArrayReference;
+import jdwp.Value.ListValue;
 import lombok.EqualsAndHashCode;
+import jdwp.util.Pair;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -9,9 +11,10 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import static jdwp.JDWP.Tag;
 
+@SuppressWarnings("ALL")
 public abstract class Value {
 
-    protected static Map<Class<? extends Value>, Type> classTypeMap = new HashMap<>();
+    protected static final Map<Class<? extends Value>, Type> classTypeMap = new HashMap<>();
 
     public final Type type;
 
@@ -41,6 +44,8 @@ public abstract class Value {
         LIST(Tag.ARRAY),
         REQUEST(-2),
         REPLY(-3),
+        EVENTS(-4),
+        EVENT(-5),
         BYTE(Tag.BYTE),
         CHAR(Tag.CHAR),
         OBJECT(Tag.OBJECT),
@@ -57,7 +62,7 @@ public abstract class Value {
         CLASS_OBJECT(Tag.CLASS_OBJECT),
         LOCATION(-1), TYPE(-1), ARRAY(Tag.ARRAY),
         VALUE(-1);
-        int tag;
+        final int tag;
         Type(int tag) {
             this.tag = tag;
         }
@@ -119,22 +124,28 @@ public abstract class Value {
 
         abstract Stream<K> getKeyStream();
         abstract Value get(K key);
+        abstract boolean containsKey(K key);
+
+        List<Pair<K, Value>> getValues() {
+            return getKeyStream().map(k -> Pair.p(k, get(k))).collect(Collectors.toList());
+        }
 
         protected Value keyError(Object key) {
             throw new AssertionError("Unknown key %s".formatted(key));
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public boolean equals(Object obj) {
             if (!(obj instanceof WalkableValue<?>)) {
                 return false;
             }
-            return getKeyStream().allMatch(k -> ((WalkableValue) obj).get(k).equals(get(k)));
+            return getValues().equals(((WalkableValue<?>) obj).getValues());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getKeyStream().toArray());
+            return Objects.hash(getValues().toArray());
         }
     }
 
@@ -160,55 +171,11 @@ public abstract class Value {
     }
 
     /** fields and methods */
-    /*public static class TypeComponent extends CombinedValue {
-        final Reference ref;
-        final jdwp.PrimitiveValue<String> name;
-        final jdwp.PrimitiveValue<String> signature;
-        final jdwp.PrimitiveValue<String> genericSignature;
-        final Reference declaringType;
-        final jdwp.PrimitiveValue<Integer> modifiers;
-
-        public TypeComponent(Type type, Reference ref, jdwp.PrimitiveValue<String> name, jdwp.PrimitiveValue<String> signature, jdwp.PrimitiveValue<String> genericSignature, Reference declaringType, jdwp.PrimitiveValue<Integer> modifiers) {
-            super(type);
-            this.ref = ref;
-            this.name = name;
-            this.signature = signature;
-            this.genericSignature = genericSignature;
-            this.declaringType = declaringType;
-            this.modifiers = modifiers;
-        }
-
-        private static final List<String> keys = Arrays.asList("ref", "name", "signature", "genericSignature", "declaringType", "modifiers");
-        @Override
-        List<String> getKeys() {
-            return keys;
-        }
-
-        @Override
-        Value get(String key) {
-            switch (key) {
-                case "ref":
-                    return ref;
-                case "name":
-                    return name;
-                case "signature":
-                    return signature;
-                case "genericSignature":
-                    return genericSignature;
-                case "declaringType":
-                    return declaringType;
-                case "modifiers":
-                    return modifiers;
-                default:
-                    return keyError(key);
-            }
-        }
-    }*/
 
     public static class ListValue<T extends Value> extends WalkableValue<Integer> {
 
-        Type entryType;
-        List<T> values;
+        final Type entryType;
+        final List<T> values;
 
         protected ListValue(Type entryType, List<T> values) {
             super(Type.LIST);
@@ -216,8 +183,8 @@ public abstract class Value {
             this.values = values;
         }
 
-        protected ListValue(Type entryType) {
-            this(entryType, Collections.emptyList());
+        protected ListValue(Type entryType, T... values) {
+            this(entryType, List.of(values));
         }
 
         @SafeVarargs
@@ -237,12 +204,36 @@ public abstract class Value {
             return values.get(key);
         }
 
+        @Override
+        boolean containsKey(Integer key) {
+            return key >= 0 && key < values.size();
+        }
+
         int size() { return values.size(); }
 
         @Override
         public void write(PacketStream ps) {
             ps.writeInt(values.size());
             values.forEach(value -> value.write(ps));
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if ((!(o instanceof ListValue<?>))) {
+                return false;
+            }
+            ListValue<?> val = (ListValue<?>) o;
+            return val.entryType == entryType && val.values.equals(values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(entryType, values);
+        }
+
+        @Override
+        public String toString() {
+            return entryType.name() + values.toString();
         }
     }
 
@@ -319,7 +310,6 @@ public abstract class Value {
     }
 
     /** Consists only of a single data field */
-    @EqualsAndHashCode(callSuper = false)
     public static abstract class BasicValue<T> extends Value {
 
         public final T value;
@@ -335,6 +325,21 @@ public abstract class Value {
 
         boolean isBasic() {
             return true;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "(" + value + ")";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o.getClass() == getClass() && ((BasicValue<?>)o).value.equals(value);
+        }
+
+        @Override
+        public int hashCode() {
+            return value.hashCode();
         }
     }
 

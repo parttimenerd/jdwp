@@ -1,12 +1,12 @@
+@file:Suppress("FunctionName")
+
 package build.tools.jdwpgen
 import com.grosner.kpoet.*
 import com.squareup.javapoet.*
 import com.squareup.javapoet.ParameterSpec
 import com.squareup.javapoet.TypeName
 import com.squareup.javapoet.TypeSpec
-import java.lang.reflect.Method
 import javax.lang.model.element.Modifier
-import javax.lang.model.element.Modifier.*
 import kotlin.reflect.KClass
 
 // based on KPoet
@@ -63,6 +63,9 @@ fun TypeSpec.Builder.`private static field`(type: String, name: String, codeMeth
 inline fun `public static class`(className: String, typeSpecFunc: TypeMethod)
         = TypeSpec.classBuilder(className).typeSpecFunc().modifiers(public, static).build()!!
 
+inline fun `public static abstract class`(className: String, typeSpecFunc: TypeMethod)
+        = TypeSpec.classBuilder(className).typeSpecFunc().modifiers(public, static, abstract).build()!!
+
 fun TypeSpec.Builder.extends(type: String) = superclass(ClassName.bestGuess(type))!!
 
 fun TypeSpec.Builder.implements(vararg typeName: String) =
@@ -77,6 +80,14 @@ fun TypeSpec.Builder.`public constructor`(parameters: List<ParameterSpec.Builder
                                  methodSpecFunction: MethodMethod = { this })
         = addMethod(methodSpecFunction(MethodSpec.constructorBuilder()).addParameters(parameters.map { it.build() }
     .toMutableList()).addModifiers(public).build())!!
+
+fun TypeSpec.Builder.`public static`(type: TypeName, name: String, vararg params: ParameterSpec.Builder,
+                                     codeMethod: MethodMethod = { this })
+        = addMethod(applyParams(listOf(public, static), type, name, params = *params, function = codeMethod))!!
+
+fun TypeSpec.Builder.`public abstract`(type: TypeName, name: String, vararg params: ParameterSpec.Builder,
+                                     codeMethod: MethodMethod = { this })
+        = addMethod(applyParams(listOf(public, abstract), type, name, params = *params, function = codeMethod))!!
 
 fun param(type: String, name: String, paramMethod: ParamMethod = { this })
         = ParameterSpec.builder(ClassName.bestGuess(type), name).paramMethod()

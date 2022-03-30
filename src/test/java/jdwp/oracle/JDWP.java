@@ -7729,9 +7729,9 @@ public class JDWP {
                  * Event kind selector
                  */
                 final byte eventKind;
-                EventsCommon aEventsCommon;
+                public EventsCommon aEventsCommon;
 
-                Events(VirtualMachineImpl vm, PacketStream ps) {
+                public Events(VirtualMachineImpl vm, PacketStream ps) {
                     eventKind = ps.readByte();
                     if (vm.traceReceives) {
                         vm.printReceiveTrace(5, "eventKind(byte): " + eventKind);
@@ -7813,14 +7813,14 @@ public class JDWP {
                      * Request that generated event (or 0 if this
                      * event is automatically generated.
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Initial thread
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
-                    VMStart(VirtualMachineImpl vm, PacketStream ps) {
+                    public VMStart(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -7845,19 +7845,19 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Stepped thread
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Location stepped to
                      */
-                    final Location location;
+                    public final Location location;
 
-                    SingleStep(VirtualMachineImpl vm, PacketStream ps) {
+                    public SingleStep(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -7886,19 +7886,19 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Thread which hit breakpoint
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Location hit
                      */
-                    final Location location;
+                    public final Location location;
 
-                    Breakpoint(VirtualMachineImpl vm, PacketStream ps) {
+                    public Breakpoint(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -7933,19 +7933,19 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Thread which entered method
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * The initial executable location in the method.
                      */
-                    final Location location;
+                    public final Location location;
 
-                    MethodEntry(VirtualMachineImpl vm, PacketStream ps) {
+                    public MethodEntry(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -7978,19 +7978,19 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Thread which exited method
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Location of exit
                      */
-                    final Location location;
+                    public final Location location;
 
-                    MethodExit(VirtualMachineImpl vm, PacketStream ps) {
+                    public MethodExit(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8023,24 +8023,24 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Thread which exited method
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Location of exit
                      */
-                    final Location location;
+                    public final Location location;
 
                     /**
                      * Value that will be returned by the method
                      */
-                    final ValueImpl value;
+                    public final ValueImpl value;
 
-                    MethodExitWithReturnValue(VirtualMachineImpl vm, PacketStream ps) {
+                    public MethodExitWithReturnValue(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8076,24 +8076,24 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Thread which is trying to enter the monitor
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Monitor object reference
                      */
-                    final ObjectReferenceImpl object;
+                    public final ObjectReferenceImpl object;
 
                     /**
                      * Location of contended monitor enter
                      */
-                    final Location location;
+                    public final Location location;
 
-                    MonitorContendedEnter(VirtualMachineImpl vm, PacketStream ps) {
+                    public MonitorContendedEnter(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8129,24 +8129,24 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Thread which entered monitor
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Monitor object reference
                      */
-                    final ObjectReferenceImpl object;
+                    public final ObjectReferenceImpl object;
 
                     /**
                      * Location of contended monitor enter
                      */
-                    final Location location;
+                    public final Location location;
 
-                    MonitorContendedEntered(VirtualMachineImpl vm, PacketStream ps) {
+                    public MonitorContendedEntered(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8181,29 +8181,29 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Thread which is about to wait
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Monitor object reference
                      */
-                    final ObjectReferenceImpl object;
+                    public final ObjectReferenceImpl object;
 
                     /**
                      * Location at which the wait will occur
                      */
-                    final Location location;
+                    public final Location location;
 
                     /**
                      * Thread wait time in milliseconds
                      */
-                    final long timeout;
+                    public final long timeout;
 
-                    MonitorWait(VirtualMachineImpl vm, PacketStream ps) {
+                    public MonitorWait(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8248,7 +8248,7 @@ public class JDWP {
                     /**
                      * Thread which waited
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Monitor object reference
@@ -8263,9 +8263,9 @@ public class JDWP {
                     /**
                      * True if timed out
                      */
-                    final boolean timed_out;
+                    public final boolean timed_out;
 
-                    MonitorWaited(VirtualMachineImpl vm, PacketStream ps) {
+                    public MonitorWaited(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8307,23 +8307,23 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Thread with exception
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Location of exception throw
                      * (or first non-native location after throw if thrown from a native method)
                      */
-                    final Location location;
+                    public final Location location;
 
                     /**
                      * Thrown exception
                      */
-                    final ObjectReferenceImpl exception;
+                    public final ObjectReferenceImpl exception;
 
                     /**
                      * Location of catch, or 0 if not caught. An exception
@@ -8356,9 +8356,9 @@ public class JDWP {
                      * will be considered caught even though it appears to be uncaught from
                      * examination of the source code.
                      */
-                    final Location catchLocation;
+                    public final Location catchLocation;
 
-                    Exception(VirtualMachineImpl vm, PacketStream ps) {
+                    public Exception(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8411,14 +8411,14 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Started thread
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
-                    ThreadStart(VirtualMachineImpl vm, PacketStream ps) {
+                    public ThreadStart(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8450,14 +8450,14 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Ending thread
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
-                    ThreadDeath(VirtualMachineImpl vm, PacketStream ps) {
+                    public ThreadDeath(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8484,7 +8484,7 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Preparing thread.
@@ -8503,13 +8503,13 @@ public class JDWP {
                      * Note that the discussion above does not apply to system threads
                      * created by the target VM during its normal (non-debug) operation.
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Kind of reference type.
                      * See <a href="#JDWP_TypeTag">JDWP.TypeTag</a>
                      */
-                    final byte refTypeTag;
+                    public final byte refTypeTag;
 
                     /**
                      * Type being prepared
@@ -8519,15 +8519,15 @@ public class JDWP {
                     /**
                      * Type signature
                      */
-                    final String signature;
+                    public final String signature;
 
                     /**
                      * Status of type.
                      * See <a href="#JDWP_ClassStatus">JDWP.ClassStatus</a>
                      */
-                    final int status;
+                    public final int status;
 
-                    ClassPrepare(VirtualMachineImpl vm, PacketStream ps) {
+                    public ClassPrepare(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8570,14 +8570,14 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Type signature
                      */
-                    final String signature;
+                    public final String signature;
 
-                    ClassUnload(VirtualMachineImpl vm, PacketStream ps) {
+                    public ClassUnload(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8605,40 +8605,40 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Accessing thread
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Location of access
                      */
-                    final Location location;
+                    public final Location location;
 
                     /**
                      * Kind of reference type.
                      * See <a href="#JDWP_TypeTag">JDWP.TypeTag</a>
                      */
-                    final byte refTypeTag;
+                    public final byte refTypeTag;
 
                     /**
                      * Type of field
                      */
-                    final long typeID;
+                    public final long typeID;
 
                     /**
                      * Field being accessed
                      */
-                    final long fieldID;
+                    public final long fieldID;
 
                     /**
                      * Object being accessed (null=0 for statics
                      */
-                    final ObjectReferenceImpl object;
+                    public final ObjectReferenceImpl object;
 
-                    FieldAccess(VirtualMachineImpl vm, PacketStream ps) {
+                    public FieldAccess(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8684,45 +8684,45 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
                     /**
                      * Modifying thread
                      */
-                    final ThreadReferenceImpl thread;
+                    public final ThreadReferenceImpl thread;
 
                     /**
                      * Location of modify
                      */
-                    final Location location;
+                    public final Location location;
 
                     /**
                      * Kind of reference type.
                      * See <a href="#JDWP_TypeTag">JDWP.TypeTag</a>
                      */
-                    final byte refTypeTag;
+                    public final byte refTypeTag;
 
                     /**
                      * Type of field
                      */
-                    final long typeID;
+                    public final long typeID;
 
                     /**
                      * Field being modified
                      */
-                    final long fieldID;
+                    public final long fieldID;
 
                     /**
                      * Object being modified (null=0 for statics
                      */
-                    final ObjectReferenceImpl object;
+                    public final ObjectReferenceImpl object;
 
                     /**
                      * Value to be assigned
                      */
-                    final ValueImpl valueToBe;
+                    public final ValueImpl valueToBe;
 
-                    FieldModification(VirtualMachineImpl vm, PacketStream ps) {
+                    public FieldModification(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8767,9 +8767,9 @@ public class JDWP {
                     /**
                      * Request that generated event
                      */
-                    final int requestID;
+                    public final int requestID;
 
-                    VMDeath(VirtualMachineImpl vm, PacketStream ps) {
+                    public VMDeath(VirtualMachineImpl vm, PacketStream ps) {
                         requestID = ps.readInt();
                         if (vm.traceReceives) {
                             vm.printReceiveTrace(6, "requestID(int): " + requestID);
@@ -8782,14 +8782,14 @@ public class JDWP {
             /**
              * Which threads where suspended by this composite event?
              */
-            final byte suspendPolicy;
+            public final byte suspendPolicy;
 
             /**
              * Events in set.
              */
-            final Events[] events;
+            public final Events[] events;
 
-            Composite(VirtualMachineImpl vm, PacketStream ps) {
+            public Composite(VirtualMachineImpl vm, PacketStream ps) {
                 if (vm.traceReceives) {
                     vm.printTrace("Receiving Command(id=" + ps.pkt.id + ") JDWP.Event.Composite"+(ps.pkt.flags!=0?", FLAGS=" + ps.pkt.flags:"")+(ps.pkt.errorCode!=0?", ERROR CODE=" + ps.pkt.errorCode:""));
                 }

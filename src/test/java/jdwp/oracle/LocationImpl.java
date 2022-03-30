@@ -34,8 +34,8 @@ import com.sun.jdi.VirtualMachine;
 public class LocationImpl extends MirrorImpl implements Location {
     private final ReferenceTypeImpl declaringType;
     private Method method;
-    private long methodRef;
-    private long codeIndex;
+    public long methodRef;
+    public long codeIndex;
     private LineInfo baseLineInfo = null;
     private LineInfo otherLineInfo = null;
 

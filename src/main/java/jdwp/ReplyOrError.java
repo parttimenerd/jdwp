@@ -2,8 +2,6 @@ package jdwp;
 
 import io.reactivex.annotations.Nullable;
 
-import java.util.Optional;
-
 public class ReplyOrError<R extends Reply> implements ParsedPacket {
     private final int id;
     private final short flags;
@@ -73,9 +71,9 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
     public Packet toPacket(VM vm) {
         if (hasError()) {
             Packet packet = new Packet();
-            packet.flags = (short)flags;
+            packet.flags = flags;
             packet.id = id;
-            packet.errorCode = (short)errorCode;
+            packet.errorCode = errorCode;
             return packet;
         }
         return reply.toPacket(vm);

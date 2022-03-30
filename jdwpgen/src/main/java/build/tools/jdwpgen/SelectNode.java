@@ -80,45 +80,13 @@ class SelectNode extends AbstractGroupNode implements TypeNode {
         return name() + "Common";
     }
 
+    @Override
+    String javaType() {
+        return commonBaseClass();
+    }
+
     private String commonVar() {
         return " a" + commonBaseClass();
-    }
-
-    void genJavaClassSpecifics(PrintWriter writer, int depth) {
-        indent(writer, depth);
-        writer.println("abstract static class " + commonBaseClass() + " {");
-        if (context.isWritingCommand()) {
-            indent(writer, depth+1);
-            writer.println("abstract void write(PacketStream ps);");
-        } else {
-            indent(writer, depth+1);
-            writer.println("abstract " + typeNode.javaParam() + "();");
-        }
-        indent(writer, depth);
-        writer.println("}");
-        typeNode.genJavaDeclaration(writer, depth);
-        indent(writer, depth);
-        writer.println(commonBaseClass() + commonVar() + ";");
-        super.genJavaClassSpecifics(writer, depth);
-    }
-
-    void genJavaClassBodyComponents(PrintWriter writer, int depth) {
-        // don't naively include alt components
-    }
-
-    void genJavaWritingClassBody(PrintWriter writer, int depth,
-                                 String className) {
-        writer.println();
-        indent(writer, depth);
-        writer.print(className + "(" + typeNode.javaParam() + ", ");
-        writer.print(commonBaseClass() + commonVar());
-        writer.println(") {");
-        indent(writer, depth+1);
-        writer.println("this." + typeNode.name() + " = " + typeNode.name() + ";");
-        indent(writer, depth+1);
-        writer.println("this." + commonVar() + " =" + commonVar() + ";");
-        indent(writer, depth);
-        writer.println("}");
     }
 
     void genJavaWrites(PrintWriter writer, int depth) {
@@ -127,24 +95,15 @@ class SelectNode extends AbstractGroupNode implements TypeNode {
         writer.println(commonVar() + ".write(ps);");
     }
 
-    void genJavaReads(PrintWriter writer, int depth) {
-        typeNode.genJavaRead(writer, depth, typeNode.name());
+    public void genJavaRead(PrintWriter writer, int depth,
+                            String readLabel) {
         indent(writer, depth);
-        writer.println("switch (" + typeNode.name() + ") {");
-        for (Node node : components) {
-            AltNode alt = (AltNode)node;
-            alt.genJavaReadsSelectCase(writer, depth+1, commonVar());
-        }
-        indent(writer, depth);
-        writer.println("}");
+        writer.print(readLabel);
+        writer.print(" = " + commonBaseClass() + ".parse(ps);");
     }
 
     public void genJavaDeclaration(PrintWriter writer, int depth) {
         typeNode.genJavaDeclaration(writer, depth);
         super.genJavaDeclaration(writer, depth);
-    }
-
-    public String javaParam() {
-        return typeNode.javaParam() + ", " + name() + " a" + name();
     }
 }
