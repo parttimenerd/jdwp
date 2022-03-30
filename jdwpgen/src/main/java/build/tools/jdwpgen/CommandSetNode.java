@@ -29,6 +29,11 @@ import java.io.*;
 
 class CommandSetNode extends AbstractNamedNode {
 
+    @Override
+    public String name() {
+        return super.name() + "Cmds";
+    }
+
     void constrainComponent(Context ctx, Node node) {
         if (node instanceof CommandNode) {
             node.constrain(ctx);

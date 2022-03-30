@@ -26,6 +26,8 @@
 package build.tools.jdwpgen;
 
 import java.io.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 class Main {
 
@@ -46,6 +48,7 @@ class Main {
     public static void main(String[] args) throws IOException {
         Reader reader = null;
         PrintWriter doc = null;
+        Path jdiFile = null;
         PrintWriter jdi = null;
         PrintWriter include = null;
 
@@ -57,6 +60,7 @@ class Main {
                 if (arg.equals("-doc")) {
                     doc = new PrintWriter(new FileWriter(fn));
                 } else if (arg.equals("-jdi")) {
+                    jdiFile = Paths.get(fn);
                     jdi = new PrintWriter(new FileWriter(fn));
                 } else if (arg.equals("-include")) {
                     include = new PrintWriter(new FileWriter(fn));
@@ -86,7 +90,7 @@ class Main {
             doc.close();
         }
         if (jdi != null) {
-            root.genJava(jdi, 0);
+            root.genJava(jdi, jdiFile);
             jdi.close();
         }
         if (include != null) {

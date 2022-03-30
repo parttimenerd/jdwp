@@ -1,21 +1,21 @@
 package jdwp;
 
-import jdwp.JDWP.ArrayReference;
-import jdwp.JDWP.ArrayReference.GetValuesReply;
-import jdwp.JDWP.ArrayReference.GetValuesRequest;
-import jdwp.JDWP.ArrayReference.LengthReply;
-import jdwp.JDWP.ArrayReference.LengthRequest;
-import jdwp.JDWP.ClassType.*;
-import jdwp.JDWP.Event;
-import jdwp.JDWP.Event.Events;
-import jdwp.JDWP.Event.Events.*;
-import jdwp.JDWP.Event.Events.Exception;
-import jdwp.JDWP.Event.Events.ThreadDeath;
+import jdwp.ArrayReferenceCmds;
+import jdwp.ArrayReferenceCmds.GetValuesReply;
+import jdwp.ArrayReferenceCmds.GetValuesRequest;
+import jdwp.ArrayReferenceCmds.LengthReply;
+import jdwp.ArrayReferenceCmds.LengthRequest;
+import jdwp.ClassTypeCmds.*;
+import jdwp.EventCmds;
+import jdwp.EventCmds.Events;
+import jdwp.EventCmds.Events.*;
+import jdwp.EventCmds.Events.Exception;
+import jdwp.EventCmds.Events.ThreadDeath;
 import jdwp.JDWP.SuspendPolicy;
-import jdwp.JDWP.ThreadReference.NameReply;
-import jdwp.JDWP.ThreadReference.NameRequest;
-import jdwp.JDWP.VirtualMachine.*;
-import jdwp.JDWP.VirtualMachine.ClassesBySignatureReply.ClassInfo;
+import jdwp.ThreadReferenceCmds.NameReply;
+import jdwp.ThreadReferenceCmds.NameRequest;
+import jdwp.VirtualMachineCmds.*;
+import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
 import jdwp.PrimitiveValue.IntValue;
 import jdwp.PrimitiveValue.StringValue;
 import jdwp.VM.NoTagPresentException;
@@ -63,12 +63,12 @@ class JDWPTest {
     public void testVirtualMachine_VersionRequestParsing() throws IOException {
         // can we generate the same package as the oracle
         var oraclePacket = JDWP.VirtualMachine.Version.enqueueCommand(ovm).finishedPacket;
-        var packet = new jdwp.JDWP.VirtualMachine.VersionRequest(0, (short) 0).toPacket(vm);
+        var packet = new VirtualMachineCmds.VersionRequest(0, (short) 0).toPacket(vm);
         assertPacketsEqual(oraclePacket, packet);
 
         // can we parse the package?
         var readPkg =
-                jdwp.JDWP.VirtualMachine.VersionRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
+                VirtualMachineCmds.VersionRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
         assertPacketsEqual(packet, readPkg.toPacket(vm));
         assertEquals(0, readPkg.id);
 
@@ -82,7 +82,7 @@ class JDWPTest {
     @Test
     public void testVirtualMachine_VersionReplyParsing() {
         testReplyParsing(Version::new,
-                new jdwp.JDWP.VirtualMachine.VersionReply(0,
+                new VirtualMachineCmds.VersionReply(0,
                         wrap("d"), wrap(1), wrap(2), wrap("v"), wrap("w")),
                 (o, r) -> {
                     assertEquals("d", o.description);
@@ -97,12 +97,12 @@ class JDWPTest {
     public void testVirtualMachine_ClassBySignatureRequestParsing() throws IOException {
         // can we generate the same package as the oracle
         var oraclePacket = JDWP.VirtualMachine.ClassesBySignature.enqueueCommand(ovm, "sig").finishedPacket;
-        var packet = new jdwp.JDWP.VirtualMachine.ClassesBySignatureRequest(0, wrap("sig")).toPacket(vm);
+        var packet = new VirtualMachineCmds.ClassesBySignatureRequest(0, wrap("sig")).toPacket(vm);
         assertPacketsEqual(oraclePacket, packet);
 
         // can we parse the package?
         var readPkg =
-                jdwp.JDWP.VirtualMachine.ClassesBySignatureRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
+                VirtualMachineCmds.ClassesBySignatureRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
         assertPacketsEqual(packet, readPkg.toPacket(vm));
         assertEquals(0, readPkg.id);
         assertEquals("sig", readPkg.signature.value);
@@ -118,7 +118,7 @@ class JDWPTest {
     public void testVirtualMachine_ClassBySignatureReplyParsing() {
         // empty
         testReplyParsing(ClassesBySignature::new,
-                new jdwp.JDWP.VirtualMachine.ClassesBySignatureReply(0,
+                new VirtualMachineCmds.ClassesBySignatureReply(0,
                         new ListValue<>(Type.OBJECT, new ArrayList<>())),
                 (o, r) -> {
                     assertEquals(0, r.classes.size());
@@ -126,7 +126,7 @@ class JDWPTest {
                 });
         // single
         testReplyParsing(ClassesBySignature::new,
-                new jdwp.JDWP.VirtualMachine.ClassesBySignatureReply(0,
+                new VirtualMachineCmds.ClassesBySignatureReply(0,
                         new ListValue<>(Type.OBJECT, List.of(new ClassInfo(wrap((byte) 1), Reference.klass(100), wrap(101))))),
                 (o, r) -> {
                     assertEquals(1, r.classes.size());
@@ -137,7 +137,7 @@ class JDWPTest {
                 });
         // several
         testReplyParsing(ClassesBySignature::new,
-                new jdwp.JDWP.VirtualMachine.ClassesBySignatureReply(0,
+                new VirtualMachineCmds.ClassesBySignatureReply(0,
                         new ListValue<>(Type.OBJECT, IntStream.range(0, 5).mapToObj(i -> new ClassInfo(wrap((byte) (1 + i)), Reference.klass(100 + i), wrap(101 + i))).collect(Collectors.toList()))),
                 (o, r) -> {
                     assertEquals(5, r.classes.size());
@@ -156,12 +156,12 @@ class JDWPTest {
         var oraclePs = JDWP.VirtualMachine.AllClasses.enqueueCommand(ovm);
         oraclePs.pkt.id = 1;
         var oraclePacket = oraclePs.finishedPacket;
-        var packet = new jdwp.JDWP.VirtualMachine.AllClassesRequest(1, (short) 0).toPacket(vm);
+        var packet = new VirtualMachineCmds.AllClassesRequest(1, (short) 0).toPacket(vm);
         assertPacketsEqual(oraclePacket, packet);
 
         // can we parse the package?
         var readPkg =
-                jdwp.JDWP.VirtualMachine.AllClassesRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
+                VirtualMachineCmds.AllClassesRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
         assertPacketsEqual(packet, readPkg.toPacket(vm));
         assertEquals(1, readPkg.id);
 
@@ -187,7 +187,7 @@ class JDWPTest {
     public void testVirtualMachine_AllClassesReplyParsing() {
         // several
         testReplyParsing(AllClasses::new,
-                new jdwp.JDWP.VirtualMachine.AllClassesReply(0,
+                new VirtualMachineCmds.AllClassesReply(0,
                         new ListValue<>(Type.OBJECT, IntStream.range(0, 5).mapToObj(i -> new AllClassesReply.ClassInfo(wrap((byte) (1 + i)), Reference.klass(100 + i), wrap("blabla" + i), wrap(101 + i))).collect(Collectors.toList()))),
                 (o, r) -> {
                     assertEquals(5, r.classes.size());
@@ -286,12 +286,12 @@ class JDWPTest {
         var t = new ThreadReferenceImpl();
         t.ref = 100;
         var oraclePacket = Name.enqueueCommand(ovm, t).finishedPacket;
-        var packet = new jdwp.JDWP.ThreadReference.NameRequest(0, (short) 0, Reference.thread(100)).toPacket(vm);
+        var packet = new ThreadReferenceCmds.NameRequest(0, (short) 0, Reference.thread(100)).toPacket(vm);
         assertPacketsEqual(oraclePacket, packet);
 
         // can we parse the package?
         var readPkg =
-                jdwp.JDWP.ThreadReference.NameRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
+                ThreadReferenceCmds.NameRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
         assertPacketsEqual(packet, readPkg.toPacket(vm));
         assertEquals(100, readPkg.thread.value);
         assertEquals(0, readPkg.id);
@@ -305,7 +305,7 @@ class JDWPTest {
 
     @Test
     public void testThreadReference_NameReplyParsing() {
-        testReplyParsing(Name::new, new jdwp.JDWP.ThreadReference.NameReply(0, wrap("a")),
+        testReplyParsing(Name::new, new ThreadReferenceCmds.NameReply(0, wrap("a")),
                 (o, r) -> {
                     assertEquals("a", o.threadName);
                     assertEquals("a", ((StringValue) r.get("threadName")).value);
@@ -436,7 +436,7 @@ class JDWPTest {
         var array = 1;
         var type = Type.INT;
         vm.addArrayTag(array, (byte) type.tag);
-        var request = new ArrayReference.SetValuesRequest(0, Reference.array(array), wrap(1),
+        var request = new ArrayReferenceCmds.SetValuesRequest(0, Reference.array(array), wrap(1),
                 new ListValue<>(Type.VALUE, wrap(1), wrap(2), wrap(3)));
         var packet = request.toPacket(vm);
         assertEquals(request, jdwp.JDWP.parse(vm, packet));
@@ -449,7 +449,7 @@ class JDWPTest {
     @Test
     public void testArrayReference_SetValuesReplyParsing() {
         testReplyParsing(JDWP.ArrayReference.SetValues::new,
-                new ArrayReference.SetValuesReply(0),
+                new ArrayReferenceCmds.SetValuesReply(0),
                 (o, r) -> assertEquals(0, r.getKeys().size()));
     }
 
@@ -484,8 +484,8 @@ class JDWPTest {
         assertEquals(singleStep.location.methodRef.value, location.methodRef);
 
         // test basic parse of produced packet
-        var parsed = Event.parse(vm, events.toPacket(vm));
-        var pparsed = Event.Events.parse(vm, events.toPacket(vm));
+        var parsed = EventCmds.parse(vm, events.toPacket(vm));
+        var pparsed = EventCmds.Events.parse(vm, events.toPacket(vm));
         assertEquals(parsed, pparsed);
         assertEquals(events, parsed);
     }
@@ -777,7 +777,7 @@ class JDWPTest {
     @Test
     public void testParsingErrorPackage() {
         // can we handle errors properly (we only have to this for a single test case)
-        var reply = new ReplyOrError<jdwp.JDWP.ThreadReference.NameReply>(0, (short) 10);
+        var reply = new ReplyOrError<ThreadReferenceCmds.NameReply>(0, (short) 10);
         assertEquals(10, oraclePacketStream(reply.toPacket(vm)).pkt.errorCode);
 
         // can we parse our package?

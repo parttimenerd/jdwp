@@ -599,8 +599,8 @@ internal class CommandNode : AbstractCommandNode() {
                     ) {
                         switch("ps.commandSet()") {
                             for (cmdSet in nodes) {
-                                case("${cmdSet.name}.COMMAND_SET") {
-                                    _return("${cmdSet.name}.parse(ps)")
+                                case("${cmdSet.name()}.COMMAND_SET") {
+                                    _return("${cmdSet.name()}.parse(ps)")
                                 }
                             }
                             default {
