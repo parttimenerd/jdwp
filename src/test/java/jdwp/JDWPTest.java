@@ -4,18 +4,25 @@ import jdwp.ArrayReferenceCmds.GetValuesReply;
 import jdwp.ArrayReferenceCmds.GetValuesRequest;
 import jdwp.ArrayReferenceCmds.LengthReply;
 import jdwp.ArrayReferenceCmds.LengthRequest;
+import jdwp.ClassLoaderReferenceCmds.VisibleClassesRequest;
 import jdwp.ClassTypeCmds.*;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.*;
 import jdwp.EventCmds.Events.Exception;
 import jdwp.EventCmds.Events.ThreadDeath;
+import jdwp.EventRequestCmds.SetRequest;
+import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.JDWP.SuspendPolicy;
 import jdwp.MethodCmds.IsObsoleteReply;
 import jdwp.MethodCmds.LineTableReply;
+import jdwp.Reference.ThreadReference;
 import jdwp.ReferenceTypeCmds.*;
 import jdwp.ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo;
+import jdwp.StackFrameCmds.ThisObjectRequest;
+import jdwp.ThreadGroupReferenceCmds.ChildrenReply;
 import jdwp.ThreadReferenceCmds.NameReply;
 import jdwp.ThreadReferenceCmds.NameRequest;
+import jdwp.ThreadReferenceCmds.ThreadGroupReply;
 import jdwp.VirtualMachineCmds.*;
 import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
 import jdwp.PrimitiveValue.IntValue;
@@ -26,18 +33,27 @@ import jdwp.oracle.JDWP;
 import jdwp.oracle.JDWP.ArrayReference.GetValues;
 import jdwp.oracle.JDWP.ArrayReference.Length;
 import jdwp.oracle.JDWP.ArrayType;
+import jdwp.oracle.JDWP.ClassLoaderReference.VisibleClasses;
 import jdwp.oracle.JDWP.ClassType.InvokeMethod;
 import jdwp.oracle.JDWP.ClassType.NewInstance;
 import jdwp.oracle.JDWP.ClassType.SetValues;
 import jdwp.oracle.JDWP.ClassType.Superclass;
 import jdwp.oracle.JDWP.Event.Composite;
+import jdwp.oracle.JDWP.EventRequest.Set;
+import jdwp.oracle.JDWP.EventRequest.Set.Modifier;
+import jdwp.oracle.JDWP.EventRequest.Set.Modifier.ClassMatch;
+import jdwp.oracle.JDWP.EventRequest.Set.Modifier.Count;
 import jdwp.oracle.JDWP.Method.IsObsolete;
 import jdwp.oracle.JDWP.Method.LineTable;
+import jdwp.oracle.JDWP.ModuleReference;
 import jdwp.oracle.JDWP.ObjectReference;
 import jdwp.oracle.JDWP.ReferenceType;
 import jdwp.oracle.JDWP.ReferenceType.*;
 import jdwp.oracle.JDWP.ReferenceType.GetValues.Field;
+import jdwp.oracle.JDWP.StackFrame.ThisObject;
+import jdwp.oracle.JDWP.ThreadGroupReference.Children;
 import jdwp.oracle.JDWP.ThreadReference.Name;
+import jdwp.oracle.JDWP.ThreadReference.ThreadGroup;
 import jdwp.oracle.JDWP.VirtualMachine.*;
 import jdwp.oracle.JDWP.VirtualMachine.RedefineClasses.ClassDef;
 import jdwp.oracle.Packet;
@@ -496,39 +512,6 @@ class JDWPTest {
     }
 
     @Test
-    public void testThreadReference_NameRequestParsing() throws IOException {
-        // can we generate the same package as the oracle
-        var t = new ThreadReferenceImpl();
-        t.ref = 100;
-        var oraclePacket = Name.enqueueCommand(ovm, t).finishedPacket;
-        var packet = new ThreadReferenceCmds.NameRequest(0, (short) 0, Reference.thread(100)).toPacket(vm);
-        assertPacketsEqual(oraclePacket, packet);
-
-        // can we parse the package?
-        var readPkg =
-                ThreadReferenceCmds.NameRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
-        assertPacketsEqual(packet, readPkg.toPacket(vm));
-        assertEquals(100, readPkg.thread.value);
-        assertEquals(0, readPkg.id);
-
-        // test get()
-        assertEquals(Reference.thread(100), readPkg.get("thread"));
-
-        // test JDWP.parse
-        assertInstanceOf(NameRequest.class, jdwp.JDWP.parse(vm, packet));
-    }
-
-    @Test
-    @Tag("basic")
-    public void testThreadReference_NameReplyParsing() {
-        testReplyParsing(Name::new, new ThreadReferenceCmds.NameReply(0, wrap("a")),
-                (o, r) -> {
-                    assertEquals("a", o.threadName);
-                    assertEquals("a", ((StringValue) r.get("threadName")).value);
-                });
-    }
-
-    @Test
     @Tag("basic")
     public void testClassType_SuperclassRequestParsing() {
         testBasicRequestParsing(Superclass.enqueueCommand(ovm, new ClassTypeImpl(ovm, 10)),
@@ -686,6 +669,58 @@ class JDWPTest {
     }
 
     @Test
+    public void testThreadReference_NameRequestParsing() throws IOException {
+        // can we generate the same package as the oracle
+        var t = new ThreadReferenceImpl();
+        t.ref = 100;
+        var oraclePacket = Name.enqueueCommand(ovm, t).finishedPacket;
+        var packet = new ThreadReferenceCmds.NameRequest(0, (short) 0, Reference.thread(100)).toPacket(vm);
+        assertPacketsEqual(oraclePacket, packet);
+
+        // can we parse the package?
+        var readPkg =
+                ThreadReferenceCmds.NameRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
+        assertPacketsEqual(packet, readPkg.toPacket(vm));
+        assertEquals(100, readPkg.thread.value);
+        assertEquals(0, readPkg.id);
+
+        // test get()
+        assertEquals(Reference.thread(100), readPkg.get("thread"));
+
+        // test JDWP.parse
+        assertInstanceOf(NameRequest.class, jdwp.JDWP.parse(vm, packet));
+    }
+
+    @Test
+    @Tag("basic")
+    public void testThreadReference_NameReplyParsing() {
+        testReplyParsing(Name::new, new ThreadReferenceCmds.NameReply(0, wrap("a")),
+                (o, r) -> {
+                    assertEquals("a", o.threadName);
+                    assertEquals("a", ((StringValue) r.get("threadName")).value);
+                });
+    }
+
+    @Test
+    public void testThreadReference_ThreadGroupReplyParsing() {
+        testReplyParsing(ThreadGroup::new,
+                new ThreadGroupReply(0, Reference.threadGroup(79)),
+                (o, r) -> assertEquals2((long) 79, o.group.ref, r.group));
+    }
+
+    @Test
+    public void testThreadGroupReference_ChildrenReplyParsing() {
+        testReplyParsing(Children::new,
+                new ChildrenReply(0,
+                        new ListValue<>(Reference.thread(1), Reference.thread(2)),
+                        new ListValue<>(Reference.threadGroup(-1))),
+                (o, r) -> {
+                    assertEquals2(1, o.childGroups.length, r.childGroups.size());
+                    assertEquals2((long) -1, o.childGroups[0].ref, r.childGroups.get(0));
+                });
+    }
+
+    @Test
     @Tag("basic")
     public void testArrayReference_LengthRequestParsing() {
         testBasicRequestParsing(Length.enqueueCommand(ovm, new ArrayReferenceImpl(ovm, 9)),
@@ -740,6 +775,48 @@ class JDWPTest {
         testReplyParsing(JDWP.ArrayReference.SetValues::new,
                 new ArrayReferenceCmds.SetValuesReply(0),
                 (o, r) -> assertEquals(0, r.getKeys().size()));
+    }
+
+    @Test
+    public void testClassLoaderReference_VisibleClassesRequestParsing() {
+        testBasicRequestParsing(VisibleClasses.enqueueCommand(ovm, new ClassLoaderReferenceImpl(ovm, 43)),
+                new VisibleClassesRequest(0, Reference.classLoader(43)));
+    }
+
+    @Test
+    @SneakyThrows
+    public void testEventRequest_SetRequestParsing() {
+        // can we generate the same package as the oracle
+        Modifier[] omods = new Modifier[] {
+                new Modifier((byte)1, new Count(11)),
+                new Modifier((byte)5, new ClassMatch("asd"))
+        };
+        ModifierCommon[] mods = new ModifierCommon[] {
+                new SetRequest.Count(wrap(11)),
+                new SetRequest.ClassMatch(wrap("asd"))
+        };
+        var oraclePs = Set.enqueueCommand(ovm, (byte)0, (byte)0, omods);
+        var oraclePacket = oraclePs.finishedPacket;
+        var packet = new SetRequest(0, wrap((byte)0), wrap((byte)0),
+                new ListValue<>(Type.OBJECT, mods)).toPacket(vm);
+        assertPacketsEqual(oraclePacket, packet);
+
+        // can we parse the package?
+        var readPkg =
+                SetRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
+        assertPacketsEqual(packet, readPkg.toPacket(vm));
+    }
+
+    @Test
+    public void testStackFrame_ThisObjectRequestParsing() {
+        testBasicRequestParsing(ThisObject.enqueueCommand(ovm, new ThreadReferenceImpl(ovm, 43), 10),
+                new ThisObjectRequest(0, Reference.thread(43), Reference.frame(10)));
+    }
+
+    @Test
+    public void testModuleReference_NameRequestParsing() {
+        testBasicRequestParsing(ModuleReference.Name.enqueueCommand(ovm, new ModuleReferenceImpl(ovm, 42)),
+                new ModuleReferenceCmds.NameRequest(0, Reference.module(42)));
     }
 
     /**

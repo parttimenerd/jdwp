@@ -1885,6 +1885,392 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (OnlyReads "true")
     )
+    (Command Suspend=2
+        "Suspends the thread. "
+        "<p>"
+        "Unlike java.lang.Thread.suspend(), suspends of both "
+        "the virtual machine and individual threads are counted. Before "
+        "a thread will run again, it must be resumed the same number "
+        "of times it has been suspended. "
+        "<p>"
+        "Suspending single threads with command has the same "
+        "dangers java.lang.Thread.suspend(). If the suspended "
+        "thread holds a monitor needed by another running thread, "
+        "deadlock is possible in the target VM (at least until the "
+        "suspended thread is resumed again). "
+        "<p>"
+        "The suspended thread is guaranteed to remain suspended until "
+        "resumed through one of the JDI resume methods mentioned above; "
+        "the application in the target VM cannot resume the suspended thread "
+        "through {@link java.lang.Thread#resume}. "
+        "<p>"
+        "Note that this doesn't change the status of the thread (see the "
+        "<a href=\"#JDWP_ThreadReference_Status\">ThreadStatus</a> command.) "
+        "For example, if it was "
+        "Running, it will still appear running to other threads. "
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command Resume=3
+        "Resumes the execution of a given thread. If this thread was "
+        "not previously suspended by the front-end, "
+        "calling this command has no effect. "
+        "Otherwise, the count of pending suspends on this thread is "
+        "decremented. If it is decremented to 0, the thread will "
+        "continue to execute. "
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command Status=4
+        "Returns the current status of a thread. The thread status "
+        "reply indicates the thread status the last time it was running. "
+        "the suspend status provides information on the thread's "
+        "suspension, if any."
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply
+            (int threadStatus "One of the thread status codes "
+                    "See <a href=\"#JDWP_ThreadStatus\">JDWP.ThreadStatus</a>")
+            (int suspendStatus "One of the suspend status codes "
+                    "See <a href=\"#JDWP_SuspendStatus\">JDWP.SuspendStatus</a>")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command ThreadGroup=5
+        "Returns the thread group that contains a given thread. "
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply
+            (threadGroupObject group "The thread group of this thread. ")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command Frames=6
+        "Returns the current call stack of a suspended thread. "
+        "The sequence of frames starts with "
+        "the currently executing frame, followed by its caller, "
+        "and so on. The thread must be suspended, and the returned "
+        "frameID is valid only while the thread is suspended. "
+        (Out
+            (threadObject thread "The thread object ID. ")
+            (int startFrame "The index of the first frame to retrieve.")
+            (int length
+                        "The count of frames to retrieve "
+                        "(-1 means all remaining). ")
+        )
+        (Reply
+            (Repeat frames "The number of frames retreived"
+                (Group Frame
+                    (frame frameID "The ID of this frame. ")
+                    (location location "The current location of this frame")
+                )
+            )
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command FrameCount=7
+        "Returns the count of frames on this thread's stack. "
+        "The thread must be suspended, and the returned "
+        "count is valid only while the thread is suspended. "
+        "Returns JDWP.Error.errorThreadNotSuspended if not suspended. "
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply
+            (int frameCount "The count of frames on this thread's stack. ")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command OwnedMonitors=8
+        "Returns the objects whose monitors have been entered by this thread. "
+        "The thread must be suspended, and the returned information is "
+        "relevant only while the thread is suspended. "
+        "Requires canGetOwnedMonitorInfo capability - see "
+        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>."
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply
+            (Repeat owned "The number of owned monitors"
+                (tagged-object monitor "An owned monitor")
+            )
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command CurrentContendedMonitor=9
+        "Returns the object, if any, for which this thread is waiting. The "
+        "thread may be waiting to enter a monitor, or it may be waiting, via "
+        "the java.lang.Object.wait method, for another thread to invoke the "
+        "notify method. "
+        "The thread must be suspended, and the returned information is "
+        "relevant only while the thread is suspended. "
+        "Requires canGetCurrentContendedMonitor capability - see "
+        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>."
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply
+            (tagged-object monitor "The contended monitor, or null if "
+                                   "there is no current contended monitor. ")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command Stop=10
+        "Stops the thread with an asynchronous exception. "
+        (Out
+            (threadObject thread "The thread object ID. ")
+            (object throwable "Asynchronous exception. This object must "
+                              "be an instance of java.lang.Throwable or a subclass")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT "If thread is not a known ID or the asynchronous "
+                                  "exception has been garbage collected.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command Interrupt=11
+        "Interrupt the thread, as if done by java.lang.Thread.interrupt "
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command SuspendCount=12
+        "Get the suspend count for this thread. The suspend count is the  "
+        "number of times the thread has been suspended through the "
+        "thread-level or VM-level suspend commands without a corresponding resume "
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply
+            (int suspendCount "The number of outstanding suspends of this thread. ")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command OwnedMonitorsStackDepthInfo=13
+        "Returns monitor objects owned by the thread, along with stack depth at which "
+        "the monitor was acquired. Returns stack depth of -1  if "
+        "the implementation cannot determine the stack depth "
+        "(e.g., for monitors acquired by JNI MonitorEnter)."
+        "The thread must be suspended, and the returned information is "
+        "relevant only while the thread is suspended. "
+        "Requires canGetMonitorFrameInfo capability - see "
+        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>. "
+        "<p>Since JDWP version 1.6. "
+
+        (Out
+            (threadObject thread "The thread object ID. ")
+        )
+        (Reply
+            (Repeat owned "The number of owned monitors"
+               (Group Monitor
+                  (tagged-object monitor "An owned monitor")
+                  (int stack_depth "Stack depth location where monitor was acquired")
+               )
+            )
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command ForceEarlyReturn=14
+        "Force a method to return before it reaches a return "
+        "statement.  "
+        "<p>"
+        "The method which will return early is referred to as the "
+        "called method. The called method is the current method (as "
+        "defined by the Frames section in "
+        "<cite>The Java Virtual Machine Specification</cite>) "
+        "for the specified thread at the time this command "
+        "is received. "
+        "<p>"
+        "The specified thread must be suspended. "
+        "The return occurs when execution of Java programming "
+        "language code is resumed on this thread. Between sending this "
+        "command and resumption of thread execution, the "
+        "state of the stack is undefined. "
+        "<p>"
+        "No further instructions are executed in the called "
+        "method. Specifically, finally blocks are not executed. Note: "
+        "this can cause inconsistent states in the application. "
+        "<p>"
+        "A lock acquired by calling the called method (if it is a "
+        "synchronized method) and locks acquired by entering "
+        "synchronized blocks within the called method are "
+        "released. Note: this does not apply to JNI locks or "
+        "java.util.concurrent.locks locks. "
+        "<p>"
+        "Events, such as MethodExit, are generated as they would be in "
+        "a normal return. "
+        "<p>"
+        "The called method must be a non-native Java programming "
+        "language method. Forcing return on a thread with only one "
+        "frame on the stack causes the thread to exit when resumed. "
+        "<p>"
+        "For void methods, the value must be a void value. "
+        "For methods that return primitive values, the value's type must "
+        "match the return type exactly.  For object values, there must be a "
+        "widening reference conversion from the value's type to the "
+        "return type type and the return type must be loaded. "
+        "<p>"
+        "Since JDWP version 1.6. Requires canForceEarlyReturn capability - see "
+        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>."
+        (Out
+            (threadObject thread "The thread object ID. ")
+            (value value "The value to return. ")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "Thread or value is not a known ID.")
+            (Error THREAD_NOT_SUSPENDED)
+            (Error THREAD_NOT_ALIVE)
+            (Error OPAQUE_FRAME      "Attempted to return early from "
+                                     "a frame corresponding to a native "
+                                     "method. Or the implementation is "
+                                     "unable to provide this functionality "
+                                     "on this frame.")
+            (Error NO_MORE_FRAMES)
+            (Error NOT_IMPLEMENTED)
+            (Error TYPE_MISMATCH   "Value is not an appropriate type for the "
+                                   "return value of the method.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+
+)
+(CommandSet ThreadGroupReference=12
+    (Command Name=1
+        "Returns the thread group name. "
+        (Out
+            (threadGroupObject group "The thread group object ID. ")
+        )
+        (Reply
+            (string groupName "The thread group's name.")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD_GROUP)
+            (Error INVALID_OBJECT    "group is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command Parent=2
+        "Returns the thread group, if any, which contains a given thread group. "
+        (Out
+            (threadGroupObject group "The thread group object ID. ")
+        )
+        (Reply
+            (threadGroupObject parentGroup "The parent thread group object, or "
+                                           "null if the given thread group "
+                                           "is a top-level thread group")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD_GROUP)
+            (Error INVALID_OBJECT    "group is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command Children=3
+        "Returns the live threads and active thread groups directly contained "
+        "in this thread group. Threads and thread groups in child "
+        "thread groups are not included. "
+        "A thread is alive if it has been started and has not yet been stopped. "
+        "See <a href=../../api/java.base/java/lang/ThreadGroup.html>java.lang.ThreadGroup </a>
+        "for information about active ThreadGroups.
+        (Out
+            (threadGroupObject group "The thread group object ID. ")
+        )
+        (Reply
+            (Repeat childThreads "The number of live child threads. "
+                (threadObject childThread "A direct child thread ID. ")
+            )
+            (Repeat childGroups "The number of active child thread groups. "
+                (threadGroupObject childGroup "A direct child thread group ID. ")
+            )
+        )
+        (ErrorSet
+            (Error INVALID_THREAD_GROUP)
+            (Error INVALID_OBJECT    "group is not a known ID.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
 )
 (CommandSet ArrayReference=13
     (Command Length=1
@@ -1946,6 +2332,476 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error VM_DEAD)
         )
         (OnlyReads "false")
+    )
+)
+(CommandSet ClassLoaderReference=14
+    (Command VisibleClasses=1
+        "Returns a list of all classes which this class loader can find "
+        "by name via <code>ClassLoader::loadClass</code>, "
+        "<code>Class::forName</code> and bytecode linkage. That is, "
+        "all classes for which this class loader has been recorded as an "
+        "<i>initiating</i> loader. The list contains each "
+        "reference type created by this loader and any types for which "
+        "loading was delegated by this class loader to another class loader. "
+        "<p>"
+        "The visible class list has useful properties with respect to "
+        "the type namespace. A particular type name will occur at most "
+        "once in the list. Each field or variable declared with that "
+        "type name in a class defined by "
+        "this class loader must be resolved to that single type. "
+        "<p>"
+        "No ordering of the returned list is guaranteed. "
+        "<p>"
+        "See <a href=\"../jvmti.html#GetClassLoaderClasses\">JVM TI GetClassLoaderClasses</a>. "
+        (Out
+            (classLoaderObject classLoaderObject "The class loader object ID. ")
+        )
+        (Reply
+            (Repeat classes "The number of visible classes. "
+                (Group ClassInfo
+                    (byte refTypeTag  "<a href=\"#JDWP_TypeTag\">Kind</a> "
+                                      "of following reference type. ")
+                    (referenceTypeID typeID
+                        "A class visible to this class loader.")
+                )
+            )
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error INVALID_CLASS_LOADER)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+)
+(CommandSet EventRequest=15
+    (Command Set=1
+        "Set an event request. When the event described by this request "
+        "occurs, an <a href=\"#JDWP_Event\">event</a> is sent from the "
+        "target VM. If an event occurs that has not been requested then it is not sent "
+        "from the target VM. The two exceptions to this are the VM Start Event and "
+        "the VM Death Event which are automatically generated events - see "
+        "<a href=\"#JDWP_Event_Composite\">Composite Command</a> for further details."
+        (Out
+            (byte eventKind "Event kind to request. "
+                      "See <a href=\"#JDWP_EventKind\">JDWP.EventKind</a> "
+                      "for a complete list of events that can be requested; "
+                      "some events may require a capability in order to be requested. "
+                      )
+            (byte suspendPolicy
+                      "What threads are suspended when this event occurs? "
+                      "Note that the order of events and command replies "
+                      "accurately reflects the order in which threads are "
+                      "suspended and resumed. For example, if a "
+                      "<a href=\"#JDWP_VirtualMachine_Resume\">VM-wide resume</a> "
+                      "is processed before an event occurs which suspends the "
+                      "VM, the reply to the resume command will be written to "
+                      "the transport before the suspending event.")
+            (Repeat modifiers "Constraints used to control the number "
+                              "of generated events."
+                              "Modifiers specify additional tests that "
+                              "an event must satisfy before it is placed "
+                              "in the event queue. Events are filtered by "
+                              "applying each modifier to an event in the "
+                              "order they are specified in this collection "
+                              "Only events that satisfy all modifiers "
+                              "are reported. A value of 0 means there are no "
+                              "modifiers in the request."
+                              "<p>"
+                              "Filtering can improve "
+                              "debugger performance dramatically by
+                              "reducing the "
+                              "amount of event traffic sent from the "
+                              "target VM to the debugger VM. "
+                (Select Modifier
+                    (byte modKind "Modifier kind")
+                    (Alt Count=1
+                        "Limit the requested event to be reported at most once after a "
+                        "given number of occurrences.  The event is not reported "
+                        "the first <code>count - 1</code> times this filter is reached. "
+                        "To request a one-off event, call this method with a count of 1. "
+                        "<p>"
+                        "Once the count reaches 0, any subsequent filters in this request "
+                        "are applied. If none of those filters cause the event to be "
+                        "suppressed, the event is reported. Otherwise, the event is not "
+                        "reported. In either case subsequent events are never reported for "
+                        "this request. "
+                        "This modifier can be used with any event kind."
+
+                        (int count "Count before event. One for one-off.")
+                    )
+                    (Alt Conditional=2 "Conditional on expression"
+                        (int exprID "For the future")
+                    )
+                    (Alt ThreadOnly=3
+                        "Restricts reported events to "
+                        "those in the given thread. "
+                        "This modifier can be used with any event kind "
+                        "except for class unload. "
+
+                        (threadObject thread "Required thread")
+                    )
+                    (Alt ClassOnly=4
+                        "For class prepare events, restricts the events "
+                        "generated by this request to be the "
+                        "preparation of the given reference type and any subtypes. "
+                        "For monitor wait and waited events, restricts the events "
+                        "generated by this request to those whose monitor object "
+                        "is of the given reference type or any of its subtypes. "
+                        "For other events, restricts the events generated "
+                        "by this request to those "
+                        "whose location is in the given reference type or any of its subtypes. "
+                        "An event will be generated for any location in a reference type that can "
+                        "be safely cast to the given reference type. "
+                        "This modifier can be used with any event kind except "
+                        "class unload, thread start, and thread end. "
+
+                        (referenceType clazz "Required class")
+                    )
+                    (Alt ClassMatch=5
+                        "Restricts reported events to those for classes whose name "
+                        "matches the given restricted regular expression. "
+                        "For class prepare events, the prepared class name "
+                        "is matched. For class unload events, the "
+                        "unloaded class name is matched. For monitor wait "
+                        "and waited events, the name of the class of the "
+                        "monitor object is matched. For other events, "
+                        "the class name of the event's location is matched. "
+                        "This modifier can be used with any event kind except "
+                        "thread start and thread end. "
+
+                        (string classPattern "Required class pattern. "
+                                "Matches are limited to exact matches of the "
+                                "given class pattern and matches of patterns that "
+                                "begin or end with '*'; for example, "
+                                "\"*.Foo\" or \"java.*\". "
+                        )
+
+                    )
+                    (Alt ClassExclude=6
+                        "Restricts reported events to those for classes whose name "
+                        "does not match the given restricted regular expression. "
+                        "For class prepare events, the prepared class name "
+                        "is matched. For class unload events, the "
+                        "unloaded class name is matched. For monitor wait and "
+                        "waited events, the name of the class of the monitor "
+                        "object is matched. For other events, "
+                        "the class name of the event's location is matched. "
+                        "This modifier can be used with any event kind except "
+                        "thread start and thread end. "
+
+                        (string classPattern "Disallowed class pattern. "
+                                "Matches are limited to exact matches of the "
+                                "given class pattern and matches of patterns that "
+                                "begin or end with '*'; for example, "
+                                "\"*.Foo\" or \"java.*\". "
+                        )
+                    )
+                    (Alt LocationOnly=7
+                        "Restricts reported events to those that occur at "
+                        "the given location. "
+                        "This modifier can be used with "
+                        "breakpoint, field access, field modification, "
+                        "step, and exception event kinds. "
+
+                        (location loc "Required location")
+                    )
+                    (Alt ExceptionOnly=8
+                        "Restricts reported exceptions by their class and "
+                        "whether they are caught or uncaught. "
+                        "This modifier can be used with "
+                        "exception event kinds only. "
+
+                        (referenceType exceptionOrNull
+                                "Exception to report. Null (0) means report "
+                                "exceptions of all types. "
+                                "A non-null type restricts the reported exception "
+                                "events to exceptions of the given type or "
+                                "any of its subtypes. "
+                        )
+                        (boolean caught "Report caught exceptions")
+                        (boolean uncaught "Report uncaught exceptions. "
+                                "Note that it "
+                                "is not always possible to determine whether an "
+                                "exception is caught or uncaught at the time it is "
+                                "thrown. See the exception event catch location under "
+                                "<a href=\"#JDWP_Event_Composite\">composite events</a> "
+                                "for more information. "
+                        )
+
+                    )
+                    (Alt FieldOnly=9
+                        "Restricts reported events to those that occur for "
+                        "a given field. "
+                        "This modifier can be used with "
+                        "field access and field modification event kinds only. "
+
+                        (referenceType declaring "Type in which field is declared.")
+                        (field fieldID "Required field")
+                    )
+                    (Alt Step=10
+                        "Restricts reported step events "
+                        "to those which satisfy "
+                        "depth and size constraints. "
+                        "This modifier can be used with "
+                        "step event kinds only. "
+
+                        (threadObject thread "Thread in which to step")
+                        (int size "size of each step. "
+                           "See <a href=\"#JDWP_StepSize\">JDWP.StepSize</a>")
+                        (int depth "relative call stack limit. "
+                           "See <a href=\"#JDWP_StepDepth\">JDWP.StepDepth</a>")
+                    )
+                    (Alt InstanceOnly=11
+                        "Restricts reported events to those whose "
+                        "active 'this' object is the given object. "
+                        "Match value is the null object for static methods. "
+                        "This modifier can be used with any event kind "
+                        "except class prepare, class unload, thread start, "
+                        "and thread end. Introduced in JDWP version 1.4."
+
+                        (object instance "Required 'this' object")
+                    )
+                    (Alt SourceNameMatch=12
+                        "Restricts reported class prepare events to those "
+                        "for reference types which have a source name "
+                        "which matches the given restricted regular expression. "
+                        "The source names are determined by the reference type's "
+                        "<a href=\"#JDWP_ReferenceType_SourceDebugExtension\"> "
+                        "SourceDebugExtension</a>. "
+                        "This modifier can only be used with class prepare "
+                        "events. "
+                        "Since JDWP version 1.6. Requires the canUseSourceNameFilters "
+                        "capability - see "
+                        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>."
+
+                        (string sourceNamePattern "Required source name pattern. "
+                                "Matches are limited to exact matches of the "
+                                "given pattern and matches of patterns that "
+                                "begin or end with '*'; for example, "
+                                "\"*.Foo\" or \"java.*\". "
+                        )
+                    )
+
+                )
+            )
+        )
+        (Reply
+            (int requestID "ID of created request")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_CLASS)
+            (Error INVALID_STRING)
+            (Error INVALID_OBJECT)
+            (Error INVALID_COUNT)
+            (Error INVALID_FIELDID)
+            (Error INVALID_METHODID)
+            (Error INVALID_LOCATION)
+            (Error INVALID_EVENT_TYPE)
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command Clear=2
+        "Clear an event request. See <a href=\"#JDWP_EventKind\">JDWP.EventKind</a> "
+        "for a complete list of events that can be cleared. Only the event request matching "
+        "the specified event kind and requestID is cleared. If there isn't a matching event "
+        "request the command is a no-op and does not result in an error. Automatically "
+        "generated events do not have a corresponding event request and may not be cleared "
+        "using this command."
+        (Out
+            (byte eventKind "Event kind to clear")
+            (int requestID "ID of request to clear")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error VM_DEAD)
+            (Error INVALID_EVENT_TYPE)
+        )
+        (OnlyReads "false")
+    )
+    (Command ClearAllBreakpoints=3
+        "Removes all set breakpoints, a no-op if there are no breakpoints set."
+        (Out "none"
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+)
+(CommandSet StackFrame=16
+    (Command GetValues=1
+        "Returns the value of one or more local variables in a "
+        "given frame. Each variable must be visible at the frame's code index. "
+        "Even if local variable information is not available, values can "
+        "be retrieved if the front-end is able to "
+        "determine the correct local variable index. (Typically, this "
+        "index can be determined for method arguments from the method "
+        "signature without access to the local variable table information.) "
+        (Out
+            (threadObject thread "The frame's thread. ")
+            (frame frame "The frame ID. ")
+            (Repeat slots "The number of values to get. "
+                (Group SlotInfo
+                    (int slot "The local variable's index in the frame. ")
+                    (byte sigbyte "A <a href=\"#JDWP_Tag\">tag</a> "
+                                  "identifying the type of the variable ")
+                )
+            )
+        )
+        (Reply
+            (Repeat values "The number of values retrieved, always equal to slots, "
+                           "the number of values to get."
+                (value slotValue "The value of the local variable. ")
+            )
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT)
+            (Error INVALID_FRAMEID)
+            (Error INVALID_SLOT)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command SetValues=2
+        "Sets the value of one or more local variables. "
+        "Each variable must be visible at the current frame code index. "
+        "For primitive values, the value's type must match the "
+        "variable's type exactly. For object values, there must be a "
+        "widening reference conversion from the value's type to the
+        "variable's type and the variable's type must be loaded. "
+        "<p>"
+        "Even if local variable information is not available, values can "
+        "be set, if the front-end is able to "
+        "determine the correct local variable index. (Typically, this
+        "index can be determined for method arguments from the method "
+        "signature without access to the local variable table information.) "
+        (Out
+            (threadObject thread "The frame's thread. ")
+            (frame frame "The frame ID. ")
+            (Repeat slotValues "The number of values to set. "
+                (Group SlotInfo
+                    (int slot "The slot ID. ")
+                    (value slotValue "The value to set. ")
+                )
+            )
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT)
+            (Error INVALID_FRAMEID)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command ThisObject=3
+        "Returns the value of the 'this' reference for this frame. "
+        "If the frame's method is static or native, the reply "
+        "will contain the null object reference. "
+        (Out
+            (threadObject thread "The frame's thread. ")
+            (frame frame "The frame ID. ")
+        )
+        (Reply
+            (tagged-object objectThis "The 'this' object for this frame. ")
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT)
+            (Error INVALID_FRAMEID)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command PopFrames=4
+        "Pop the top-most stack frames of the thread stack, up to, and including 'frame'. "
+        "The thread must be suspended to perform this command. "
+        "The top-most stack frames are discarded and the stack frame previous to 'frame' "
+        "becomes the current frame. The operand stack is restored -- the argument values "
+        "are added back and if the invoke was not <code>invokestatic</code>, "
+        "<code>objectref</code> is added back as well. The Java virtual machine "
+        "program counter is restored to the opcode of the invoke instruction."
+        "<p>"
+        "Since JDWP version 1.4. Requires canPopFrames capability - see "
+        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>."
+        (Out
+            (threadObject thread "The thread object ID. ")
+            (frame frame "The frame ID. ")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_THREAD)
+            (Error INVALID_OBJECT    "thread is not a known ID.")
+            (Error INVALID_FRAMEID)
+            (Error THREAD_NOT_SUSPENDED)
+            (Error NO_MORE_FRAMES)
+            (Error INVALID_FRAMEID)
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+)
+(CommandSet ClassObjectReference=17
+    (Command ReflectedType = 1
+        "Returns the reference type reflected by this class object."
+        (Out
+            (classObject classObject "The class object. ")
+        )
+        (Reply
+            (byte refTypeTag  "<a href=\"#JDWP_TypeTag\">Kind</a> "
+                              "of following reference type. ")
+            (referenceTypeID typeID "reflected reference type")
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+)
+(CommandSet ModuleReference=18
+    (Command Name=1
+        "Returns the name of this module."
+        "<p>Since JDWP version 9."
+        (Out
+            (moduleID module "This module.")
+        )
+        (Reply
+            (string name  "The module's name.")
+        )
+        (ErrorSet
+            (Error INVALID_MODULE)
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command ClassLoader=2
+        "Returns the class loader of this module."
+        "<p>Since JDWP version 9."
+        (Out
+            (moduleID module "This module.")
+        )
+        (Reply
+            (classLoaderObject classLoader  "The module's class loader.")
+        )
+        (ErrorSet
+            (Error INVALID_MODULE)
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
     )
 )
 (CommandSet Event=64

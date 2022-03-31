@@ -31,7 +31,7 @@ import com.sun.jdi.VirtualMachine;
 
 public class ModuleReferenceImpl extends ObjectReferenceImpl implements ModuleReference {
 
-    protected ModuleReferenceImpl(VirtualMachine aVm, long aRef) {
+    public ModuleReferenceImpl(VirtualMachine aVm, long aRef) {
         super(aVm, aRef);
     }
 

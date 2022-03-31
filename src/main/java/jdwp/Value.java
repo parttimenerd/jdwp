@@ -61,7 +61,7 @@ public abstract class Value {
         CLASS_LOADER(Tag.CLASS_LOADER),
         CLASS_OBJECT(Tag.CLASS_OBJECT),
         LOCATION(-1), TYPE(-1), ARRAY(Tag.ARRAY),
-        VALUE(-1);
+        VALUE(-1), EVENT_MODIFIER(-1);
         final int tag;
         Type(int tag) {
             this.tag = tag;

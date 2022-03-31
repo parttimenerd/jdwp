@@ -6503,7 +6503,7 @@ public class JDWP {
                 public final byte modKind;
                 ModifierCommon aModifierCommon;
 
-                Modifier(byte modKind, ModifierCommon aModifierCommon) {
+                public Modifier(byte modKind, ModifierCommon aModifierCommon) {
                     this.modKind = modKind;
                     this. aModifierCommon = aModifierCommon;
                 }
@@ -6540,7 +6540,7 @@ public class JDWP {
                      */
                     public final int count;
 
-                    Count(int count) {
+                    public Count(int count) {
                         this.count = count;
                     }
 
@@ -6672,7 +6672,7 @@ public class JDWP {
                      */
                     public final String classPattern;
 
-                    ClassMatch(String classPattern) {
+                    public ClassMatch(String classPattern) {
                         this.classPattern = classPattern;
                     }
 
