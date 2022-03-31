@@ -1,8 +1,6 @@
 package jdwp;
 
 import jdwp.Reference.ArrayReference;
-import jdwp.Value.ListValue;
-import lombok.EqualsAndHashCode;
 import jdwp.util.Pair;
 
 import java.util.*;

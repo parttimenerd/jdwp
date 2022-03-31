@@ -1,5 +1,8 @@
 package jdwp;
 
+import jdwp.JDWP.ReplyVisitor;
+import jdwp.JDWP.RequestVisitor;
+
 public interface Reply extends ParsedPacket {
     int getCommand();
     int getCommandSet();
@@ -10,4 +13,6 @@ public interface Reply extends ParsedPacket {
             super(String.format("Id mismatch for reply, expected %d but got %d", expectedId, actualId));
         }
     }
+
+    void accept(ReplyVisitor visitor);
 }

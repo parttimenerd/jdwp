@@ -1,12 +1,17 @@
 package jdwp;
 
+import jdwp.EventCmds.Events;
 import jdwp.EventCollection.NullReply;
+import jdwp.JDWP.CommandVisitor;
+import jdwp.JDWP.ReplyVisitor;
+import jdwp.JDWP.RequestReplyVisitor;
+import jdwp.JDWP.RequestVisitor;
 import jdwp.Value.CombinedValue;
 
 import java.util.Collections;
 import java.util.List;
 
-public interface EventCollection extends Request<NullReply> {
+public interface EventCollection extends Request<NullReply>, Reply {
 
     List<? extends EventInstance> getEvents();
 
@@ -19,6 +24,24 @@ public interface EventCollection extends Request<NullReply> {
 
     default int size() {
         return getEvents().size();
+    }
+
+    @Override
+    default boolean onlyReads() {
+        return false;
+    }
+
+    @Override
+    default void accept(CommandVisitor visitor) {
+        visitor.visit((Events) this);
+    }
+
+    @Override
+    default void accept(RequestVisitor visitor) {
+    }
+
+    @Override
+    default void accept(RequestReplyVisitor visitor, Reply reply) {
     }
 
     class NullReply extends CombinedValue implements Reply {
@@ -43,6 +66,11 @@ public interface EventCollection extends Request<NullReply> {
         }
 
         @Override
+        public void accept(CommandVisitor visitor) {
+
+        }
+
+        @Override
         public int getCommand() {
             throw new AssertionError();
         }
@@ -50,6 +78,11 @@ public interface EventCollection extends Request<NullReply> {
         @Override
         public int getCommandSet() {
             throw new AssertionError();
+        }
+
+        @Override
+        public void accept(ReplyVisitor visitor) {
+
         }
 
         @Override

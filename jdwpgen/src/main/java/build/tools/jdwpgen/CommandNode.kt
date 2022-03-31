@@ -28,6 +28,8 @@ import build.tools.jdwpgen.TypeNode.AbstractTypeNode
 import com.grosner.kpoet.*
 import com.squareup.javapoet.*
 import java.io.PrintWriter
+import javax.lang.model.element.Modifier
+import kotlin.reflect.jvm.internal.impl.load.java.JavaClassFinder.Request
 
 
 // written in kotlin to be able to use KPoet
@@ -156,6 +158,9 @@ internal class CommandNode : AbstractCommandNode() {
             `@Override`()
             _return("COMMAND_SET")
         }
+
+        genVisitorAccept(allVisitorName)
+
         return this
     }
 
@@ -206,6 +211,14 @@ internal class CommandNode : AbstractCommandNode() {
                 `@Override`()
                 _return(onlyReads.L)
             }
+
+            genVisitorAccept(requestVisitorName)
+
+            `public`(TypeName.VOID, "accept", param(requestReplyVisitorName, "visitor"),
+                param(bg("Reply"), "reply")) {
+                `@Override`()
+                statement("visitor.visit(this, (${replyClassName})reply)")
+            }
         }
     }
 
@@ -247,6 +260,7 @@ internal class CommandNode : AbstractCommandNode() {
             genToString(replyClassName, fields)
             genEquals(replyClassName, fields)
             genHashCode(fields)
+            genVisitorAccept(replyVisitorName)
         }
     }
 
@@ -285,11 +299,7 @@ internal class CommandNode : AbstractCommandNode() {
             genToString(name, fields)
             genEquals(name, fields)
             genHashCode(fields)
-
-            `public`(TypeName.BOOLEAN, "onlyReads") {
-                `@Override`()
-                _return(false.L)
-            }
+            genVisitorAccept(replyVisitorName)
 
             `public`(pt("List", "EventCommon"), "getEvents") {
                 `@Override`()
@@ -299,6 +309,12 @@ internal class CommandNode : AbstractCommandNode() {
             `public`(TypeName.BYTE, "getSuspendPolicy") {
                 `@Override`()
                 _return("suspendPolicy.value")
+            }
+
+            `public`(TypeName.VOID, "accept", param(requestReplyVisitorName, "visitor"),
+                param(bg("Reply"), "reply")) {
+                `@Override`()
+                statement("visitor.visit(this, (${replyClassName})reply)")
             }
         }
     }
@@ -347,6 +363,7 @@ internal class CommandNode : AbstractCommandNode() {
         val kindNode = node.typeNode as AbstractTypeNode
         val className = node.commonBaseClass()
         val instanceName = "${node.name()}Instance"
+        val visitorName = "${node.name()}Visitor"
         val commonFields = listOf(kindNode) + alts.fold(alts.first().components.map { it as AbstractTypeNode })
             {l, n -> l.filter { c -> n.components.any { val c2 = it as AbstractTypeNode
                 c2.name() == c.name() && c2.javaType() == c.javaType()} }}
@@ -383,12 +400,17 @@ internal class CommandNode : AbstractCommandNode() {
                    this
                }
             }
-        }) + alts.map { genAltClass(it, className, kindNode, commonFields.filter { n -> n != kindNode }) }
+
+            `public abstract`(TypeName.VOID, "accept", param(bg(visitorName), "visitor"))
+
+        }) + alts.map { genAltClass(it, className, visitorName, kindNode, commonFields.filter { n -> n != kindNode }) } +
+                genVisitor(visitorName, alts.map {it.name()})
     }
 
     private fun genAltClass(
         alt: AltNode,
         commonClassName: String,
+        visitorClassName: String,
         kindNode: AbstractTypeNode,
         commonFields: List<AbstractTypeNode>
     ): TypeSpec {
@@ -426,6 +448,7 @@ internal class CommandNode : AbstractCommandNode() {
             genEquals(alt.name(), fields)
             genHashCode(fields)
             genWrite(listOf(kindNode) + fields)
+            genVisitorAccept(visitorClassName)
 
             this
         }
@@ -544,6 +567,25 @@ internal class CommandNode : AbstractCommandNode() {
             return ParameterizedTypeName.get(bg(base), bg(type), bg(type2))
         }
 
+        private val allVisitorName = "CommandVisitor"
+        private val requestVisitorName = "RequestVisitor"
+        private val replyVisitorName = "ReplyVisitor"
+        private val requestReplyVisitorName = "RequestReplyVisitor"
+
+        fun genVisitor(name: String, typeNames: List<String>) = `interface`(name) {
+            for (typeName in typeNames) {
+                `public`(TypeName.VOID, "visit", param(bg(typeName), "obj")) {
+                    addModifiers(Modifier.DEFAULT)
+                }
+            }
+            this
+        }
+
+        fun TypeSpec.Builder.genVisitorAccept(visitorName: String) = `public`(TypeName.VOID, "accept", param(visitorName, "visitor")) {
+            `@Override`()
+            statement("visitor.visit(this)")
+        }
+
         /** generate the parse method for every packet */
         @JvmStatic
         fun genAdditionalCommandSetCode(node: CommandSetNode): String {
@@ -590,14 +632,18 @@ internal class CommandNode : AbstractCommandNode() {
         /** generate the parse method for every packet */
         @JvmStatic
         fun genAdditionalRootCode(nodes: List<CommandSetNode>): String {
-            return `public static`(
+            val commands = nodes.flatMap { cs ->
+                cs.components.filterIsInstance<CommandNode>().map { c -> "${cs.name()}.${c.name()}" to c } }
+            val rrCommands = commands.filter { it.second.components.size > 2 } // filter events
+            val requestNames = rrCommands.map { it.first + "Request" }
+            val replyNames = rrCommands.map { it.first + "Reply" } + listOf("EventCmds.Events")
+            return listOf(`public static`(
                 pt("Request", "?"), "parse",
                 param("VM", "vm"), param("Packet", "packet")
             ) {
                 _return("parse(new PacketStream(vm, packet))")
                 this
-            }.toString() + "\n" +
-                    `public static`(
+            }, `public static`(
                         pt("Request", "?"), "parse",
                         param("PacketStream", "ps")
                     ) {
@@ -616,7 +662,19 @@ internal class CommandNode : AbstractCommandNode() {
                             this
                         }
                         this
+                    },
+                    genVisitor(allVisitorName, requestNames + replyNames),
+                    genVisitor(requestVisitorName, requestNames),
+                    genVisitor(replyVisitorName, replyNames),
+                    `interface`(requestReplyVisitorName) {
+                        for ((requestName, replyName) in requestNames.zip(replyNames)) {
+                            `public`(TypeName.VOID, "visit", param(bg(requestName), "request"), param(bg(replyName), "reply")) {
+                                addModifiers(Modifier.DEFAULT)
+                            }
+                        }
+                        this
                     }
+                ).joinToString("\n")
         }
     }
 }

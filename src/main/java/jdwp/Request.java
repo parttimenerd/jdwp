@@ -1,5 +1,9 @@
 package jdwp;
 
+import jdwp.JDWP.CommandVisitor;
+import jdwp.JDWP.RequestReplyVisitor;
+import jdwp.JDWP.RequestVisitor;
+
 public interface Request<R extends Value & Reply> extends ParsedPacket {
 
     int getCommandSet();
@@ -11,4 +15,7 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
     Packet toPacket(VM vm);
 
     ReplyOrError<R> parseReply(PacketStream ps);
+
+    void accept(RequestVisitor visitor);
+    void accept(RequestReplyVisitor visitor, Reply reply);
 }

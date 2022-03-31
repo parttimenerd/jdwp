@@ -25,8 +25,18 @@
 
 package jdwp;
 
+import jdwp.ClassTypeCmds.NewInstanceReply;
+import jdwp.ClassTypeCmds.NewInstanceRequest;
+import jdwp.JDWP.RequestReplyVisitor;
+import jdwp.ObjectReferenceCmds.ReferenceTypeReply;
+import jdwp.ObjectReferenceCmds.ReferenceTypeRequest;
+import jdwp.PrimitiveValue.StringValue;
+import jdwp.Reference.FieldReference;
+import jdwp.ReferenceTypeCmds.*;
+import jdwp.ReferenceTypeCmds.FieldsReply.FieldInfo;
 import jdwp.VM.NoTagPresentException.Source;
-import jdwp.util.Pair;
+import jdwp.VirtualMachineCmds.*;
+import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
 import lombok.Getter;
 
 import java.util.*;
@@ -58,12 +68,14 @@ class VM {
 
     /** class id -> field id -> tag */
     private final Map<Long, Map<Long, Byte>> fieldTags;
+    /** obj id -> field -> tag,   check this map for objects without a known class too*/
+    private final Map<Long, Map<Long, Byte>> fieldObjTags;
     /** obj id -> class id */
     private final Map<Long, Long> classForObj;
     /** class id -> [obj id] */
-    private final Map<Long, List<Long>> objForClass;
+    private final Map<Long, Set<Long>> objForClass;
     /** class signature -> class id */
-    private final Map<String, Long> classForSignature;
+    private final Map<String, Set<Long>> classForSignature;
     /** array id -> tag */
     private final Map<Long, Byte> arrayTags;
 
@@ -74,13 +86,14 @@ class VM {
         this.objForClass = new HashMap<>();
         this.classForSignature = new HashMap<>();
         this.arrayTags = new HashMap<>();
+        this.fieldObjTags = new HashMap<>();
     }
 
     public void addClass(String signature, long id) {
-        assert !classForSignature.containsKey(signature);
-        classForSignature.put(signature, id);
+        classForSignature.putIfAbsent(signature, new HashSet<>());
+        classForSignature.get(signature).add(id);
         fieldTags.put(id, new HashMap<>());
-        objForClass.put(id, new ArrayList<>());
+        objForClass.put(id, new HashSet<>());
     }
 
     public void addFieldTag(long klass, long id, byte tag) {
@@ -88,9 +101,14 @@ class VM {
         fieldTags.get(klass).put(id, tag);
     }
 
+    public void addFieldObjectTag(long object, long id, byte tag) {
+        fieldObjTags.putIfAbsent(object, new HashMap<>());
+        fieldObjTags.get(object).put(id, tag);
+    }
+
     public void setClass(long obj, long klass) {
         classForObj.put(obj, klass);
-        objForClass.putIfAbsent(klass, new ArrayList<>());
+        objForClass.putIfAbsent(klass, new HashSet<>());
         objForClass.get(klass).add(obj);
     }
 
@@ -99,18 +117,28 @@ class VM {
     }
 
     public void remove(String signature) {
-        long id = classForSignature.remove(signature);
-        fieldTags.remove(id);
-        objForClass.get(id).forEach(classForObj::remove);
-        objForClass.remove(id);
+        var ids = classForSignature.remove(signature);
+        ids.forEach(id -> {
+            fieldTags.remove(id);
+            objForClass.get(id).forEach(o -> {
+                classForObj.remove(o);
+                fieldObjTags.remove(o);
+            });
+            objForClass.remove(id);
+        });
     }
 
     public boolean hasClassForObj(long obj) {
         return classForObj.containsKey(obj);
     }
 
+    private boolean hasObjSpecificFieldTag(long obj, long field) {
+        return fieldObjTags.containsKey(obj) && fieldObjTags.get(obj).containsKey(field);
+    }
+
     public boolean hasFieldTagForObj(long obj, long field) {
-        return hasClassForObj(obj) && hasFieldTagForClass(classForObj.get(obj), field);
+        return  hasObjSpecificFieldTag(obj, field)
+                || (hasClassForObj(obj) && hasFieldTagForClass(classForObj.get(obj), field));
     }
 
     public boolean hasFieldTagForClass(long klass, long field) {
@@ -121,6 +149,9 @@ class VM {
     public byte getFieldTagForObj(long obj, long field) {
         if (!hasFieldTagForObj(obj, field)) {
             throw new NoTagPresentException(Source.FIELD, id);
+        }
+        if (hasObjSpecificFieldTag(obj, field)) {
+            return fieldObjTags.get(obj).get(field);
         }
         return fieldTags.get(classForObj.get(obj)).get(field);
     }
@@ -149,14 +180,14 @@ class VM {
         return arrayTags.get(id);
     }
     
-    /*public void setSizes(jdwp.old.JDWP.VirtualMachine.IDSizes idSizes) {
-        sizeofFieldRef = idSizes.fieldIDSize;
-        sizeofMethodRef = idSizes.methodIDSize;
-        sizeofObjectRef = idSizes.objectIDSize;
-        sizeofClassRef = idSizes.referenceTypeIDSize;
-        sizeofFrameRef = idSizes.frameIDSize;
-        sizeofModuleRef = idSizes.objectIDSize;
-    }*/
+    public void setSizes(VirtualMachineCmds.IDSizesReply idSizes) {
+        sizeofFieldRef = idSizes.fieldIDSize.value;
+        sizeofMethodRef = idSizes.methodIDSize.value;
+        sizeofObjectRef = idSizes.objectIDSize.value;
+        sizeofClassRef = idSizes.referenceTypeIDSize.value;
+        sizeofFrameRef = idSizes.frameIDSize.value;
+        sizeofModuleRef = idSizes.objectIDSize.value;
+    }
 
     /** clear tags info and classForSignature */
     public void reset() {
@@ -165,5 +196,116 @@ class VM {
         arrayTags.clear();
         classForObj.clear();
         objForClass.clear();
+        fieldObjTags.clear();
+    }
+
+    /** capture information on object, field and array types and idsizes from a reply */
+    public <R extends Value & Reply> void captureInformation(Request<R> request, R reply) {
+         request.accept(new RequestReplyVisitor() {
+             public void visit(ArrayReferenceCmds.GetValuesRequest request,
+                               ArrayReferenceCmds.GetValuesReply reply) {
+                 addArrayTag(request.arrayObject.value, (byte) reply.values.entryType.tag);
+             }
+
+             public void visit(IDSizesRequest request, IDSizesReply reply) {
+                 setSizes(reply);
+             }
+
+              public void visit(ReferenceTypeCmds.FieldsRequest request, ReferenceTypeCmds.FieldsReply reply) {
+                  var klass = request.refType;
+                  for (FieldInfo info : reply.declared.values) {
+                      addFieldTag(klass, info.fieldID, info.signature);
+                  }
+              }
+
+            public void visit(ReferenceTypeCmds.FieldsWithGenericRequest request,
+                              ReferenceTypeCmds.FieldsWithGenericReply reply) {
+                var klass = request.refType;
+                for (FieldsWithGenericReply.FieldInfo info : reply.declared.values) {
+                    addFieldTag(klass, info.fieldID, info.signature);
+                }
+            }
+
+            public void visit(ReferenceTypeCmds.GetValuesRequest request,
+                              ReferenceTypeCmds.GetValuesReply reply) {
+                var klass = request.refType;
+                var requestValues = request.fields.values;
+                var replyFields = reply.values.values;
+                for (int i = 0; i < requestValues.size(); i++) {
+                    addFieldTag(klass, requestValues.get(i).fieldID, (byte)replyFields.get(i).type.tag);
+                }
+            }
+
+            public void visit(ObjectReferenceCmds.GetValuesRequest request,
+                              ObjectReferenceCmds.GetValuesReply reply) {
+                var object = request.object;
+                var requestValues = request.fields.values;
+                var replyFields = reply.values.values;
+                for (int i = 0; i < requestValues.size(); i++) {
+                    addFieldObjectTag(object.value, requestValues.get(i).fieldID.value, (byte)replyFields.get(i).type.tag);
+                }
+            }
+
+            public void visit(InstancesRequest request, InstancesReply reply) {
+                for (Reference instance : reply.instances.values) {
+                    setClass(instance.value, request.refType.value);
+                }
+            }
+
+            public void visit(NewInstanceRequest request, NewInstanceReply reply) {
+                 if (reply.newObject.value != null) {
+                     setClass(reply.newObject.value, request.clazz.value);
+                 }
+            }
+
+            public void visit(ReferenceTypeRequest request, ReferenceTypeReply reply) {
+                 setClass(request.object.value, reply.typeID.value);
+            }
+
+            public void visit(ClassesBySignatureRequest request, ClassesBySignatureReply reply) {
+                for (ClassInfo info : reply.classes.values) {
+                    addClass(request.signature.value, info.typeID.value);
+                }
+            }
+
+            public void visit(AllClassesRequest request, AllClassesReply reply) {
+                for (AllClassesReply.ClassInfo info : reply.classes.values) {
+                    addClass(info.signature.value, info.typeID.value);
+                }
+            }
+
+             public void visit(AllClassesWithGenericRequest request,
+                               AllClassesWithGenericReply reply) {
+                 for (AllClassesWithGenericReply.ClassInfo info : reply.classes.values) {
+                     addClass(info.signature.value, info.typeID.value);
+                 }
+             }
+
+             public void visit(SignatureRequest request, SignatureReply reply) {
+                 addClass(reply.signature.value, request.refType.value);
+             }
+
+             public void visit(SignatureWithGenericRequest request,
+                               SignatureWithGenericReply reply) {
+                 addClass(reply.signature.value, request.refType.value);
+             }
+        }, reply);
+         // TODO add information from events
+    }
+
+    public void addFieldTag(Reference klass, FieldReference field, byte tag) {
+        addFieldTag(klass.value, field.value, tag);
+    }
+
+    public void addFieldTag(Reference klass, FieldReference field, StringValue signature) {
+        addFieldTag(klass.value, field.value, signatureToTag(signature));
+    }
+
+    private byte signatureToTag(StringValue signature) {
+        return signatureToTag(signature.value);
+    }
+
+    private byte signatureToTag(String signature) {
+        return new JNITypeParser(signature).jdwpTag();
     }
 }

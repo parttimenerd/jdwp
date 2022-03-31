@@ -1,5 +1,6 @@
 package jdwp;
 
+import jdwp.JDWP.CommandVisitor;
 import org.jetbrains.annotations.Nullable;
 
 public class ReplyOrError<R extends Reply> implements ParsedPacket {
@@ -77,5 +78,12 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
             return packet;
         }
         return reply.toPacket(vm);
+    }
+
+    @Override
+    public void accept(CommandVisitor visitor) {
+        if (reply != null) {
+            reply.accept(visitor);
+        }
     }
 }
