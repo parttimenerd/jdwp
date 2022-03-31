@@ -10,9 +10,6 @@ import jdwp.EventCmds.Events.*;
 import jdwp.EventCmds.Events.Exception;
 import jdwp.EventCmds.Events.ThreadDeath;
 import jdwp.JDWP.SuspendPolicy;
-import jdwp.PrimitiveValue.ByteValue;
-import jdwp.Reference.ModuleReference;
-import jdwp.Reference.ObjectReference;
 import jdwp.ReferenceTypeCmds.*;
 import jdwp.ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo;
 import jdwp.ThreadReferenceCmds.NameReply;
@@ -49,7 +46,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -378,8 +374,8 @@ class JDWPTest {
                 }),
                 new RedefineClassesRequest(0, new ListValue<>(
                         new RedefineClassesRequest.ClassDef(Reference.klass(100),
-                                new ListValue<>(Type.BYTE, wrap((byte)'h'), wrap((byte)'a'), wrap((byte)'l'), wrap((byte)'l'), wrap((byte)'o')))
-                )));
+                                new ByteList("hallo".getBytes(StandardCharsets.UTF_8))
+                ))));
         testBasicRequestParsing(RedefineClasses.enqueueCommand(ovm, new ClassDef[]{}),
                 new RedefineClassesRequest(0, new ListValue<>(Type.OBJECT)));
     }
@@ -453,7 +449,7 @@ class JDWPTest {
     @Tag("basic")
     public void testReferenceType_MethodsWithGenericReplyParsing() {
         testReplyParsing(MethodsWithGeneric::new,
-                new MethodsWithGenericReply(0, new ListValue<MethodInfo>(
+                new MethodsWithGenericReply(0, new ListValue<>(
                         new MethodInfo(Reference.method(-2),
                                 wrap("class"), wrap("sig"),
                                 wrap("blub"), wrap(1))
@@ -484,9 +480,7 @@ class JDWPTest {
     @Test
     public void testReferenceType_ConstantPoolReplyParsing() {
         testReplyParsing(ConstantPool::new,
-                new ConstantPoolReply(0, wrap(100), new ListValue<>(
-                        wrap((byte)1), wrap((byte)2), wrap((byte)3)
-                )),
+                new ConstantPoolReply(0, wrap(100), new ByteList((byte)1, (byte)2, (byte)3)),
                 (o, r) -> {
                     assertEquals2((byte)1, o.bytes[0], r.bytes.get(0));
                     assertEquals2((byte)2, o.bytes[1], r.bytes.get(1));
@@ -977,6 +971,17 @@ class JDWPTest {
     }
 
     @Test
+    public void testByteListSameAsListOfBytes() {
+        var list = new BasicListValue<>(wrap((byte)1), wrap((byte)-2), wrap((byte)100));
+        var ps = new jdwp.PacketStream(vm, 0, 0);
+        list.writeUntagged(ps);
+        var list2 = new ByteList(new byte[]{1, -2, 100});
+        var ps2 = new jdwp.PacketStream(vm, 0, 0);
+        list2.write(ps2);
+        assertArrayEquals(ps.toPacket().toByteArray(), ps2.toPacket().toByteArray());
+    }
+
+    @Test
     public void testCompareReferences() {
         assertEquals(Reference.klass(1), Reference.interfaceType(1));
         assertNotEquals(Reference.klass(1), Reference.interfaceType(2));
@@ -1086,5 +1091,10 @@ class JDWPTest {
     static <T> void assertEquals2(T expected, T oracle, BasicValue<T> jdwp) {
         assertEquals(expected, oracle);
         assertEquals(expected, jdwp.value);
+    }
+
+    static <T> void assertEquals2(T expected, T oracle, T jdwp) {
+        assertEquals(expected, oracle);
+        assertEquals(expected, jdwp);
     }
 }

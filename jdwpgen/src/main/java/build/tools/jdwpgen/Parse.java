@@ -84,6 +84,7 @@ class Parse {
         kindMap.put("moduleID", new TypeNode.ModuleTypeNode());
         kindMap.put("value", new TypeNode.ValueTypeNode());
         kindMap.put("byte", new TypeNode.ByteTypeNode());
+        kindMap.put("bytes", new TypeNode.BytesTypeNode());
         kindMap.put("location", new TypeNode.LocationTypeNode());
         kindMap.put("tagged-object", new TypeNode.TaggedObjectTypeNode());
         kindMap.put("referenceType", new TypeNode.ReferenceIDTypeNode());

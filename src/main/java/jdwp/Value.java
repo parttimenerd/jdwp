@@ -244,6 +244,10 @@ public abstract class Value {
             super(entryType, values);
         }
 
+        protected BasicListValue(T value, T... values) {
+            super(value, values);
+        }
+
         @SuppressWarnings("unchecked cast")
         public static <T extends BasicValue<?>> BasicListValue<T> read(PacketStream ps) {
             byte tag = ps.readByte();
@@ -340,6 +344,59 @@ public abstract class Value {
         @Override
         public int hashCode() {
             return value.hashCode();
+        }
+    }
+
+    /**
+     * Specific list imlementation that is a basic value and stores the bytes
+     * as a byte array.
+     */
+    public static class ByteList extends Value {
+
+        public final byte[] bytes;
+
+        protected ByteList(byte... bytes) {
+            super(Type.LIST);
+            this.bytes = bytes;
+        }
+
+        byte[] getValue() {
+            return bytes;
+        }
+
+        boolean isBasic() {
+            return true;
+        }
+
+        byte get(int index) {
+            return bytes[index];
+        }
+
+        public static ByteList read(PacketStream ps) {
+            int length = ps.readInt();
+            byte[] bytes = ps.readByteArray(length);
+            return new ByteList(bytes);
+        }
+
+        @Override
+        public void write(PacketStream ps) {
+            ps.writeInt(bytes.length);
+            ps.writeByteArray(bytes);
+        }
+
+        @Override
+        public String toString() {
+            return "bytes" + Arrays.toString(bytes) + "";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof ByteList && Arrays.equals(((ByteList) o).bytes, bytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(bytes);
         }
     }
 

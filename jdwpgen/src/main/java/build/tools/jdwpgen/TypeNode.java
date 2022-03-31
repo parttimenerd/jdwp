@@ -258,6 +258,18 @@ interface TypeNode {
         }
     }
 
+    class BytesTypeNode extends AbstractSimpleTypeNode {
+
+        String docType() {
+            return "bytes";
+        }
+
+        @Override
+        String javaType() {
+            return "ByteList";
+        }
+    }
+
     class ClassLoaderObjectTypeNode extends ObjectTypeNode {
 
         String docType() {
