@@ -4,7 +4,11 @@ import jdwp.JDWP.Tag;
 import jdwp.JDWP.TypeTag;
 import jdwp.Value.BasicValue;
 
-/** reference to an object, thread, ... */
+/**
+ * reference to an object, thread, ...
+ *
+ * they are equal if there underlying value is equal, ignoring their type
+ */
 @SuppressWarnings("ALL")
 public class Reference extends BasicValue<Long> {
 
@@ -61,6 +65,8 @@ public class Reference extends BasicValue<Long> {
     public static NullObjectReference nullObject() { return new NullObjectReference(); }
 
     public static ClassReference klass(long ref) { return new ClassReference(ref); }
+
+    public static InterfaceReference interfac(long ref) { return new InterfaceReference(ref); }
 
     public static ClassLoaderReference classLoader(long ref) { return new ClassLoaderReference(ref); }
 
@@ -190,9 +196,20 @@ public class Reference extends BasicValue<Long> {
         }
     }
 
-    public static class ClassReference extends Reference {
-        ClassReference(long ref) {
+    public static class TypeObjectReference extends Reference {
+
+        public TypeObjectReference(long ref) {
             super(Type.CLASS_OBJECT, ref);
+        }
+
+        public static TypeObjectReference read(PacketStream ps) {
+            return new TypeObjectReference(ps.readClassRef());
+        }
+    }
+
+    public static class ClassReference extends TypeObjectReference {
+        ClassReference(long ref) {
+            super(ref);
         }
 
         @Override
@@ -202,6 +219,21 @@ public class Reference extends BasicValue<Long> {
 
         public static ClassReference read(PacketStream ps) {
             return new ClassReference(ps.readClassRef());
+        }
+    }
+
+    public static class InterfaceReference extends TypeObjectReference {
+        InterfaceReference(long ref) {
+            super(ref);
+        }
+
+        @Override
+        public void write(PacketStream ps) {
+            ps.writeClassRef(value);
+        }
+
+        public static InterfaceReference read(PacketStream ps) {
+            return new InterfaceReference(ps.readClassRef());
         }
     }
 
@@ -302,5 +334,15 @@ public class Reference extends BasicValue<Long> {
         public static ClassObjectReference read(PacketStream ps) {
             return new ClassObjectReference(ps.readObjectRef());
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof Reference && ((Reference) o).value.equals(value);
     }
 }

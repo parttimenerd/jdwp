@@ -438,7 +438,7 @@ interface TypeNode {
         }
 
         String javaRead() {
-            return "Reference.ObjectReference.readTagged(ps)";
+            return "Reference.ObjectReference.readTagged(ps);";
         }
     }
 
@@ -515,6 +515,17 @@ interface TypeNode {
 
         String javaType() {
             return "Reference.ClassReference";
+        }
+    }
+
+    class ReferenceTypeNode extends AbstractSimpleTypeNode {
+
+        String docType() {
+            return "referenceType";
+        }
+
+        String javaType() {
+            return "Reference.TypeReference";
         }
     }
 }

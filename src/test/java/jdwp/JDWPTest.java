@@ -1,17 +1,20 @@
 package jdwp;
 
-import jdwp.ArrayReferenceCmds;
 import jdwp.ArrayReferenceCmds.GetValuesReply;
 import jdwp.ArrayReferenceCmds.GetValuesRequest;
 import jdwp.ArrayReferenceCmds.LengthReply;
 import jdwp.ArrayReferenceCmds.LengthRequest;
 import jdwp.ClassTypeCmds.*;
-import jdwp.EventCmds;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.*;
 import jdwp.EventCmds.Events.Exception;
 import jdwp.EventCmds.Events.ThreadDeath;
 import jdwp.JDWP.SuspendPolicy;
+import jdwp.PrimitiveValue.ByteValue;
+import jdwp.Reference.ModuleReference;
+import jdwp.Reference.ObjectReference;
+import jdwp.ReferenceTypeCmds.*;
+import jdwp.ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo;
 import jdwp.ThreadReferenceCmds.NameReply;
 import jdwp.ThreadReferenceCmds.NameRequest;
 import jdwp.VirtualMachineCmds.*;
@@ -27,19 +30,26 @@ import jdwp.oracle.JDWP.ClassType.InvokeMethod;
 import jdwp.oracle.JDWP.ClassType.SetValues;
 import jdwp.oracle.JDWP.ClassType.Superclass;
 import jdwp.oracle.JDWP.Event.Composite;
+import jdwp.oracle.JDWP.ReferenceType;
+import jdwp.oracle.JDWP.ReferenceType.*;
+import jdwp.oracle.JDWP.ReferenceType.GetValues.Field;
 import jdwp.oracle.JDWP.ThreadReference.Name;
 import jdwp.oracle.JDWP.VirtualMachine.*;
+import jdwp.oracle.JDWP.VirtualMachine.RedefineClasses.ClassDef;
 import jdwp.oracle.Packet;
 import jdwp.oracle.PacketStream;
 import jdwp.oracle.*;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -49,6 +59,11 @@ import java.util.stream.IntStream;
 import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Tests for the JDWP classes, including many reply and request classes.
+ *
+ * Some classes are omitted as there is (near) duplication in the specification
+ */
 class JDWPTest {
 
     private static final VirtualMachineImpl ovm = new VirtualMachineImpl(null, null, null, 1);
@@ -202,11 +217,13 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_AllThreadsRequestParsing() {
         testBasicRequestParsing(AllThreads.enqueueCommand(ovm), new AllThreadsRequest(0));
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_AllThreadsReplyParsing() {
         testReplyParsing(AllThreads::new,
                 new AllThreadsReply(0, new ListValue<>(Reference.thread(10))),
@@ -218,12 +235,14 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_DisposeRequestParsing() {
         testBasicRequestParsing(Dispose.enqueueCommand(ovm), new DisposeRequest(0));
         assertFalse(new DisposeRequest(0).onlyReads());
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_DisposeReplyParsing() {
         testReplyParsing(Dispose::new,
                 new DisposeReply(0),
@@ -231,11 +250,13 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_TopLevelThreadGroupsRequestParsing() {
         testBasicRequestParsing(TopLevelThreadGroups.enqueueCommand(ovm), new TopLevelThreadGroupsRequest(0));
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_TopLevelThreadGroupsReplyParsing() {
         testReplyParsing(TopLevelThreadGroups::new,
                 new TopLevelThreadGroupsReply(0, new ListValue<>(Reference.threadGroup(10))),
@@ -247,11 +268,13 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_IDSizesRequestParsing() {
         testBasicRequestParsing(IDSizes.enqueueCommand(ovm), new IDSizesRequest(0));
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_IDSizesReplyParsing() {
         testReplyParsing(IDSizes::new,
                 new IDSizesReply(1011, wrap(9), wrap(1), wrap(10), wrap(8), wrap(10)),
@@ -262,6 +285,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_SuspendResumeExitRequestParsing() {
         Assertions.assertAll(
                 () -> testBasicRequestParsing(Suspend.enqueueCommand(ovm), new SuspendRequest(0)),
@@ -271,6 +295,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testVirtualMachine_SuspendResumeExitReplyParsing() {
         BiConsumer<Object, CombinedValue> empty = (o, r) -> assertEquals(0, r.getKeyStream().count());
         Assertions.assertAll(
@@ -278,6 +303,195 @@ class JDWPTest {
                 () -> testReplyParsing(Resume::new, new ResumeReply(0), empty),
                 () -> testReplyParsing(Exit::new, new ExitReply(10), empty)
         );
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_CreateStringRequestParsing() {
+        testBasicRequestParsing(CreateString.enqueueCommand(ovm, "45"), new CreateStringRequest(0, wrap("45")));
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_CreateStringReplyParsing() {
+        testReplyParsing(CreateString::new,
+                new CreateStringReply(0, Reference.object(1)),
+                (o, r) -> {
+                    assertEquals2((long) 1, o.stringObject.ref, r.stringObject);
+                });
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_CapabilitiesRequestParsing() {
+        testBasicRequestParsing(Capabilities.enqueueCommand(ovm),
+                new CapabilitiesRequest(0));
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_CapabilitiesReplyParsing() {
+        testReplyParsing(Capabilities::new,
+                new CapabilitiesReply(0, wrap(true), wrap(false),
+                        wrap(true), wrap(true), wrap(false), wrap(false), wrap(true)),
+                (o, r) -> {
+                    assertEquals2(false, o.canWatchFieldAccess, r.canWatchFieldAccess);
+                    assertEquals2(true, o.canGetBytecodes, r.canGetBytecodes);
+                });
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_ClassPathsRequestParsing() {
+        testBasicRequestParsing(ClassPaths.enqueueCommand(ovm),
+                new ClassPathsRequest(0));
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_ClassPathsReplyParsing() {
+        testReplyParsing(ClassPaths::new,
+                new ClassPathsReply(0, wrap("dir/dir"),
+                        new ListValue<>(wrap("x"), wrap("y")),
+                        new ListValue<>(wrap("x"))),
+                (o, r) -> {
+                    assertEquals2("dir/dir", o.baseDir, r.baseDir);
+                    assertEquals2("y", o.classpaths[1], r.classpaths.get(1));
+                });
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_DisposeObjectsReplyParsing() {
+        testBasicRequestParsing(DisposeObjects.enqueueCommand(ovm, new DisposeObjects.Request[]{
+                        new DisposeObjects.Request(new ObjectReferenceImpl(ovm, 100), 101),
+                        new DisposeObjects.Request(new ObjectReferenceImpl(ovm, 100000), 10)}),
+                new DisposeObjectsRequest(0, new ListValue<>(
+                        new DisposeObjectsRequest.Request(Reference.object(100), wrap(101)),
+                        new DisposeObjectsRequest.Request(Reference.object(100000), wrap(10)))));
+    }
+
+    @Test
+    public void testVirtualMachine_RedefineClassesRequestParsing() {
+        testBasicRequestParsing(RedefineClasses.enqueueCommand(ovm, new ClassDef[]{
+                    new ClassDef(new ClassTypeImpl(ovm, 100), "hallo".getBytes(StandardCharsets.UTF_8))
+                }),
+                new RedefineClassesRequest(0, new ListValue<>(
+                        new RedefineClassesRequest.ClassDef(Reference.klass(100),
+                                new ListValue<>(Type.BYTE, wrap((byte)'h'), wrap((byte)'a'), wrap((byte)'l'), wrap((byte)'l'), wrap((byte)'o')))
+                )));
+        testBasicRequestParsing(RedefineClasses.enqueueCommand(ovm, new ClassDef[]{}),
+                new RedefineClassesRequest(0, new ListValue<>(Type.OBJECT)));
+    }
+
+    @Test
+    public void testVirtualMachine_AllModulesReplyParsing() {
+        testReplyParsing(AllModules::new,
+                new AllModulesReply(0, new ListValue<>(Reference.module(100110))),
+                (o, r) -> {
+                    assertEquals2((long)100110, o.modules[0].ref, r.modules.get(0));
+                    assertEquals(1, o.modules.length);
+                });
+    }
+
+    @Test
+    public void testReferenceType_GetValuesRequestParsing() {
+        testBasicRequestParsing(ReferenceType.GetValues.enqueueCommand(ovm,
+                        new ClassTypeImpl(ovm, -2), new Field[]{
+                                new Field(1000),
+                                new Field(-1)
+                        }),
+                new ReferenceTypeCmds.GetValuesRequest(0,
+                        Reference.klass(-2),
+                        new ListValue<>(
+                                new ReferenceTypeCmds.GetValuesRequest.Field(Reference.field(1000)),
+                                new ReferenceTypeCmds.GetValuesRequest.Field(Reference.field(-1))
+                        )));
+    }
+
+    @Test
+    public void testReferenceType_GetValuesReplyParsing() {
+        testReplyParsing(ReferenceType.GetValues::new,
+                new ReferenceTypeCmds.GetValuesReply(0, new ListValue<>(Type.VALUE, wrap(1), wrap(-1))),
+                (o, r) -> {
+                    assertEquals2(1, ((PrimitiveValueImpl)o.values[0]).intValue(), (IntValue)r.values.get(0));
+                });
+    }
+
+    @Test
+    public void testVirtualMachine_InterfacesRequestParsing() {
+        testBasicRequestParsing(Interfaces.enqueueCommand(ovm, new InterfaceTypeImpl(ovm, -2)),
+                new InterfacesRequest(0, Reference.klass(-2)));
+    }
+
+    @Test
+    public void testReferenceType_InterfacesReplyParsing() {
+        testReplyParsing(Interfaces::new,
+                new InterfacesReply(0, new ListValue<>(Reference.interfaceType(-2))),
+                (o, r) -> {
+                    assertEquals2((long)-2, o.interfaces[0].ref, r.interfaces.get(0));
+                });
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_ClassObjectRequestParsing() {
+        testBasicRequestParsing(ClassObject.enqueueCommand(ovm, new InterfaceTypeImpl(ovm, -2)),
+                new ClassObjectRequest(0, Reference.klass(-2)));
+    }
+
+    @Test
+    public void testReferenceType_ClassObjectReplyParsing() {
+        testReplyParsing(ClassObject::new,
+                new ClassObjectReply(0, Reference.classObject(-2)),
+                (o, r) -> {
+                    assertEquals2((long)-2, o.classObject.ref, r.classObject);
+                });
+    }
+
+    @Test
+    @Tag("basic")
+    public void testReferenceType_MethodsWithGenericReplyParsing() {
+        testReplyParsing(MethodsWithGeneric::new,
+                new MethodsWithGenericReply(0, new ListValue<MethodInfo>(
+                        new MethodInfo(Reference.method(-2),
+                                wrap("class"), wrap("sig"),
+                                wrap("blub"), wrap(1))
+                )),
+                (o, r) -> {});
+    }
+
+    @Test
+    public void testReferenceType_InstancesReplyParsing() {
+        testReplyParsing(Instances::new,
+                new InstancesReply(0, new ListValue<>(
+                        Reference.object(-324),
+                        Reference.object(100)
+                )),
+                (o, r) -> {
+                    assertEquals2((long)-324, o.instances[0].ref, r.instances.get(0));
+                    assertEquals2((long)100, o.instances[1].ref, r.instances.get(1));
+                });
+    }
+
+    @Test
+    @Tag("basic")
+    public void testVirtualMachine_ConstantPoolRequestParsing() {
+        testBasicRequestParsing(ConstantPool.enqueueCommand(ovm, new InterfaceTypeImpl(ovm, -2)),
+                new ConstantPoolRequest(0, Reference.klass(-2)));
+    }
+
+    @Test
+    public void testReferenceType_ConstantPoolReplyParsing() {
+        testReplyParsing(ConstantPool::new,
+                new ConstantPoolReply(0, wrap(100), new ListValue<>(
+                        wrap((byte)1), wrap((byte)2), wrap((byte)3)
+                )),
+                (o, r) -> {
+                    assertEquals2((byte)1, o.bytes[0], r.bytes.get(0));
+                    assertEquals2((byte)2, o.bytes[1], r.bytes.get(1));
+                    assertEquals2((byte)3, o.bytes[2], r.bytes.get(2));
+                });
     }
 
     @Test
@@ -304,6 +518,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testThreadReference_NameReplyParsing() {
         testReplyParsing(Name::new, new ThreadReferenceCmds.NameReply(0, wrap("a")),
                 (o, r) -> {
@@ -313,12 +528,14 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testClassType_SuperclassRequestParsing() {
         testBasicRequestParsing(Superclass.enqueueCommand(ovm, new ClassTypeImpl(ovm, 10)),
                 new SuperclassRequest(0, Reference.classType(10)));
     }
 
     @Test
+    @Tag("basic")
     public void testClassType_SuperclassReplyParsing() {
         testReplyParsing(Superclass::new,
                 new SuperclassReply(0, Reference.classType(10)),
@@ -346,6 +563,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testClassType_SetValuesReplyParsing() {
         testReplyParsing(SetValues::new,
                 new SetValuesReply(0),
@@ -392,6 +610,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testClassType_InvokeMethodReplyParsing() {
         testReplyParsing(InvokeMethod::new,
                 new InvokeMethodReply(0, PrimitiveValue.wrap(10), Reference.object(5)),
@@ -402,12 +621,14 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testArrayReference_LengthRequestParsing() {
         testBasicRequestParsing(Length.enqueueCommand(ovm, new ArrayReferenceImpl(ovm, 9)),
                 new LengthRequest(0, Reference.array(9)));
     }
 
     @Test
+    @Tag("basic")
     public void testArrayReference_LengthReplyParsing() {
         testReplyParsing(Length::new,
                 new LengthReply(0, wrap(10)),
@@ -415,12 +636,14 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testArrayReference_GetValuesRequestParsing() {
         testBasicRequestParsing(GetValues.enqueueCommand(ovm, new ArrayReferenceImpl(ovm, 9), 10, 11),
                 new GetValuesRequest(0, Reference.array(9), wrap(10), wrap(11)));
     }
 
     @Test
+    @Tag("basic")
     public void testArrayReference_GetValuesReplyParsing() {
         testReplyParsing(GetValues::new,
                 new GetValuesReply(0, new BasicListValue<>(Type.INT, List.of(wrap(11)))),
@@ -447,6 +670,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testArrayReference_SetValuesReplyParsing() {
         testReplyParsing(JDWP.ArrayReference.SetValues::new,
                 new ArrayReferenceCmds.SetValuesReply(0),
@@ -538,6 +762,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_Breakpoint() {
         var event = new Breakpoint(wrap(1), Reference.thread(10), location);
         var ps = eventOraclePacketStream(event);
@@ -549,6 +774,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_MethodEntry() {
         var event = new MethodEntry(wrap(1), Reference.thread(10), location);
         var ps = eventOraclePacketStream(event);
@@ -560,6 +786,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_MethodExit() {
         var event = new MethodExit(wrap(1), Reference.thread(10), location);
         var ps = eventOraclePacketStream(event);
@@ -571,6 +798,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_MethodExitWithReturnValue() {
         var event = new MethodExitWithReturnValue(wrap(1), Reference.thread(10), location, wrap(true));
         var ps = eventOraclePacketStream(event);
@@ -583,6 +811,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_MonitorContendedEnter() {
         var event = new MonitorContendedEnter(wrap(1), Reference.thread(10), Reference.object(345345345), location);
         var ps = eventOraclePacketStream(event);
@@ -595,6 +824,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_MonitorContendedEntered() {
         var event = new MonitorContendedEntered(wrap(200), Reference.thread(1023434), Reference.object(345345345), location);
         var ps = eventOraclePacketStream(event);
@@ -607,6 +837,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_MonitorWaitWaited() {
         var event = new MonitorWait(wrap(200),
                 Reference.thread(1023434), Reference.object(345345345),
@@ -622,6 +853,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_MonitorWaited() {
         var event = new MonitorWaited(wrap(200),
                 Reference.thread(1023434), Reference.object(345345345),
@@ -635,6 +867,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_Exception() {
         var event = new Exception(wrap(200), Reference.thread(1023434),
                 location, Reference.object(Long.parseLong("8354762345873")),
@@ -650,6 +883,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_ClassPrepare() {
         var event = new ClassPrepare(wrap(1), Reference.thread(10), wrap((byte) 3),
                 Reference.klass(10000), wrap("dfgadfjg"), wrap(-100003));
@@ -664,6 +898,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_ClassUnload() {
         var event = new ClassUnload(wrap(1), wrap("345345345939873454"));
         var ps = eventOraclePacketStream(event);
@@ -674,6 +909,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_FieldAccess() {
         var event = new FieldAccess(wrap(1), Reference.thread(10), location,
                 wrap((byte) 102), Reference.klass(234), Reference.field(1324),
@@ -691,6 +927,7 @@ class JDWPTest {
     }
 
     @Test
+    @Tag("basic")
     public void testEvent_FieldModification() {
         var event = new FieldModification(wrap(1), Reference.thread(10), location,
                 wrap((byte) 102), Reference.klass(234), Reference.field(1324),
@@ -737,6 +974,12 @@ class JDWPTest {
         var pps = new jdwp.PacketStream(vm, ps.toPacket());
         assertEquals(event.getKind(), pps.readByte());
         return pps;
+    }
+
+    @Test
+    public void testCompareReferences() {
+        assertEquals(Reference.klass(1), Reference.interfaceType(1));
+        assertNotEquals(Reference.klass(1), Reference.interfaceType(2));
     }
 
     @Test

@@ -86,7 +86,7 @@ class Parse {
         kindMap.put("byte", new TypeNode.ByteTypeNode());
         kindMap.put("location", new TypeNode.LocationTypeNode());
         kindMap.put("tagged-object", new TypeNode.TaggedObjectTypeNode());
-        kindMap.put("referenceTypeID", new TypeNode.ReferenceIDTypeNode());
+        kindMap.put("referenceType", new TypeNode.ReferenceIDTypeNode());
         kindMap.put("typed-sequence", new TypeNode.ArrayRegionTypeNode());
         kindMap.put("untagged-value", new TypeNode.UntaggedValueTypeNode());
     }

@@ -1,6 +1,6 @@
 package jdwp;
 
-import io.reactivex.annotations.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 public class ReplyOrError<R extends Reply> implements ParsedPacket {
     private final int id;
