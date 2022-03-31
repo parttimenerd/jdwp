@@ -24,3 +24,9 @@ hs_err_pid*
 
 # generated JDWP file
 /src/main/java/jdwp/JDWP.java
+*Cmds.java
+target
+
+# IDE stuff
+*.iml
+.idea
