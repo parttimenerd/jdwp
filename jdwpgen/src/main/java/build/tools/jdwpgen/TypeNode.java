@@ -36,7 +36,7 @@ interface TypeNode {
 
     String name();
 
-    void genJavaWrite(PrintWriter writer, int depth,  String writeLabel);
+    void genJavaWrite(PrintWriter writer, int depth, String writeLabel);
 
     void genJavaRead(PrintWriter writer, int depth, String readLabel);
 
@@ -169,7 +169,7 @@ interface TypeNode {
             writer.println("ps.writeInt(" + writeLabel + ".size());");
             indent(writer, depth);
             writer.println("for (int i = 0; i < " + writeLabel + ".size(); i++) {;");
-            ((TypeNode)member).genJavaWrite(writer, depth+1, writeLabel + ".get(i)");
+            ((TypeNode) member).genJavaWrite(writer, depth + 1, writeLabel + ".get(i)");
             indent(writer, depth);
             writer.println("}");
         }
@@ -185,12 +185,12 @@ interface TypeNode {
             indent(writer, depth);
             writer.println("int " + cntLbl + " = ps.readInt();");
             indent(writer, depth);
-            writer.println(readLabel + " = new " + javaType() + "(Value.typeForClass(" + javaType() + ".class), " + cntLbl +")");
+            writer.println(readLabel + " = new " + javaType() + "(Value.typeForClass(" + javaType() + ".class), " + cntLbl + ")");
             indent(writer, depth);
             writer.println("for (int i = 0; i < " + cntLbl + "; i++) {;");
             String readLbl = readLabel + "Tmp";
             writer.println(member.javaType() + " " + readLbl + " = null;");
-            member.genJavaRead(writer, depth+1, readLbl);
+            member.genJavaRead(writer, depth + 1, readLbl);
             writer.println(readLabel + ".set(i, " + readLbl + ")");
             indent(writer, depth);
             writer.println("}");
@@ -492,13 +492,19 @@ interface TypeNode {
             // this is far easier than generalizing it
             // and there are currently only two different cases
             if (parent.javaType().equals("FieldValue")) {
+                GroupNode groupNode = (GroupNode) parent;
+                assert groupNode.iterVariable() != null;
+                String iter = groupNode.iterVariable();
                 // we know here that the result is a basic value
                 String fieldVarName = ((FieldTypeNode) this.parent.components.get(0)).name;
                 // we get the actual type by using the vm and the field id
-                return String.format("ps.readUntaggedFieldValue(%s)", fieldVarName);
+                return String.format("%s instanceof Reference.ObjectReference ?\n" +
+                                "   ps.readUntaggedFieldValue((Reference.ObjectReference)%s, %s) :\n" +
+                                "   ps.readUntaggedFieldValue((Reference.ClassTypeReference)%s, %s)",
+                        iter, iter, fieldVarName, iter, fieldVarName);
             }
-            if (((ArrayObjectTypeNode)this.parent.parent.components.get(0)).name().equals("arrayObject")) {
-                return String.format("ps.readUntaggedArrayValue(arrayObject);");
+            if (((ArrayObjectTypeNode) this.parent.parent.components.get(0)).name().equals("arrayObject")) {
+                return "ps.readUntaggedArrayValue(arrayObject);";
             }
             throw new AssertionError();
         }

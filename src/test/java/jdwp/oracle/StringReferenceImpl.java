@@ -34,7 +34,7 @@ public class StringReferenceImpl extends ObjectReferenceImpl
 {
     private String value;
 
-    StringReferenceImpl(VirtualMachine aVm, long aRef) {
+    public StringReferenceImpl(VirtualMachine aVm, long aRef) {
         super(aVm, aRef);
     }
 

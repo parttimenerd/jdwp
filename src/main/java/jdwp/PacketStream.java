@@ -26,6 +26,8 @@
 package jdwp;
 
 import jdwp.Reference.ArrayReference;
+import jdwp.Reference.ClassTypeReference;
+import jdwp.Reference.ObjectReference;
 import jdwp.Value.BasicValue;
 
 import java.io.ByteArrayOutputStream;
@@ -366,8 +368,12 @@ class PacketStream {
        return PrimitiveValue.readValue(this, tag);
     }
 
-    BasicValue<?> readUntaggedFieldValue(Reference.FieldReference field) {
-        return readUntaggedValue(vm.getFieldTag(field.value));
+    public BasicValue<?> readUntaggedFieldValue(ObjectReference instance, Reference.FieldReference field) {
+        return readUntaggedValue(vm.getFieldTagForObj(instance.value, field.value));
+    }
+
+    public BasicValue<?> readUntaggedFieldValue(ClassTypeReference klass, Reference.FieldReference field) {
+        return readUntaggedValue(vm.getFieldTagForClass(klass.value, field.value));
     }
 
     public BasicValue<?> readUntaggedArrayValue(ArrayReference arrayObject) {

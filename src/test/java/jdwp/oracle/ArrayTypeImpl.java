@@ -45,7 +45,7 @@ import com.sun.jdi.VirtualMachine;
 public class ArrayTypeImpl extends ReferenceTypeImpl
     implements ArrayType
 {
-    protected ArrayTypeImpl(VirtualMachine aVm, long aRef) {
+    public ArrayTypeImpl(VirtualMachine aVm, long aRef) {
         super(aVm, aRef);
     }
 

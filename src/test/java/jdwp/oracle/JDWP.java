@@ -4463,7 +4463,7 @@ public class JDWP {
                  */
                 public final long fieldID;
 
-                Field(long fieldID) {
+                public Field(long fieldID) {
                     this.fieldID = fieldID;
                 }
 
@@ -4570,7 +4570,7 @@ public class JDWP {
                  */
                 public final ValueImpl value;
 
-                FieldValue(long fieldID, ValueImpl value) {
+                public FieldValue(long fieldID, ValueImpl value) {
                     this.fieldID = fieldID;
                     this.value = value;
                 }

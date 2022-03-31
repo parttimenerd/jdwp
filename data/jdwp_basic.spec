@@ -1130,8 +1130,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         "field's type and the field's type must be loaded. "
         (Out
             (classType clazz "The class type ID.")
-            (Repeat values "The number of fields to set."
-                (Group FieldValue "A Field/Value pair."
+            (Repeat values.clazz "The number of fields to set."
+                (Group FieldValue.iter "A Field/Value pair."
                     (field fieldID "Field to set.")
                     (untagged-value value "Value to put in the field.")
                 )
@@ -1200,7 +1200,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         "threads above). Upon completion of a single threaded invoke, the invoking thread "
         "will be suspended once again. Note that any threads started during "
         "the single threaded invocation will not be suspended when the "
-        "invocation completes. "
+        "invocation completes."
         "<p>"
         "If the target VM is disconnected during the invoke (for example, through "
         "the VirtualMachine dispose command) the method invocation continues. "
@@ -1227,6 +1227,646 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error VM_DEAD)
         )
         (OnlyReads "false")
+    )
+    (Command NewInstance=4
+        "Creates a new object of this type, invoking the specified "
+        "constructor. The constructor method ID must be a member of "
+        "the class type."
+        "<p>"
+        "Instance creation will occur in the specified thread. "
+        "Instance creation can occur only if the specified thread "
+        "has been suspended by an event. "
+        "Method invocation is not supported "
+        "when the target VM has been suspended by the front-end. "
+        "<p>"
+        "The specified constructor is invoked with the arguments in the specified "
+        "argument list. "
+        "The constructor invocation is synchronous; the reply packet is not "
+        "sent until the invoked method returns in the target VM. "
+        "The return value (possibly the void value) is "
+        "included in the reply packet. "
+        "If the constructor throws an exception, the "
+        "exception object ID is set in the reply packet; otherwise, the "
+        "exception object ID is null. "
+        "<p>"
+        "For primitive arguments, the argument value's type must match the "
+        "argument's type exactly. For object arguments, there must exist a "
+        "widening reference conversion from the argument value's type to the "
+        "argument's type and the argument's type must be loaded. "
+        "<p>"
+        "By default, all threads in the target VM are resumed while "
+        "the method is being invoked if they were previously "
+        "suspended by an event or by command. "
+        "This is done to prevent the deadlocks "
+        "that will occur if any of the threads own monitors "
+        "that will be needed by the invoked method. It is possible that "
+        "breakpoints or other events might occur during the invocation. "
+        "Note, however, that this implicit resume acts exactly like "
+        "the ThreadReference resume command, so if the thread's suspend "
+        "count is greater than 1, it will remain in a suspended state "
+        "during the invocation. By default, when the invocation completes, "
+        "all threads in the target VM are suspended, regardless their state "
+        "before the invocation. "
+        "<p>"
+        "The resumption of other threads during the invoke can be prevented "
+        "by specifying the INVOKE_SINGLE_THREADED "
+        "bit flag in the <code>options</code> field; however, "
+        "there is no protection against or recovery from the deadlocks "
+        "described above, so this option should be used with great caution. "
+        "Only the specified thread will be resumed (as described for all "
+        "threads above). Upon completion of a single threaded invoke, the invoking thread "
+        "will be suspended once again. Note that any threads started during "
+        "the single threaded invocation will not be suspended when the "
+        "invocation completes. "
+        "<p>"
+        "If the target VM is disconnected during the invoke (for example, through "
+        "the VirtualMachine dispose command) the method invocation continues. "
+        (Out
+            (classType clazz "The class type ID.")
+            (threadObject thread "The thread in which to invoke the constructor.")
+            (method methodID "The constructor to invoke.")
+            (Repeat arguments
+                (value arg "The argument value.")
+            )
+            (int options "Constructor invocation <a href=\"#JDWP_InvokeOptions\">options</a>")
+        )
+        (Reply
+            (tagged-object newObject "The newly created object, or null "
+                                     "if the constructor threw an exception.")
+            (tagged-object exception "The thrown exception, if any; otherwise, null.")
+        )
+        (ErrorSet
+            (Error INVALID_CLASS     "clazz is not the ID of a class.")
+            (Error INVALID_OBJECT    "clazz is not a known ID or a value of an "
+                                     "object parameter is not a known ID..")
+            (Error INVALID_METHODID  "methodID is not the ID of a method.")
+            (Error INVALID_OBJECT)
+            (Error INVALID_THREAD)
+            (Error THREAD_NOT_SUSPENDED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+)
+(CommandSet ArrayType=4
+    (Command NewInstance=1
+        "Creates a new array object of this type with a given length."
+        (Out
+            (arrayType arrType "The array type of the new instance.")
+            (int length "The length of the array.")
+        )
+        (Reply
+            (tagged-object newArray "The newly created array object. ")
+        )
+        (ErrorSet
+            (Error INVALID_ARRAY)
+            (Error INVALID_OBJECT)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+)
+(CommandSet InterfaceType=5
+    (Command InvokeMethod=1
+        "Invokes a static method. "
+        "The method must not be a static initializer. "
+        "The method must be a member of the interface type. "
+        "<p>Since JDWP version 1.8 "
+        "<p>"
+        "The method invocation will occur in the specified thread. "
+        "Method invocation can occur only if the specified thread "
+        "has been suspended by an event. "
+        "Method invocation is not supported "
+        "when the target VM has been suspended by the front-end. "
+        "<p>"
+        "The specified method is invoked with the arguments in the specified "
+        "argument list. "
+        "The method invocation is synchronous; the reply packet is not "
+        "sent until the invoked method returns in the target VM. "
+        "The return value (possibly the void value) is "
+        "included in the reply packet. "
+        "If the invoked method throws an exception, the "
+        "exception object ID is set in the reply packet; otherwise, the "
+        "exception object ID is null. "
+        "<p>"
+        "For primitive arguments, the argument value's type must match the "
+        "argument's type exactly. For object arguments, there must exist a "
+        "widening reference conversion from the argument value's type to the "
+        "argument's type and the argument's type must be loaded. "
+        "<p>"
+        "By default, all threads in the target VM are resumed while "
+        "the method is being invoked if they were previously "
+        "suspended by an event or by a command. "
+        "This is done to prevent the deadlocks "
+        "that will occur if any of the threads own monitors "
+        "that will be needed by the invoked method. It is possible that "
+        "breakpoints or other events might occur during the invocation. "
+        "Note, however, that this implicit resume acts exactly like "
+        "the ThreadReference resume command, so if the thread's suspend "
+        "count is greater than 1, it will remain in a suspended state "
+        "during the invocation. By default, when the invocation completes, "
+        "all threads in the target VM are suspended, regardless their state "
+        "before the invocation. "
+        "<p>"
+        "The resumption of other threads during the invoke can be prevented "
+        "by specifying the INVOKE_SINGLE_THREADED "
+        "bit flag in the <code>options</code> field; however, "
+        "there is no protection against or recovery from the deadlocks "
+        "described above, so this option should be used with great caution. "
+        "Only the specified thread will be resumed (as described for all "
+        "threads above). Upon completion of a single threaded invoke, the invoking thread "
+        "will be suspended once again. Note that any threads started during "
+        "the single threaded invocation will not be suspended when the "
+        "invocation completes. "
+        "<p>"
+        "If the target VM is disconnected during the invoke (for example, through "
+        "the VirtualMachine dispose command) the method invocation continues. "
+        (Out
+            (interfaceType clazz "The interface type ID.")
+            (threadObject thread "The thread in which to invoke.")
+            (method methodID "The method to invoke.")
+            (Repeat arguments
+                (value arg "The argument value.")
+            )
+            (int options "Invocation <a href=\"#JDWP_InvokeOptions\">options</a>")
+        )
+        (Reply
+            (value returnValue "The returned value.")
+            (tagged-object exception "The thrown exception.")
+        )
+        (ErrorSet
+            (Error INVALID_CLASS     "clazz is not the ID of an interface.")
+            (Error INVALID_OBJECT    "clazz is not a known ID.")
+            (Error INVALID_METHODID  "methodID is not the ID of a static method in this "
+                                     "interface type or is the ID of a static initializer.")
+            (Error INVALID_THREAD)
+            (Error THREAD_NOT_SUSPENDED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+)
+(CommandSet Method=6
+    (Command LineTable=1
+        "Returns line number information for the method, if present. "
+        "The line table maps source line numbers to the initial code index "
+        "of the line. The line table "
+        "is ordered by code index (from lowest to highest). The line number "
+        "information is constant unless a new class definition is installed "
+        "using <a href=\"#JDWP_VirtualMachine_RedefineClasses\">RedefineClasses</a>."
+        (Out
+            (referenceType refType "The class.")
+            (method methodID "The method.")
+        )
+        (Reply
+            (long start "Lowest valid code index for the method, >=0, or -1 if the method is native ")
+            (long end "Highest valid code index for the method, >=0, or -1 if the method is native")
+            (Repeat lines "The number of entries in the line table for this method."
+                (Group LineInfo
+                    (long lineCodeIndex "Initial code index of the line, "
+                                        "start &lt;= lineCodeIndex &lt; end")
+                    (int lineNumber "Line number.")
+                )
+            )
+        )
+        (ErrorSet
+            (Error INVALID_CLASS     "refType is not the ID of a reference "
+                                     "type.")
+            (Error INVALID_OBJECT    "refType is not a known ID.")
+            (Error INVALID_METHODID  "methodID is not the ID of a method.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command VariableTable=2
+        "Returns variable information for the method. The variable table "
+        "includes arguments and locals declared within the method. For "
+        "instance methods, the \"this\" reference is included in the "
+        "table. Also, synthetic variables may be present. "
+        (Out
+            (referenceType refType "The class.")
+            (method methodID "The method.")
+        )
+        (Reply
+            (int argCnt "The number of words in the frame used by arguments. "
+                        "Eight-byte arguments use two words; all others use one. ")
+            (Repeat slots "The number of variables."
+                (Group SlotInfo "Information about the variable."
+                    (long codeIndex
+                        "First code index at which the variable is visible (unsigned). "
+                        "Used in conjunction with <code>length</code>. "
+                        "The variable can be get or set only when the current "
+                        "<code>codeIndex</code> &lt;= current frame code index &lt; <code>codeIndex + length</code> ")
+                    (string name "The variable's name.")
+                    (string signature "The variable type's JNI signature.")
+                    (int length
+                        "Unsigned value used in conjunction with <code>codeIndex</code>. "
+                        "The variable can be get or set only when the current "
+                        "<code>codeIndex</code> &lt;= current frame code index &lt; <code>code index + length</code> ")
+                    (int slot "The local variable's index in its frame")
+                )
+            )
+        )
+        (ErrorSet
+            (Error INVALID_CLASS     "refType is not the ID of a reference "
+                                     "type.")
+            (Error INVALID_OBJECT    "refType is not a known ID.")
+            (Error INVALID_METHODID  "methodID is not the ID of a method.")
+            (Error ABSENT_INFORMATION "there is no variable information for the method.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command Bytecodes=3
+        "Retrieve the method's bytecodes as defined in "
+        "<cite>The Java Virtual Machine Specification</cite>. "
+        "Requires canGetBytecodes capability - see "
+        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>."
+        (Out
+            (referenceType refType "The class.")
+            (method methodID "The method.")
+        )
+        (Reply
+            (Repeat bytes
+                (byte bytecode "A Java bytecode.")
+            )
+        )
+        (ErrorSet
+            (Error INVALID_CLASS     "refType is not the ID of a reference "
+                                     "type.")
+            (Error INVALID_OBJECT    "refType is not a known ID.")
+            (Error INVALID_METHODID  "methodID is not the ID of a method.")
+            (Error NOT_IMPLEMENTED   "If the target virtual machine does not "
+                                     "support the retrieval of bytecodes.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command IsObsolete=4
+        "Determine if this method is obsolete. A method is obsolete if it has been replaced "
+        "by a non-equivalent method using the "
+        "<a href=\"#JDWP_VirtualMachine_RedefineClasses\">RedefineClasses</a> command. "
+        "The original and redefined methods are considered equivalent if their bytecodes are "
+        "the same except for indices into the constant pool and the referenced constants are "
+        "equal."
+        (Out
+            (referenceType refType "The class.")
+            (method methodID "The method.")
+        )
+        (Reply
+            (boolean isObsolete    "true if this method has been replaced"
+                                   "by a non-equivalent method using"
+                                   "the RedefineClasses command.")
+        )
+        (ErrorSet
+            (Error INVALID_CLASS     "refType is not the ID of a reference "
+                                     "type.")
+            (Error INVALID_OBJECT    "refType is not a known ID.")
+            (Error INVALID_METHODID  "methodID is not the ID of a method.")
+            (Error NOT_IMPLEMENTED   "If the target virtual machine does "
+                                     "not support this query.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command VariableTableWithGeneric=5
+        "Returns variable information for the method, including "
+        "generic signatures for the variables. The variable table "
+        "includes arguments and locals declared within the method. For "
+        "instance methods, the \"this\" reference is included in the "
+        "table. Also, synthetic variables may be present. "
+        "Generic signatures are described in the signature attribute "
+        "section in "
+        "<cite>The Java Virtual Machine Specification</cite>. "
+        "Since JDWP version 1.5."
+        (Out
+            (referenceType refType "The class.")
+            (method methodID "The method.")
+        )
+        (Reply
+            (int argCnt "The number of words in the frame used by arguments. "
+                        "Eight-byte arguments use two words; all others use one. ")
+            (Repeat slots "The number of variables."
+                (Group SlotInfo "Information about the variable."
+                    (long codeIndex
+                        "First code index at which the variable is visible (unsigned). "
+                        "Used in conjunction with <code>length</code>. "
+                        "The variable can be get or set only when the current "
+                        "<code>codeIndex</code> &lt;= current frame code index &lt; <code>codeIndex + length</code> ")
+                    (string name "The variable's name.")
+                    (string signature "The variable type's JNI signature.")
+                    (string genericSignature "The variable type's generic "
+                         "signature or an empty string if there is none.")
+                    (int length
+                        "Unsigned value used in conjunction with <code>codeIndex</code>. "
+                        "The variable can be get or set only when the current "
+                        "<code>codeIndex</code> &lt;= current frame code index &lt; <code>code index + length</code> ")
+                    (int slot "The local variable's index in its frame")
+                )
+            )
+        )
+        (ErrorSet
+            (Error INVALID_CLASS     "refType is not the ID of a reference "
+                                     "type.")
+            (Error INVALID_OBJECT    "refType is not a known ID.")
+            (Error INVALID_METHODID  "methodID is not the ID of a method.")
+            (Error ABSENT_INFORMATION "there is no variable information for the method.")
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+
+)
+(CommandSet Field=8
+)
+(CommandSet ObjectReference=9
+    (Command ReferenceType=1
+        "Returns the runtime type of the object. "
+        "The runtime type will be a class or an array. "
+        (Out
+            (object object "The object ID")
+        )
+        (Reply
+            (byte refTypeTag  "<a href=\"#JDWP_TypeTag\">Kind</a> "
+                              "of following reference type. ")
+            (referenceTypeID typeID "The runtime reference type.")
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command GetValues=2
+        "Returns the value of one or more instance fields. "
+        "Each field must be member of the object's type "
+        "or one of its superclasses, superinterfaces, or implemented interfaces. "
+        "Access control is not enforced; for example, the values of private "
+        "fields can be obtained."
+        (Out
+            (object object "The object ID")
+            (Repeat fields "The number of values to get"
+                (Group Field
+                    (field fieldID "Field to get.")
+                )
+            )
+        )
+        (Reply
+            (Repeat values "The number of values returned, always equal to 'fields', "
+                           "the number of values to get. Field values are ordered "
+                           "in the reply in the same order as corresponding fieldIDs "
+                           "in the command."
+                (value value "The field value")
+            )
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error INVALID_FIELDID)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command SetValues=3
+        "Sets the value of one or more instance fields. "
+        "Each field must be member of the object's type "
+        "or one of its superclasses, superinterfaces, or implemented interfaces. "
+        "Access control is not enforced; for example, the values of private "
+        "fields can be set. "
+        "For primitive values, the value's type must match the "
+        "field's type exactly. For object values, there must be a "
+        "widening reference conversion from the value's type to the
+        "field's type and the field's type must be loaded. "
+        (Out
+            (object object "The object ID")
+            (Repeat values.object "The number of fields to set."
+                (Group FieldValue.iter "A Field/Value pair."
+                    (field fieldID "Field to set.")
+                    (untagged-value value "Value to put in the field.")
+                )
+            )
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error INVALID_FIELDID)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command MonitorInfo=5
+        "Returns monitor information for an object. All threads int the VM must "
+        "be suspended."
+        "Requires canGetMonitorInfo capability - see "
+        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>."
+        (Out
+            (object object "The object ID")
+        )
+        (Reply
+            (threadObject owner "The monitor owner, or null if it is not currently owned.")
+            (int entryCount "The number of times the monitor has been entered.")
+            (Repeat waiters "The number of threads that are waiting for the monitor "
+                            "0 if there is no current owner"
+                (threadObject thread "A thread waiting for this monitor.")
+            )
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command InvokeMethod=6
+        "Invokes a instance method. "
+        "The method must be member of the object's type "
+        "or one of its superclasses, superinterfaces, or implemented interfaces. "
+        "Access control is not enforced; for example, private "
+        "methods can be invoked."
+        "<p>"
+        "The method invocation will occur in the specified thread. "
+        "Method invocation can occur only if the specified thread "
+        "has been suspended by an event. "
+        "Method invocation is not supported "
+        "when the target VM has been suspended by the front-end. "
+        "<p>"
+        "The specified method is invoked with the arguments in the specified "
+        "argument list. "
+        "The method invocation is synchronous; the reply packet is not "
+        "sent until the invoked method returns in the target VM. "
+        "The return value (possibly the void value) is "
+        "included in the reply packet. "
+        "If the invoked method throws an exception, the "
+        "exception object ID is set in the reply packet; otherwise, the "
+        "exception object ID is null. "
+        "<p>"
+        "For primitive arguments, the argument value's type must match the "
+        "argument's type exactly. For object arguments, there must be a "
+        "widening reference conversion from the argument value's type to the "
+        "argument's type and the argument's type must be loaded. "
+        "<p>"
+        "By default, all threads in the target VM are resumed while "
+        "the method is being invoked if they were previously "
+        "suspended by an event or by a command. "
+        "This is done to prevent the deadlocks "
+        "that will occur if any of the threads own monitors "
+        "that will be needed by the invoked method. It is possible that "
+        "breakpoints or other events might occur during the invocation. "
+        "Note, however, that this implicit resume acts exactly like "
+        "the ThreadReference resume command, so if the thread's suspend "
+        "count is greater than 1, it will remain in a suspended state "
+        "during the invocation. By default, when the invocation completes, "
+        "all threads in the target VM are suspended, regardless their state "
+        "before the invocation. "
+        "<p>"
+        "The resumption of other threads during the invoke can be prevented "
+        "by specifying the INVOKE_SINGLE_THREADED "
+        "bit flag in the <code>options</code> field; however, "
+        "there is no protection against or recovery from the deadlocks "
+        "described above, so this option should be used with great caution. "
+        "Only the specified thread will be resumed (as described for all "
+        "threads above). Upon completion of a single threaded invoke, the invoking thread "
+        "will be suspended once again. Note that any threads started during "
+        "the single threaded invocation will not be suspended when the "
+        "invocation completes. "
+        "<p>"
+        "If the target VM is disconnected during the invoke (for example, through "
+        "the VirtualMachine dispose command) the method invocation continues. "
+        (Out
+            (object object "The object ID")
+            (threadObject thread "The thread in which to invoke.")
+            (classType clazz "The class type.")
+            (method methodID "The method to invoke.")
+            (Repeat arguments "The number of arguments."
+                (value arg "The argument value.")
+            )
+            (int options "Invocation <a href=\"#JDWP_InvokeOptions\">options</a>")
+        )
+        (Reply
+            (value returnValue "The returned value, or null if an exception is thrown.")
+            (tagged-object exception "The thrown exception, if any.")
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error INVALID_CLASS     "clazz is not the ID of a reference "
+                                     "type.")
+            (Error INVALID_METHODID  "methodID is not the ID of an instance method "
+                                     "in this object's type or one of its superclasses, "
+                                     "superinterfaces, or implemented interfaces.")
+            (Error INVALID_THREAD)
+            (Error THREAD_NOT_SUSPENDED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command DisableCollection=7
+        "Prevents garbage collection for the given object. By "
+        "default all objects in back-end replies may be "
+        "collected at any time the target VM is running. A call to "
+        "this command guarantees that the object will not be "
+        "collected. The "
+        "<a href=\"#JDWP_ObjectReference_EnableCollection\">EnableCollection</a> "
+        "command can be used to "
+        "allow collection once again. "
+        "<p>"
+        "Note that while the target VM is suspended, no garbage "
+        "collection will occur because all threads are suspended. "
+        "The typical examination of variables, fields, and arrays "
+        "during the suspension is safe without explicitly disabling "
+        "garbage collection. "
+        "<p>"
+        "This method should be used sparingly, as it alters the "
+        "pattern of garbage collection in the target VM and, "
+        "consequently, may result in application behavior under the "
+        "debugger that differs from its non-debugged behavior. "
+        (Out
+            (object object "The object ID")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command EnableCollection=8
+        "Permits garbage collection for this object. By default all "
+        "objects returned by JDWP may become unreachable in the target VM, "
+        "and hence may be garbage collected. A call to this command is "
+        "necessary only if garbage collection was previously disabled with "
+        "the <a href=\"#JDWP_ObjectReference_DisableCollection\">DisableCollection</a> "
+        "command."
+        (Out
+            (object object "The object ID")
+        )
+        (Reply "none"
+        )
+        (ErrorSet
+            (Error VM_DEAD)
+        )
+        (OnlyReads "false")
+    )
+    (Command IsCollected=9
+        "Determines whether an object has been garbage collected in the "
+        "target VM. "
+        (Out
+            (object object "The object ID")
+        )
+        (Reply
+            (boolean isCollected "true if the object has been collected; false otherwise")
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+    (Command ReferringObjects=10
+        "Returns objects that directly reference this object.  "
+        "Only objects that are reachable for the purposes "
+        "of garbage collection are returned. "
+        "Note that an object can also be referenced in other ways, "
+        "such as from a local variable in a stack frame, or from a JNI global "
+        "reference.  Such non-object referrers are not returned by this command. "
+        "<p>Since JDWP version 1.6. Requires canGetInstanceInfo capability - see "
+        "<a href=\"#JDWP_VirtualMachine_CapabilitiesNew\">CapabilitiesNew</a>."
+        (Out
+            (object object "The object ID")
+            (int maxReferrers "Maximum number of referring objects to return. "
+                              "Must be non-negative. If zero, all referring "
+                              "objects are returned.")
+        )
+        (Reply
+            (Repeat referringObjects "The number of objects that follow."
+                (tagged-object instance "An object that references this object.")
+             )
+        )
+        (ErrorSet
+            (Error INVALID_OBJECT    "object is not a known ID.")
+            (Error ILLEGAL_ARGUMENT  "maxReferrers is less than zero.")
+            (Error NOT_IMPLEMENTED)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
+    )
+)
+
+(CommandSet StringReference=10
+    (Command Value=1
+        "Returns the characters contained in the string. "
+        (Out
+            (object stringObject "The String object ID. ")
+        )
+        (Reply
+            (string stringValue "UTF-8 representation of the string value.")
+       )
+        (ErrorSet
+            (Error INVALID_STRING)
+            (Error INVALID_OBJECT)
+            (Error VM_DEAD)
+        )
+        (OnlyReads "true")
     )
 )
 (CommandSet ThreadReference=11

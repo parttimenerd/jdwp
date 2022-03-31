@@ -25,11 +25,23 @@
 
 package build.tools.jdwpgen;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.io.*;
 
 class RepeatNode extends TypeNode.AbstractTypeNode {
 
     Node member = null;
+
+    @Nullable
+    String iterVariable() {
+        return name.contains(".") ? name.split("\\.")[1] : null;
+    }
+
+    @Override
+    public String name() {
+        return name.split("\\.")[0];
+    }
 
     void constrain(Context ctx) {
         super.constrain(ctx);
@@ -96,7 +108,11 @@ class RepeatNode extends TypeNode.AbstractTypeNode {
         indent(writer, depth);
         writer.println("for (int i = 0; i < " + cntLbl + "; i++) {");
         indent(writer, depth + 1);
-        member.genJavaRead(writer, depth, member.javaType() + " tmp");
+        if (iterVariable() != null) { // only support for group nodes currently
+            ((GroupNode)member).genJavaRead(writer, depth, member.javaType() + " tmp", iterVariable());
+        } else {
+            member.genJavaRead(writer, depth, member.javaType() + " tmp");
+        }
         writer.println();
         indent(writer, depth + 1);
         writer.println(listLbl + ".add(tmp);");

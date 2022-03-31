@@ -25,6 +25,8 @@
 
 package build.tools.jdwpgen;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.io.*;
 
 abstract class AbstractGroupNode extends AbstractTypeListNode {
@@ -33,6 +35,16 @@ abstract class AbstractGroupNode extends AbstractTypeListNode {
         for (Node node : components) {
             node.document(writer);
         }
+    }
+
+    @Nullable
+    String iterVariable() {
+        return name.contains(".") ? name.split("\\.")[1] : null;
+    }
+
+    @Override
+    public String name() {
+        return name.split("\\.")[0];
     }
 
     String javaType() {
@@ -104,5 +116,12 @@ abstract class AbstractGroupNode extends AbstractTypeListNode {
         indent(writer, depth);
         writer.print(readLabel);
         writer.print(" = " + name() + ".parse(ps);");
+    }
+
+    public void genJavaRead(PrintWriter writer, int depth,
+                            String readLabel, String iterLabel) {
+        indent(writer, depth);
+        writer.print(readLabel);
+        writer.print(String.format(" = %s.parse(ps, %s);", name(), iterLabel));
     }
 }

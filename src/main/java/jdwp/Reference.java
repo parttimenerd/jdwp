@@ -52,6 +52,14 @@ public class Reference extends BasicValue<Long> {
         return new ObjectReference(type, ref);
     }
 
+    public static ObjectReference string(long ref) {
+        return new ObjectReference(Type.STRING, ref);
+    }
+
+    public static ObjectReference integer(long ref) {
+        return new ObjectReference(Type.INT, ref);
+    }
+
     public static ThreadReference thread(long ref) { return new ThreadReference(ref); }
 
     public static ThreadGroupReference threadGroup(long ref) { return new ThreadGroupReference(ref); }
@@ -59,6 +67,8 @@ public class Reference extends BasicValue<Long> {
     public static ClassTypeReference classType(long ref) { return new ClassTypeReference(ref); }
 
     public static InterfaceTypeReference interfaceType(long ref) { return new InterfaceTypeReference(ref); }
+
+    public static ArrayTypeReference arrayType(long ref) { return new ArrayTypeReference(ref); }
 
     public static ArrayReference array(long ref) { return new ArrayReference(ref); }
 
@@ -102,7 +112,6 @@ public class Reference extends BasicValue<Long> {
             return new ObjectReference(Type.forPrimitive(ps.readByte()), ps.readObjectRef());
         }
     }
-
 
     public static class ThreadReference extends Reference {
         ThreadReference(long ref) {
@@ -296,8 +305,12 @@ public class Reference extends BasicValue<Long> {
             return new FieldReference(ps.readFieldRef());
         }
 
-        public BasicValue<?> readUntaggedFieldValue(PacketStream ps) {
-            return ps.readUntaggedValue(ps.vm.getFieldTag(value));
+        public BasicValue<?> readUntaggedInstanceFieldValue(Reference instance, PacketStream ps) {
+            return ps.readUntaggedValue(ps.vm.getFieldTagForObj(instance.value, value));
+        }
+
+        public BasicValue<?> readUntaggedClassFieldValue(Reference klass, PacketStream ps) {
+            return ps.readUntaggedValue(ps.vm.getFieldTagForClass(klass.value, value));
         }
     }
 

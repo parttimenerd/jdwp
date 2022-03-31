@@ -10,6 +10,8 @@ import jdwp.EventCmds.Events.*;
 import jdwp.EventCmds.Events.Exception;
 import jdwp.EventCmds.Events.ThreadDeath;
 import jdwp.JDWP.SuspendPolicy;
+import jdwp.MethodCmds.IsObsoleteReply;
+import jdwp.MethodCmds.LineTableReply;
 import jdwp.ReferenceTypeCmds.*;
 import jdwp.ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo;
 import jdwp.ThreadReferenceCmds.NameReply;
@@ -23,10 +25,15 @@ import jdwp.Value.*;
 import jdwp.oracle.JDWP;
 import jdwp.oracle.JDWP.ArrayReference.GetValues;
 import jdwp.oracle.JDWP.ArrayReference.Length;
+import jdwp.oracle.JDWP.ArrayType;
 import jdwp.oracle.JDWP.ClassType.InvokeMethod;
+import jdwp.oracle.JDWP.ClassType.NewInstance;
 import jdwp.oracle.JDWP.ClassType.SetValues;
 import jdwp.oracle.JDWP.ClassType.Superclass;
 import jdwp.oracle.JDWP.Event.Composite;
+import jdwp.oracle.JDWP.Method.IsObsolete;
+import jdwp.oracle.JDWP.Method.LineTable;
+import jdwp.oracle.JDWP.ObjectReference;
 import jdwp.oracle.JDWP.ReferenceType;
 import jdwp.oracle.JDWP.ReferenceType.*;
 import jdwp.oracle.JDWP.ReferenceType.GetValues.Field;
@@ -545,7 +552,7 @@ class JDWPTest {
         var klass = 1;
         var field = 2;
         var type = Type.BOOLEAN;
-        vm.addField(klass, field, (byte) type.tag);
+        vm.addFieldTag(klass, field, (byte) type.tag);
         var request = new SetValuesRequest(0, Reference.classType(klass),
                 new ListValue<>(Type.OBJECT, new SetValuesRequest.FieldValue(Reference.field(field), wrap(true))));
         var packet = request.toPacket(vm);
@@ -612,6 +619,70 @@ class JDWPTest {
                     assertEquals(10, ((IntegerValueImpl) o.returnValue).value());
                     assertEquals(10, r.returnValue.value);
                 });
+    }
+
+    @Test
+    public void testClassType_NewInstanceReplyParsing() {
+        testReplyParsing(NewInstance::new,
+                new NewInstanceReply(0, Reference.object(1), Reference.object(10)),
+                (o, r) -> {
+                    assertEquals2((long)1, o.newObject.ref, r.newObject);
+                    assertEquals2((long)10, o.exception.ref, r.exception);
+                });
+    }
+
+    @Test
+    public void testArrayType_NewInstanceRequestParsing() {
+        testBasicRequestParsing(ArrayType.NewInstance.enqueueCommand(ovm, new ArrayTypeImpl(ovm, 1000), 99),
+                new ArrayTypeCmds.NewInstanceRequest(0, Reference.arrayType(1000), wrap(99)));
+    }
+
+    @Test
+    @Tag("basic")
+    public void testMethod_LineTableReplyParsing() {
+        testReplyParsing(LineTable::new,
+                new LineTableReply(0, wrap((long)1), wrap((long)11),
+                        new ListValue<>(new LineTableReply.LineInfo(wrap((long)-1), wrap(10)))),
+                (o, r) -> {
+                    assertEquals2((long)-1, o.lines[0].lineCodeIndex, r.lines.get(0).lineCodeIndex);
+                });
+    }
+
+    @Test
+    @Tag("basic")
+    public void testMethod_IsObsoleteReplyParsing() {
+        testReplyParsing(IsObsolete::new,
+                new IsObsoleteReply(0, wrap(true)),
+                (o, r) -> {
+                    assertEquals2(true, o.isObsolete, r.isObsolete);
+                });
+    }
+
+    @Test
+    @Tag("basic")
+    public void testObjectReference_GetValuesRequestParsing() {
+        testBasicRequestParsing(ObjectReference.GetValues.enqueueCommand(ovm,
+                new ObjectReferenceImpl(ovm, 10), new ObjectReference.GetValues.Field[]{
+                new ObjectReference.GetValues.Field(10),
+                new ObjectReference.GetValues.Field(10000)
+        }), new ObjectReferenceCmds.GetValuesRequest(0, Reference.object(10),
+                new ListValue<>(new ObjectReferenceCmds.GetValuesRequest.Field(Reference.field(10)),
+                        new ObjectReferenceCmds.GetValuesRequest.Field(Reference.field(10000)))));
+    }
+
+    @Test
+    public void testObjectReference_SetValuesRequestParsing() {
+        vm.addFieldTag(10, 10, (byte)Type.INT.tag);
+        vm.addFieldTag(10, 11, (byte)Type.STRING.tag);
+        vm.setClass(10, 10);
+        testBasicRequestParsing(ObjectReference.SetValues.enqueueCommand(ovm,
+                new ObjectReferenceImpl(ovm, 10), new ObjectReference.SetValues.FieldValue[]{
+                        new ObjectReference.SetValues.FieldValue(10, new IntegerValueImpl(ovm, -1)),
+                        new ObjectReference.SetValues.FieldValue(11, new StringReferenceImpl(ovm, -2)),
+                }), new ObjectReferenceCmds.SetValuesRequest(0, Reference.object(10),
+                new ListValue<>
+                        (new ObjectReferenceCmds.SetValuesRequest.FieldValue(Reference.field(10), wrap(-1)),
+                        new ObjectReferenceCmds.SetValuesRequest.FieldValue(Reference.field(11), Reference.string(-2)))));
     }
 
     @Test

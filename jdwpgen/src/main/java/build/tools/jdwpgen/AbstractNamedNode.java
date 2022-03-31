@@ -31,7 +31,7 @@ import java.io.*;
 abstract class AbstractNamedNode extends Node {
 
     NameNode nameNode = null;
-    String name;
+    protected String name;
 
     public String name() {
         return name;

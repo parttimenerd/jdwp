@@ -84,7 +84,7 @@ internal class CommandNode : AbstractCommandNode() {
     // idea: keep the code at a single place
 
     private val commandClassName: String
-        get() = name
+        get() = name()
     private val requestClassName: String
         get() = commandClassName + "Request"
     private val replyClassName: String
@@ -109,7 +109,7 @@ internal class CommandNode : AbstractCommandNode() {
         `public static final field`(TypeName.INT, "COMMAND") { `=`(nameNode.value()) }
 
         for (f in fields) {
-            `public final field`(f.javaType(), f.name) { addJavadoc(f.comment()) }
+            `public final field`(f.javaType(), f.name()) { addJavadoc(f.comment()) }
         }
 
         `public constructor`(
@@ -126,7 +126,7 @@ internal class CommandNode : AbstractCommandNode() {
             mutableListOf(param(TypeName.INT, "id")) +
                     fields.map { param(it.javaType(), it.name()) }) {
             statement("this(\$N)",
-                (listOf("id", "(short)$defaultFlag") + fields.map { it.name }).joinToString(", ")
+                (listOf("id", "(short)$defaultFlag") + fields.map { it.name() }).joinToString(", ")
             )
         }
 
@@ -137,7 +137,7 @@ internal class CommandNode : AbstractCommandNode() {
             `@Override`()
             statement("PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND)")
             for (f in fields) {
-                addCode(f.genJavaWrite(f.name) + ";\n")
+                addCode(f.genJavaWrite(f.name()) + ";\n")
             }
             statement("Packet packet = ps.toPacket()")
             statement("packet.id = id")
@@ -182,11 +182,11 @@ internal class CommandNode : AbstractCommandNode() {
                 param("PacketStream", "ps")
             ) {
                 for (f in fields) {
-                    addCode(f.genJavaRead(f.javaType() + " " + f.name) + ";\n")
+                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
                 }
                 statement("return new \$T(\$N)",
                     bg(requestClassName),
-                    (listOf("ps.id()", "ps.flags()") + fields.map { it.name }).joinToString(", ")
+                    (listOf("ps.id()", "ps.flags()") + fields.map { it.name() }).joinToString(", ")
                 )
             }
 
@@ -235,11 +235,11 @@ internal class CommandNode : AbstractCommandNode() {
                     _return("new ReplyOrError<>(ps.id(), ps.flags(), ps.errorCode())")
                 }.`else` {
                     for (f in fields) {
-                        addCode(f.genJavaRead(f.javaType() + " " + f.name) + ";\n")
+                        addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
                     }
                     statement("return new ReplyOrError<>(ps.id(), ps.flags(), new \$T(\$N))",
                         bg(replyClassName),
-                        (listOf("ps.id()", "ps.flags()") + fields.map { it.name }).joinToString(", ")
+                        (listOf("ps.id()", "ps.flags()") + fields.map { it.name() }).joinToString(", ")
                     )
                 }.end()
             }
@@ -274,11 +274,11 @@ internal class CommandNode : AbstractCommandNode() {
                 param("PacketStream", "ps")
             ) {
                 for (f in fields) {
-                    addCode(f.genJavaRead(f.javaType() + " " + f.name) + ";\n")
+                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
                 }
                 statement("return new \$T(\$N)",
                     bg(name),
-                    (listOf("ps.id()", "ps.flags()") + fields.map { it.name }).joinToString(", ")
+                    (listOf("ps.id()", "ps.flags()") + fields.map { it.name() }).joinToString(", ")
                 )
             }
 
@@ -305,11 +305,11 @@ internal class CommandNode : AbstractCommandNode() {
 
     private fun genGroupClass(node: GroupNode): TypeSpec {
         val fields = node.components.map { it as AbstractTypeNode }
-        return `public static class`(node.name) {
+        return `public static class`(node.name()) {
             extends("Value.CombinedValue")
 
             for (f in fields) {
-                `public final field`(f.javaType(), f.name) { addJavadoc(f.comment()) }
+                `public final field`(f.javaType(), f.name()) { addJavadoc(f.comment()) }
             }
 
             `public constructor`(
@@ -323,15 +323,19 @@ internal class CommandNode : AbstractCommandNode() {
 
             genCombinedTypeGet(fields)
 
-            genToString(node.name, fields)
-            genEquals(node.name, fields)
+            genToString(node.name(), fields)
+            genEquals(node.name(), fields)
             genHashCode(fields)
 
-            `public static`(bg(node.name), "parse", param("PacketStream", "ps")) {
+            var parseParams = arrayOf(param("PacketStream", "ps")) +
+                    (node.iterVariable()?.let { arrayOf(param("Value", it)) } ?: arrayOf<ParameterSpec.Builder>())
+
+            `public static`(bg(node.name()), "parse", params = parseParams) {
+
                 for (f in fields) {
                     addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
                 }
-                _return("new ${node.name}(${fields.joinToString(", ") { it.name }})")
+                _return("new ${node.name()}(${fields.joinToString(", ") { it.name() }})")
             }
 
             genWrite(fields)
@@ -342,20 +346,20 @@ internal class CommandNode : AbstractCommandNode() {
         val alts = node.components.map { it as AltNode }
         val kindNode = node.typeNode as AbstractTypeNode
         val className = node.commonBaseClass()
-        val instanceName = "${node.name}Instance"
+        val instanceName = "${node.name()}Instance"
         val commonFields = listOf(kindNode) + alts.fold(alts.first().components.map { it as AbstractTypeNode })
             {l, n -> l.filter { c -> n.components.any { val c2 = it as AbstractTypeNode
-                c2.name == c.name && c2.javaType() == c.javaType()} }}
+                c2.name() == c.name() && c2.javaType() == c.javaType()} }}
         return listOf(`public static abstract class`(className) {
             extends(instanceName)
 
             for (f in commonFields) {
-                `public final field`(f.javaType(), f.name) { addJavadoc(f.comment()) }
+                `public final field`(f.javaType(), f.name()) { addJavadoc(f.comment()) }
             }
 
             `public constructor`(
                 commonFields.map { param(it.javaType(), it.name()) }) {
-                statement("super(${commonFields.joinToString(", ") { "${it.name}.value" }})")
+                statement("super(${commonFields.joinToString(", ") { "${it.name()}.value" }})")
                 for (f in commonFields) {
                     statement("this.\$N = \$N", f.name(), f.name())
                 }
@@ -363,8 +367,8 @@ internal class CommandNode : AbstractCommandNode() {
             }
 
             `public static`(bg(node.commonBaseClass()), "parse", param("PacketStream", "ps")) {
-                statement("${kindNode.javaType()} ${kindNode.name} = ${kindNode.javaType()}.read(ps)")
-                switch("${kindNode.name}.value") {
+                statement("${kindNode.javaType()} ${kindNode.name()} = ${kindNode.javaType()}.read(ps)")
+                switch("${kindNode.name()}.value") {
                    for (alt in alts) {
                        case("${alt.javaType()}.KIND") {
                            _return("${alt.javaType()}.parse(ps)")
@@ -373,7 +377,7 @@ internal class CommandNode : AbstractCommandNode() {
                    default {
                        `throw new2`(
                            java.util.NoSuchElementException::class,
-                           "\"Unknown command \" + ${kindNode.name}"
+                           "\"Unknown command \" + ${kindNode.name()}"
                        )
                    }
                    this
@@ -391,35 +395,35 @@ internal class CommandNode : AbstractCommandNode() {
         val fields = alt.components
             .map { it as AbstractTypeNode }
         val uncommonFields = fields
-            .filter { n -> commonFields.all { it.name != n.name } }
+            .filter { n -> commonFields.all { it.name() != n.name() } }
         return `public static class`(alt.javaType()) {
             extends(commonClassName)
 
             `public static final field`(TypeName.BYTE, "KIND") { `=`(alt.nameNode.value()) }
 
             for (f in uncommonFields) {
-                `public final field`(f.javaType(), f.name) { addJavadoc(f.comment()) }
+                `public final field`(f.javaType(), f.name()) { addJavadoc(f.comment()) }
             }
 
             `public constructor`((commonFields + uncommonFields).map { param(it.javaType(), it.name()) }) {
-                statement("super(${(listOf("PrimitiveValue.wrap(KIND)") + commonFields.map { it.name }).joinToString(", ")})")
+                statement("super(${(listOf("PrimitiveValue.wrap(KIND)") + commonFields.map { it.name() }).joinToString(", ")})")
                 for (f in uncommonFields) {
                     statement("this.\$N = \$N", f.name(), f.name())
                 }
                 this
             }
 
-            `public static`(bg(alt.name), "parse", param("PacketStream", "ps")) {
+            `public static`(bg(alt.name()), "parse", param("PacketStream", "ps")) {
                 for (f in fields) {
                     addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
                 }
-                _return("new ${alt.name}(${(commonFields + uncommonFields).joinToString(", ") { it.name }})")
+                _return("new ${alt.name()}(${(commonFields + uncommonFields).joinToString(", ") { it.name }})")
             }
 
             genCombinedTypeGet(listOf(kindNode) + fields)
 
-            genToString(alt.name, fields)
-            genEquals(alt.name, fields)
+            genToString(alt.name(), fields)
+            genEquals(alt.name(), fields)
             genHashCode(fields)
             genWrite(listOf(kindNode) + fields)
 
@@ -432,7 +436,7 @@ internal class CommandNode : AbstractCommandNode() {
     ) {
         `@Override`()
         for (f in fields) {
-            addCode(f.genJavaWrite(f.name) + ";\n")
+            addCode(f.genJavaWrite(f.name()) + ";\n")
         }
         this
     }
@@ -443,7 +447,7 @@ internal class CommandNode : AbstractCommandNode() {
             _return("$name()".S)
         } else {
             _return("String.format(" +
-                    (listOf("\"$name(${fields.joinToString(", ") { "${it.name}=%s" }})\"") + fields.map { it.name }).joinToString(", ") + ")"
+                    (listOf("\"$name(${fields.joinToString(", ") { "${it.name()}=%s" }})\"") + fields.map { it.name() }).joinToString(", ") + ")"
             )
         }
     }
@@ -457,7 +461,7 @@ internal class CommandNode : AbstractCommandNode() {
             _return(true.L);
         } else {
             statement("$className otherObj = ($className)other")
-            _return(fields.joinToString(" && ") { "${it.name}.equals(otherObj.${it.name})"  })
+            _return(fields.joinToString(" && ") { "${it.name()}.equals(otherObj.${it.name()})"  })
         }
     }
 
@@ -466,7 +470,7 @@ internal class CommandNode : AbstractCommandNode() {
         if (fields.isEmpty()) {
             _return(0.L)
         } else {
-            _return("Objects.hash(${fields.joinToString(", ") { it.name }})")
+            _return("Objects.hash(${fields.joinToString(", ") { it.name() }})")
         }
     }
 
@@ -477,7 +481,7 @@ internal class CommandNode : AbstractCommandNode() {
             when (fields.size) {
                 0 -> exCode()
                 1 -> {
-                    val first = fields.first().name
+                    val first = fields.first().name()
                     `if` ("key.equals(${first.S})") {
                         _return(first)
                     }.end()
@@ -486,8 +490,8 @@ internal class CommandNode : AbstractCommandNode() {
                 else -> {
                     switch("key") {
                         for (f in fields) {
-                            case(f.name.S) {
-                                _return(f.name)
+                            case(f.name().S) {
+                                _return(f.name())
                             }
                         }
                         default {
@@ -500,7 +504,7 @@ internal class CommandNode : AbstractCommandNode() {
         }
 
         `private static final field`(pt("List", "String"), "KEYS") {
-            `=`("List.of(${fields.joinToString(", ") { "\"${it.name}\"" }})")
+            `=`("List.of(${fields.joinToString(", ") { "\"${it.name()}\"" }})")
         }
 
         `private static final field`(pt("Set", "String"), "KEY_SET") {
@@ -519,7 +523,7 @@ internal class CommandNode : AbstractCommandNode() {
 
         `public`(ParameterizedTypeName.get(bg("List"), pt("Pair", "String", "Value")), "getValues") {
             `@Override`()
-            _return("List.of(${fields.joinToString(", ") { "p(${it.name.S}, ${it.name})" }})");
+            _return("List.of(${fields.joinToString(", ") { "p(${it.name().S}, ${it.name()})" }})");
         }
     }
 

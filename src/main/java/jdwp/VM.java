@@ -26,6 +26,7 @@
 package jdwp;
 
 import jdwp.VM.NoTagPresentException.Source;
+import jdwp.util.Pair;
 import lombok.Getter;
 
 import java.util.*;
@@ -55,10 +56,12 @@ class VM {
     private int sizeofFrameRef = 8;
     private int sizeofModuleRef = 8;
 
-    /** field id -> tag */
-    private final Map<Long, Byte> fieldTags;
-    /** class id -> [field id] */
-    private final Map<Long, List<Long>> classFieldIds;
+    /** class id -> field id -> tag */
+    private final Map<Long, Map<Long, Byte>> fieldTags;
+    /** obj id -> class id */
+    private final Map<Long, Long> classForObj;
+    /** class id -> [obj id] */
+    private final Map<Long, List<Long>> objForClass;
     /** class signature -> class id */
     private final Map<String, Long> classForSignature;
     /** array id -> tag */
@@ -67,37 +70,67 @@ class VM {
     public VM(int id) {
         this.id = id;
         this.fieldTags = new HashMap<>();
-        this.classFieldIds = new HashMap<>();
+        this.classForObj = new HashMap<>();
+        this.objForClass = new HashMap<>();
         this.classForSignature = new HashMap<>();
         this.arrayTags = new HashMap<>();
     }
 
     public void addClass(String signature, long id) {
+        assert !classForSignature.containsKey(signature);
         classForSignature.put(signature, id);
-        classFieldIds.put(id, new ArrayList<>());
+        fieldTags.put(id, new HashMap<>());
+        objForClass.put(id, new ArrayList<>());
     }
 
-    public void addField(long klass, long id, byte tag) {
-        classFieldIds.putIfAbsent(klass, new ArrayList<>());
-        classFieldIds.get(klass).add(id);
-        fieldTags.put(id, tag);
+    public void addFieldTag(long klass, long id, byte tag) {
+        fieldTags.putIfAbsent(klass, new HashMap<>());
+        fieldTags.get(klass).put(id, tag);
+    }
+
+    public void setClass(long obj, long klass) {
+        classForObj.put(obj, klass);
+        objForClass.putIfAbsent(klass, new ArrayList<>());
+        objForClass.get(klass).add(obj);
+    }
+
+    public long getClass(long obj) {
+        return classForObj.get(obj);
     }
 
     public void remove(String signature) {
         long id = classForSignature.remove(signature);
-        classFieldIds.remove(id).forEach(fieldTags::remove);
+        fieldTags.remove(id);
+        objForClass.get(id).forEach(classForObj::remove);
+        objForClass.remove(id);
     }
 
-    public boolean hasFieldTag(long field) {
-        return fieldTags.containsKey(field);
+    public boolean hasClassForObj(long obj) {
+        return classForObj.containsKey(obj);
+    }
+
+    public boolean hasFieldTagForObj(long obj, long field) {
+        return hasClassForObj(obj) && hasFieldTagForClass(classForObj.get(obj), field);
+    }
+
+    public boolean hasFieldTagForClass(long klass, long field) {
+        return fieldTags.containsKey(klass) && fieldTags.get(klass).containsKey(field);
     }
 
     /** might throw a NoTagPresent exception */
-    public byte getFieldTag(long field) {
-        if (!hasFieldTag(field)) {
+    public byte getFieldTagForObj(long obj, long field) {
+        if (!hasFieldTagForObj(obj, field)) {
             throw new NoTagPresentException(Source.FIELD, id);
         }
-        return fieldTags.get(field);
+        return fieldTags.get(classForObj.get(obj)).get(field);
+    }
+
+    /** might throw a NoTagPresent exception */
+    public byte getFieldTagForClass(long klass, long field) {
+        if (!hasFieldTagForClass(klass, field)) {
+            throw new NoTagPresentException(Source.FIELD, id);
+        }
+        return fieldTags.get(klass).get(field);
     }
 
     public void addArrayTag(long id, byte tag) {
@@ -128,8 +161,9 @@ class VM {
     /** clear tags info and classForSignature */
     public void reset() {
         fieldTags.clear();
-        classFieldIds.clear();
         classForSignature.clear();
         arrayTags.clear();
+        classForObj.clear();
+        objForClass.clear();
     }
 }
