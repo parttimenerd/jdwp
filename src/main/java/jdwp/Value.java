@@ -2,6 +2,7 @@ package jdwp;
 
 import jdwp.Reference.ArrayReference;
 import jdwp.util.Pair;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -170,7 +171,7 @@ public abstract class Value {
 
     /** fields and methods */
 
-    public static class ListValue<T extends Value> extends WalkableValue<Integer> {
+    public static class ListValue<T extends Value> extends WalkableValue<Integer> implements Iterable<T> {
 
         final Type entryType;
         final List<T> values;
@@ -232,6 +233,12 @@ public abstract class Value {
         @Override
         public String toString() {
             return entryType.name() + values.toString();
+        }
+
+        @NotNull
+        @Override
+        public Iterator<T> iterator() {
+            return values.iterator();
         }
     }
 
