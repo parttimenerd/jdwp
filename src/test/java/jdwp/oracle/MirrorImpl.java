@@ -49,8 +49,8 @@ abstract class MirrorImpl extends Object implements Mirror {
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof Mirror other) {
-            return vm.equals(other.virtualMachine());
+        if (obj instanceof Mirror) {
+            return vm.equals(((Mirror)obj).virtualMachine());
         } else {
             return false;
         }

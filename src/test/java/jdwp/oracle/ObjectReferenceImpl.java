@@ -150,8 +150,8 @@ public class ObjectReferenceImpl extends ValueImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof ObjectReferenceImpl other) {
-            return (ref() == other.ref()) &&
+        if (obj instanceof ObjectReferenceImpl) {
+            return (ref() == ((ObjectReferenceImpl)obj).ref()) &&
                    super.equals(obj);
         } else {
             return false;

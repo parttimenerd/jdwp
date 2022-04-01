@@ -40,8 +40,8 @@ public class LongValueImpl extends PrimitiveValueImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof LongValue other) {
-            return (value == other.value()) &&
+        if (obj instanceof LongValue) {
+            return (value == ((LongValue)obj).value()) &&
                    super.equals(obj);
         } else {
             return false;

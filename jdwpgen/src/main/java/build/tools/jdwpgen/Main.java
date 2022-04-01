@@ -25,11 +25,13 @@
 
 package build.tools.jdwpgen;
 
+import lombok.SneakyThrows;
+
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-class Main {
+public class Main {
 
     static String specSource;
     static boolean genDebug = true;
@@ -45,7 +47,8 @@ class Main {
         System.err.println("-include <include_file_output>");
     }
 
-    public static void main(String[] args) throws IOException {
+    @SneakyThrows
+    public static void main(String[] args) {
         Reader reader = null;
         PrintWriter doc = null;
         Path jdiFile = null;

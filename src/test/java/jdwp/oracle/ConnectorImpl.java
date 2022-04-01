@@ -192,7 +192,8 @@ abstract class ConnectorImpl implements Connector {
         }
 
         public boolean equals(Object obj) {
-            if (obj instanceof Argument other) {
+            if (obj instanceof Argument) {
+                var other = (Argument) obj;
                 return (name().equals(other.name())) &&
                        (description().equals(other.description())) &&
                        (mustSpecify() == other.mustSpecify()) &&

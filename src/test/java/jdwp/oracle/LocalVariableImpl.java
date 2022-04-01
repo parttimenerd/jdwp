@@ -66,10 +66,10 @@ public class LocalVariableImpl extends MirrorImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof LocalVariableImpl other) {
-            return ((slot() == other.slot()) &&
+        if (obj instanceof LocalVariableImpl) {
+            return ((slot() == ((LocalVariableImpl)obj).slot()) &&
                     (scopeStart != null) &&
-                    (scopeStart.equals(other.scopeStart)) &&
+                    (scopeStart.equals(((LocalVariableImpl)obj).scopeStart)) &&
                     (super.equals(obj)));
         } else {
             return false;

@@ -29,6 +29,7 @@ import com.sun.jdi.ByteValue;
 import com.sun.jdi.InvalidTypeException;
 import com.sun.jdi.Type;
 import com.sun.jdi.VirtualMachine;
+import jdwp.PrimitiveValue;
 
 public class ByteValueImpl extends PrimitiveValueImpl
                            implements ByteValue
@@ -41,8 +42,8 @@ public class ByteValueImpl extends PrimitiveValueImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof ByteValue other) {
-            return (value == other.value())
+        if (obj instanceof ByteValue) {
+            return (value == ((ByteValue)obj).value())
                    && super.equals(obj);
         } else {
             return false;

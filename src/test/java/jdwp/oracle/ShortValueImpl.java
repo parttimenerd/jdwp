@@ -40,8 +40,8 @@ public class ShortValueImpl extends PrimitiveValueImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof ShortValue other) {
-            return (value == other.value()) &&
+        if (obj instanceof ShortValue) {
+            return (value == ((ShortValueImpl)obj).value()) &&
                    super.equals(obj);
         } else {
             return false;

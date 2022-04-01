@@ -40,6 +40,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ClassesBySignature=2
         "Returns reference types for all the classes loaded by the target VM "
@@ -67,6 +68,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command AllClasses=3
         "Returns reference types for all classes currently loaded by the "
@@ -90,6 +92,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command AllThreads=4
         "Returns all threads currently running in the target VM . "
@@ -109,6 +112,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command TopLevelThreadGroups=5
         "Returns all thread groups that do not have a parent. This command "
@@ -124,6 +128,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Dispose=6
         "Invalidates this virtual machine mirror. "
@@ -155,6 +160,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (ErrorSet
         )
+        (OnlyReads "false")
     )
     (Command IDSizes=7
         "Returns the sizes of variably-sized data types in the target VM."
@@ -172,6 +178,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Suspend=8
         "Suspends the execution of the application running in the target "
@@ -190,6 +197,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command Resume=9
         "Resumes execution of the application after the suspend "
@@ -203,6 +211,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (ErrorSet
         )
+        (OnlyReads "false")
     )
     (Command Exit=10
         "Terminates the target VM with the given exit code. "
@@ -219,6 +228,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (ErrorSet
         )
+        (OnlyReads "false")
     )
     (Command CreateString=11
         "Creates a new string object in the target VM and returns "
@@ -233,6 +243,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+	(OnlyReads "true")
     )
     (Command Capabilities=12
         "Retrieve this VM's capabilities. The capabilities are returned "
@@ -266,6 +277,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ClassPaths=13
         "Retrieve the classpath and bootclasspath of the target VM. "
@@ -284,6 +296,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command DisposeObjects=14
         "Releases a list of object IDs. For each object in the list, the "
@@ -329,6 +342,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (ErrorSet
         )
+        (OnlyReads "false")
     )
     (Command HoldEvents=15
         "Tells the target VM to stop sending events. Events are not discarded; "
@@ -348,6 +362,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (ErrorSet
         )
+        (OnlyReads "false")
     )
     (Command ReleaseEvents=16
         "Tells the target VM to continue sending events. This command is "
@@ -360,6 +375,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (ErrorSet
         )
+        (OnlyReads "false")
     )
     (Command CapabilitiesNew=17
         "Retrieve all of this VM's capabilities. The capabilities are returned "
@@ -450,6 +466,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command RedefineClasses=18
         "Installs new class definitions. "
@@ -479,10 +496,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Repeat classes "Number of reference types that follow."
                 (Group ClassDef
                     (referenceType refType "The reference type.")
-                    (Repeat classfile "Number of bytes defining class (below)"
-                         (byte classbyte "byte in JVM class file "
-                                         "format.")
-                    )
+                    (bytes classfile "Bytes defining class in JVM class file format")
                 )
             )
         )
@@ -508,6 +522,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error CLASS_ATTRIBUTE_CHANGE_NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command SetDefaultStratum=19
         "Set the default stratum. Requires canSetDefaultStratum capability - see "
@@ -522,6 +537,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command AllClassesWithGeneric=20
         "Returns reference types for all classes currently loaded by the "
@@ -553,6 +569,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 
     (Command InstanceCounts=21
@@ -578,6 +595,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command AllModules=22
         "Returns all modules in the target VM."
@@ -593,6 +611,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 )
 
@@ -614,6 +633,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ClassLoader=2
         "Returns the instance of java.lang.ClassLoader which loaded "
@@ -631,6 +651,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Modifiers=3
         "Returns the modifiers (also known as access flags) for a reference type. "
@@ -651,6 +672,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Fields=4
         "Returns information for each field in a reference type. "
@@ -685,6 +707,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Methods=5
         "Returns information for each method in a reference type. "
@@ -720,6 +743,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command GetValues=6
         "Returns the value of one or more static fields of the "
@@ -748,6 +772,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_FIELDID)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command SourceFile=7
         "Returns the name of source file in which a reference type was "
@@ -766,6 +791,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error ABSENT_INFORMATION "The source file attribute is absent.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command NestedTypes=8
         "Returns the classes and interfaces directly nested within this type."
@@ -788,6 +814,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Status=9
         "Returns the current status of the reference type. The status "
@@ -813,6 +840,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Interfaces=10
         "Returns the interfaces declared as implemented by this class. "
@@ -832,6 +860,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ClassObject=11
         "Returns the class object corresponding to this type. "
@@ -847,6 +876,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command SourceDebugExtension=12
         "Returns the value of the SourceDebugExtension attribute. "
@@ -866,6 +896,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command SignatureWithGeneric=13
         "Returns the JNI signature of a reference type along with the "
@@ -890,6 +921,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command FieldsWithGeneric=14
         "Returns information, including the generic signature if any, "
@@ -931,6 +963,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command MethodsWithGeneric=15
         "Returns information, including the generic signature if any, "
@@ -973,6 +1006,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "refType is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Instances=16
         "Returns instances of this reference type. "
@@ -998,6 +1032,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ClassFileVersion=17
         "Returns the class file major and minor version numbers, as defined in the class "
@@ -1018,6 +1053,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                                       "absent for primitive and array types.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ConstantPool=18
         "Return the raw bytes of the constant pool in the format of the "
@@ -1033,9 +1069,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                        "corresponds to the constant_pool_count item of the "
                        "Class File Format in "
                        "<cite>The Java Virtual Machine Specification</cite>. ")
-            (Repeat bytes
-                (byte cpbytes "Raw bytes of constant pool")
-            )
+            (bytes bytes "Raw bytes of constant pool")
         )
         (ErrorSet
             (Error INVALID_CLASS     "refType is not the ID of a reference "
@@ -1047,6 +1081,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                                       "absent for primitive and array types.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Module=19
         "Returns the module that this reference type belongs to."
@@ -1063,6 +1098,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 )
 (CommandSet ClassType=3
@@ -1080,6 +1116,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "clazz is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command SetValues=2
         "Sets the value of one or more static fields. "
@@ -1093,8 +1130,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         "field's type and the field's type must be loaded. "
         (Out
             (classType clazz "The class type ID.")
-            (Repeat values "The number of fields to set."
-                (Group FieldValue "A Field/Value pair."
+            (Repeat values.clazz "The number of fields to set."
+                (Group FieldValue.iter "A Field/Value pair."
                     (field fieldID "Field to set.")
                     (untagged-value value "Value to put in the field.")
                 )
@@ -1110,6 +1147,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_FIELDID)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command InvokeMethod=3
         "Invokes a static method. "
@@ -1162,7 +1200,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         "threads above). Upon completion of a single threaded invoke, the invoking thread "
         "will be suspended once again. Note that any threads started during "
         "the single threaded invocation will not be suspended when the "
-        "invocation completes. "
+        "invocation completes."
         "<p>"
         "If the target VM is disconnected during the invoke (for example, through "
         "the VirtualMachine dispose command) the method invocation continues. "
@@ -1188,6 +1226,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error THREAD_NOT_SUSPENDED)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command NewInstance=4
         "Creates a new object of this type, invoking the specified "
@@ -1266,6 +1305,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error THREAD_NOT_SUSPENDED)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
 )
 (CommandSet ArrayType=4
@@ -1283,6 +1323,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
 )
 (CommandSet InterfaceType=5
@@ -1362,6 +1403,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error THREAD_NOT_SUSPENDED)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
 )
 (CommandSet Method=6
@@ -1394,6 +1436,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_METHODID  "methodID is not the ID of a method.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command VariableTable=2
         "Returns variable information for the method. The variable table "
@@ -1432,6 +1475,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error ABSENT_INFORMATION "there is no variable information for the method.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Bytecodes=3
         "Retrieve the method's bytecodes as defined in "
@@ -1456,6 +1500,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                                      "support the retrieval of bytecodes.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command IsObsolete=4
         "Determine if this method is obsolete. A method is obsolete if it has been replaced "
@@ -1482,6 +1527,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                                      "not support this query.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command VariableTableWithGeneric=5
         "Returns variable information for the method, including "
@@ -1527,6 +1573,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error ABSENT_INFORMATION "there is no variable information for the method.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 
 )
@@ -1548,6 +1595,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command GetValues=2
         "Returns the value of one or more instance fields. "
@@ -1576,6 +1624,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_FIELDID)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command SetValues=3
         "Sets the value of one or more instance fields. "
@@ -1589,8 +1638,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         "field's type and the field's type must be loaded. "
         (Out
             (object object "The object ID")
-            (Repeat values "The number of fields to set."
-                (Group FieldValue "A Field/Value pair."
+            (Repeat values.object "The number of fields to set."
+                (Group FieldValue.iter "A Field/Value pair."
                     (field fieldID "Field to set.")
                     (untagged-value value "Value to put in the field.")
                 )
@@ -1603,6 +1652,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_FIELDID)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command MonitorInfo=5
         "Returns monitor information for an object. All threads int the VM must "
@@ -1625,6 +1675,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command InvokeMethod=6
         "Invokes a instance method. "
@@ -1706,6 +1757,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error THREAD_NOT_SUSPENDED)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command DisableCollection=7
         "Prevents garbage collection for the given object. By "
@@ -1736,6 +1788,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command EnableCollection=8
         "Permits garbage collection for this object. By default all "
@@ -1752,6 +1805,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command IsCollected=9
         "Determines whether an object has been garbage collected in the "
@@ -1766,6 +1820,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ReferringObjects=10
         "Returns objects that directly reference this object.  "
@@ -1793,6 +1848,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 )
 
@@ -1810,6 +1866,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 )
 (CommandSet ThreadReference=11
@@ -1826,6 +1883,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Suspend=2
         "Suspends the thread. "
@@ -1860,6 +1918,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command Resume=3
         "Resumes the execution of a given thread. If this thread was "
@@ -1878,6 +1937,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command Status=4
         "Returns the current status of a thread. The thread status "
@@ -1898,6 +1958,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ThreadGroup=5
         "Returns the thread group that contains a given thread. "
@@ -1912,6 +1973,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Frames=6
         "Returns the current call stack of a suspended thread. "
@@ -1939,6 +2001,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command FrameCount=7
         "Returns the count of frames on this thread's stack. "
@@ -1956,6 +2019,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command OwnedMonitors=8
         "Returns the objects whose monitors have been entered by this thread. "
@@ -1977,6 +2041,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command CurrentContendedMonitor=9
         "Returns the object, if any, for which this thread is waiting. The "
@@ -2000,6 +2065,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Stop=10
         "Stops the thread with an asynchronous exception. "
@@ -2016,6 +2082,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                                   "exception has been garbage collected.")
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command Interrupt=11
         "Interrupt the thread, as if done by java.lang.Thread.interrupt "
@@ -2029,6 +2096,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command SuspendCount=12
         "Get the suspend count for this thread. The suspend count is the  "
@@ -2045,6 +2113,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "thread is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command OwnedMonitorsStackDepthInfo=13
         "Returns monitor objects owned by the thread, along with stack depth at which "
@@ -2062,7 +2131,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Reply
             (Repeat owned "The number of owned monitors"
-               (Group monitor
+               (Group Monitor
                   (tagged-object monitor "An owned monitor")
                   (int stack_depth "Stack depth location where monitor was acquired")
                )
@@ -2074,6 +2143,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ForceEarlyReturn=14
         "Force a method to return before it reaches a return "
@@ -2139,6 +2209,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                                    "return value of the method.")
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
 
 )
@@ -2156,6 +2227,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "group is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Parent=2
         "Returns the thread group, if any, which contains a given thread group. "
@@ -2172,6 +2244,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "group is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command Children=3
         "Returns the live threads and active thread groups directly contained "
@@ -2196,6 +2269,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT    "group is not a known ID.")
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 )
 (CommandSet ArrayReference=13
@@ -2212,6 +2286,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_ARRAY)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command GetValues=2
         "Returns a range of array components. The specified range must "
@@ -2232,6 +2307,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_ARRAY)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command SetValues=3
         "Sets a range of array components. The specified range must "
@@ -2255,6 +2331,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_ARRAY)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
 )
 (CommandSet ClassLoaderReference=14
@@ -2294,6 +2371,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_CLASS_LOADER)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 )
 (CommandSet EventRequest=15
@@ -2524,6 +2602,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command Clear=2
         "Clear an event request. See <a href=\"#JDWP_EventKind\">JDWP.EventKind</a> "
@@ -2542,6 +2621,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error VM_DEAD)
             (Error INVALID_EVENT_TYPE)
         )
+        (OnlyReads "false")
     )
     (Command ClearAllBreakpoints=3
         "Removes all set breakpoints, a no-op if there are no breakpoints set."
@@ -2552,6 +2632,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
 )
 (CommandSet StackFrame=16
@@ -2587,6 +2668,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_SLOT)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command SetValues=2
         "Sets the value of one or more local variables. "
@@ -2619,6 +2701,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_FRAMEID)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
     (Command ThisObject=3
         "Returns the value of the 'this' reference for this frame. "
@@ -2637,6 +2720,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_FRAMEID)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command PopFrames=4
         "Pop the top-most stack frames of the thread stack, up to, and including 'frame'. "
@@ -2665,6 +2749,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "false")
     )
 )
 (CommandSet ClassObjectReference=17
@@ -2682,6 +2767,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error INVALID_OBJECT)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 )
 (CommandSet ModuleReference=18
@@ -2699,6 +2785,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
     (Command ClassLoader=2
         "Returns the class loader of this module."
@@ -2714,6 +2801,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error NOT_IMPLEMENTED)
             (Error VM_DEAD)
         )
+        (OnlyReads "true")
     )
 )
 (CommandSet Event=64
@@ -2807,7 +2895,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (byte suspendPolicy
                 "Which threads where suspended by this composite event?")
             (Repeat events "Events in set."
-                (Select Events
+                (Select Event
                     (byte eventKind "Event kind selector")
                     (Alt VMStart=JDWP.EventKind.VM_START
                         "Notification of initialization of a target VM.  This event is "

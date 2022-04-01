@@ -314,7 +314,6 @@ internal class CommandNode : AbstractCommandNode() {
             `public`(TypeName.VOID, "accept", param(requestReplyVisitorName, "visitor"),
                 param(bg("Reply"), "reply")) {
                 `@Override`()
-                statement("visitor.visit(this, (${replyClassName})reply)")
             }
         }
     }

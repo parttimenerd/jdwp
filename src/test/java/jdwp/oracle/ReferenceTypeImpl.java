@@ -141,7 +141,8 @@ public abstract class ReferenceTypeImpl extends TypeImpl implements ReferenceTyp
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof ReferenceTypeImpl other) {
+        if (obj instanceof ReferenceTypeImpl) {
+            var other = (ReferenceTypeImpl) obj;
             return (ref() == other.ref()) &&
                 (vm.equals(other.virtualMachine()));
         } else {

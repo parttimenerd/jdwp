@@ -40,8 +40,8 @@ public class BooleanValueImpl extends PrimitiveValueImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof BooleanValue other) {
-            return (value == other.value()) &&
+        if (obj instanceof BooleanValue) {
+            return (value == ((BooleanValue)obj).value()) &&
                    super.equals(obj);
         } else {
             return false;

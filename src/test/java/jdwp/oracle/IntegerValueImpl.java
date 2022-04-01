@@ -40,8 +40,8 @@ public class IntegerValueImpl extends PrimitiveValueImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof IntegerValue other) {
-            return (value == other.value()) &&
+        if (obj instanceof IntegerValue) {
+            return (value == ((IntegerValue)obj).value()) &&
                    super.equals(obj);
         } else {
             return false;

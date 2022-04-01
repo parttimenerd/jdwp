@@ -41,8 +41,8 @@ public class CharValueImpl extends PrimitiveValueImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof CharValue other) {
-            return (value == other.value()) &&
+        if (obj instanceof CharValue) {
+            return (value == ((CharValue)obj).value()) &&
                    super.equals(obj);
         } else {
             return false;

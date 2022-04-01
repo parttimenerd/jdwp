@@ -111,7 +111,8 @@ public class StackFrameImpl extends MirrorImpl
     }
 
     public boolean equals(Object obj) {
-        if (obj instanceof StackFrameImpl other) {
+        if (obj instanceof StackFrameImpl) {
+            StackFrameImpl other = (StackFrameImpl) obj;
             return (id == other.id) &&
                    (thread().equals(other.thread())) &&
                    (location().equals(other.location())) &&
