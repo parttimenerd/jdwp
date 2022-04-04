@@ -1,9 +1,7 @@
 package jdwp;
 
 import jdwp.JDWP.Tag;
-import jdwp.Value.BasicValue;
-import lombok.EqualsAndHashCode;
-import lombok.ToString;
+import jdwp.Value.BasicScalarValue;
 
 /**
  * Primitive values
@@ -11,7 +9,7 @@ import lombok.ToString;
  * @param <T> wrapped type
  */
 @SuppressWarnings("ALL")
-public abstract class PrimitiveValue<T> extends BasicValue<T> {
+public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
 
     private PrimitiveValue(Type type, T value) {
         super(type, value);
@@ -52,6 +50,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
         public static BooleanValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readBoolean());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.BOOLEAN;
+        }
     }
 
     public static class ByteValue extends jdwp.PrimitiveValue<Byte> {
@@ -70,6 +73,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
 
         public static ByteValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readByte());
+        }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.BYTE;
         }
     }
 
@@ -90,6 +98,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
         public static CharValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readChar());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.CHAR;
+        }
     }
 
     public static class ShortValue extends jdwp.PrimitiveValue<Short> {
@@ -108,6 +121,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
 
         public static ShortValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readShort());
+        }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.SHORT;
         }
     }
 
@@ -128,6 +146,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
         public static IntValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readInt());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.INT;
+        }
     }
 
     public static class LongValue extends jdwp.PrimitiveValue<Long> {
@@ -146,6 +169,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
 
         public static LongValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readLong());
+        }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.LONG;
         }
     }
 
@@ -166,6 +194,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
         public static FloatValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readFloat());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.FLOAT;
+        }
     }
 
     public static class DoubleValue extends jdwp.PrimitiveValue<Double> {
@@ -185,6 +218,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
         public static DoubleValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readDouble());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.DOUBLE;
+        }
     }
 
     public static class StringValue extends PrimitiveValue<String> {
@@ -203,6 +241,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
 
         public static StringValue read(PacketStream ps) {
             return PrimitiveValue.wrap(ps.readString());
+        }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.STRING;
         }
     }
 
@@ -226,6 +269,11 @@ public abstract class PrimitiveValue<T> extends BasicValue<T> {
 
         public static VoidValue read(PacketStream ps) {
             return VALUE;
+        }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.VOID;
         }
     }
 

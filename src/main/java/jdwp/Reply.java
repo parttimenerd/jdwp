@@ -1,7 +1,6 @@
 package jdwp;
 
 import jdwp.JDWP.ReplyVisitor;
-import jdwp.JDWP.RequestVisitor;
 
 public interface Reply extends ParsedPacket {
     int getCommand();

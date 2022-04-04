@@ -1,7 +1,10 @@
 package jdwp;
 
+import jdwp.AccessPath.TaggedAccessPath;
 import jdwp.Reference.ArrayReference;
 import jdwp.util.Pair;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -28,7 +31,7 @@ public abstract class Value {
     public abstract void write(PacketStream ps);
 
     public static <T extends Value> Type typeForClass(Class<T> klass) {
-        if (klass.equals(BasicValue.class)) {
+        if (klass.equals(BasicScalarValue.class)) {
             return Type.VALUE;
         }
         return classTypeMap.getOrDefault(klass, Type.OBJECT);
@@ -130,7 +133,7 @@ public abstract class Value {
         }
 
         protected Value keyError(Object key) {
-            throw new AssertionError("Unknown key %s".formatted(key));
+            throw new AssertionError(String.format("Unknown key %s", key));
         }
 
         @SuppressWarnings("unchecked")
@@ -145,6 +148,29 @@ public abstract class Value {
         @Override
         public int hashCode() {
             return Objects.hash(getValues().toArray());
+        }
+
+        public Stream<TaggedBasicValue<?>> getTaggedValues() {
+            return getTaggedValues(new TaggedAccessPath<>(this));
+        }
+
+        private Stream<TaggedBasicValue<?>> getTaggedValues(TaggedAccessPath<?> basePath) {
+            return getValues().stream().flatMap(p -> {
+                var subPath = basePath.appendElement(p.first);
+                if (p.second instanceof BasicValue) {
+                    return Stream.of(new TaggedBasicValue<>(subPath, (BasicValue)p.second));
+                }
+                if (p.second instanceof WalkableValue<?>) {
+                    return ((WalkableValue<?>) p.second).getTaggedValues(subPath);
+                }
+                throw new AssertionError();
+            });
+        }
+
+        public ContainedValues getContainedValues() {
+            var containedValues = new ContainedValues();
+            getTaggedValues().forEach(containedValues::add);
+            return containedValues;
         }
     }
 
@@ -243,7 +269,7 @@ public abstract class Value {
     }
 
     /** also known as array region */
-    public static class BasicListValue<T extends BasicValue<?>> extends ListValue<T> {
+    public static class BasicListValue<T extends BasicScalarValue<?>> extends ListValue<T> {
 
         protected BasicListValue(Type entryType, List<T> values) {
             super(entryType, values);
@@ -254,7 +280,7 @@ public abstract class Value {
         }
 
         @SuppressWarnings("unchecked cast")
-        public static <T extends BasicValue<?>> BasicListValue<T> read(PacketStream ps) {
+        public static <T extends BasicScalarValue<?>> BasicListValue<T> read(PacketStream ps) {
             byte tag = ps.readByte();
             int length = ps.readInt();
             List<T> values = new ArrayList<>(length);
@@ -276,7 +302,7 @@ public abstract class Value {
         }
 
         @SuppressWarnings("unchecked cast")
-        public static <T extends BasicValue<?>> BasicListValue<T> read(PacketStream ps, ArrayReference ref) {
+        public static <T extends BasicScalarValue<?>> BasicListValue<T> read(PacketStream ps, ArrayReference ref) {
             byte tag = ps.vm.getArrayTag(ref.value);
             int length = ps.readInt();
             List<T> values = new ArrayList<>(length);
@@ -318,22 +344,64 @@ public abstract class Value {
         }
     }
 
+    static enum BasicGroup {
+        THREAD_GROUP_REF,
+        MODULE_REF,
+        FIELD_REF,
+        FRAME_REF,
+        HEAP_REF,
+        METHOD_REF,
+        CLASSLOADER_REF,
+        THREAD_REF,
+        BYTE_LIST,
+        BOOLEAN,
+        BYTE,
+        CHAR,
+        SHORT,
+        INT,
+        LONG,
+        FLOAT,
+        DOUBLE,
+        STRING,
+        VOID
+    }
+
+    public static abstract class BasicValue extends Value {
+
+        protected BasicValue(Type type) {
+            super(type);
+        }
+
+        @Override
+        boolean isBasic() {
+            return true;
+        }
+
+        public abstract BasicGroup getGroup();
+
+        @Override
+        public int hashCode() {
+            return getGroup().hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof BasicValue && ((BasicValue) obj).getGroup().equals(getGroup());
+        }
+    }
+
     /** Consists only of a single data field */
-    public static abstract class BasicValue<T> extends Value {
+    public static abstract class BasicScalarValue<T> extends BasicValue {
 
         public final T value;
 
-        protected BasicValue(Type type, T value) {
+        protected BasicScalarValue(Type type, T value) {
             super(type);
             this.value = value;
         }
 
         T getValue() {
             return value;
-        }
-
-        boolean isBasic() {
-            return true;
         }
 
         @Override
@@ -343,12 +411,12 @@ public abstract class Value {
 
         @Override
         public boolean equals(Object o) {
-            return o.getClass() == getClass() && ((BasicValue<?>)o).value.equals(value);
+            return super.equals(o) && o instanceof BasicScalarValue<?> && ((BasicScalarValue<?>)o).value.equals(value);
         }
 
         @Override
         public int hashCode() {
-            return value.hashCode();
+            return super.hashCode() * value.hashCode();
         }
     }
 
@@ -356,7 +424,7 @@ public abstract class Value {
      * Specific list imlementation that is a basic value and stores the bytes
      * as a byte array.
      */
-    public static class ByteList extends Value {
+    public static class ByteList extends BasicValue {
 
         public final byte[] bytes;
 
@@ -367,10 +435,6 @@ public abstract class Value {
 
         byte[] getValue() {
             return bytes;
-        }
-
-        boolean isBasic() {
-            return true;
         }
 
         byte get(int index) {
@@ -400,9 +464,34 @@ public abstract class Value {
         }
 
         @Override
-        public int hashCode() {
-            return Arrays.hashCode(bytes);
+        public BasicGroup getGroup() {
+            return BasicGroup.BYTE_LIST;
         }
     }
 
+    @Getter
+    @EqualsAndHashCode(callSuper = false)
+    public static class TaggedBasicValue<V extends BasicValue> extends BasicValue {
+
+        @NotNull
+        public final TaggedAccessPath<?> path;
+        @NotNull
+        public final V value;
+
+        public TaggedBasicValue(TaggedAccessPath<?> path, V value) {
+            super(value.type);
+            this.path = path;
+            this.value = value;
+        }
+
+        @Override
+        public void write(PacketStream ps) {
+            value.write(ps);
+        }
+
+        @Override
+        public BasicGroup getGroup() {
+            return value.getGroup();
+        }
+    }
 }

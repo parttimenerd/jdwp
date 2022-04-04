@@ -1,6 +1,5 @@
 package jdwp;
 
-import jdwp.JDWP.CommandVisitor;
 import jdwp.JDWP.RequestReplyVisitor;
 import jdwp.JDWP.RequestVisitor;
 

@@ -2,7 +2,7 @@ package jdwp;
 
 import jdwp.JDWP.Tag;
 import jdwp.JDWP.TypeTag;
-import jdwp.Value.BasicValue;
+import jdwp.Value.BasicScalarValue;
 
 /**
  * reference to an object, thread, ...
@@ -10,7 +10,7 @@ import jdwp.Value.BasicValue;
  * they are equal if there underlying value is equal, ignoring their type
  */
 @SuppressWarnings("ALL")
-public class Reference extends BasicValue<Long> {
+public abstract class Reference extends BasicScalarValue<Long> {
 
     public Reference(Type type, long ref) {
         super(type, ref);
@@ -90,7 +90,19 @@ public class Reference extends BasicValue<Long> {
 
     public static ClassObjectReference classObject(long ref) { return new ClassObjectReference(ref); }
 
-    public static class ObjectReference extends Reference {
+    public static class HeapReference extends Reference {
+
+        public HeapReference(Type type, long ref) {
+            super(type, ref);
+        }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.THREAD_GROUP_REF;
+        }
+    }
+
+    public static class ObjectReference extends HeapReference {
 
         public ObjectReference(long ref) {
             super(Type.OBJECT, ref);
@@ -121,6 +133,11 @@ public class Reference extends BasicValue<Long> {
         public static ThreadReference read(PacketStream ps) {
             return new ThreadReference(ps.readObjectRef());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.THREAD_REF;
+        }
     }
 
     public static class ThreadGroupReference extends Reference {
@@ -131,13 +148,18 @@ public class Reference extends BasicValue<Long> {
         public static ThreadGroupReference read(PacketStream ps) {
             return new ThreadGroupReference(ps.readObjectRef());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.THREAD_GROUP_REF;
+        }
     }
 
-    public static abstract class TypeReference extends Reference {
+    public static abstract class TypeReference extends ClassObjectReference {
         public final byte typeTag;
 
         TypeReference(byte typeTag, long ref) {
-            super(Type.CLASS_OBJECT, ref);
+            super(ref);
             this.typeTag = typeTag;
         }
 
@@ -199,16 +221,16 @@ public class Reference extends BasicValue<Long> {
         }
     }
 
-    public static class NullObjectReference extends Reference {
+    public static class NullObjectReference extends ObjectReference {
         NullObjectReference() {
             super(Type.OBJECT, 0);
         }
     }
 
-    public static class TypeObjectReference extends Reference {
+    public static class TypeObjectReference extends ClassObjectReference {
 
         public TypeObjectReference(long ref) {
-            super(Type.CLASS_OBJECT, ref);
+            super(ref);
         }
 
         public static TypeObjectReference read(PacketStream ps) {
@@ -259,9 +281,14 @@ public class Reference extends BasicValue<Long> {
         public static MethodReference read(PacketStream ps) {
             return new MethodReference(ps.readMethodRef());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.METHOD_REF;
+        }
     }
 
-    public static class ArrayReference extends Reference {
+    public static class ArrayReference extends HeapReference {
         ArrayReference(long val) {
             super(Type.ARRAY, val);
         }
@@ -289,6 +316,11 @@ public class Reference extends BasicValue<Long> {
         public static ModuleReference read(PacketStream ps) {
             return new ModuleReference(ps.readModuleRef());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.MODULE_REF;
+        }
     }
 
     public static class FieldReference extends Reference {
@@ -305,12 +337,17 @@ public class Reference extends BasicValue<Long> {
             return new FieldReference(ps.readFieldRef());
         }
 
-        public BasicValue<?> readUntaggedInstanceFieldValue(Reference instance, PacketStream ps) {
+        public BasicScalarValue<?> readUntaggedInstanceFieldValue(Reference instance, PacketStream ps) {
             return ps.readUntaggedValue(ps.vm.getFieldTagForObj(instance.value, value));
         }
 
-        public BasicValue<?> readUntaggedClassFieldValue(Reference klass, PacketStream ps) {
+        public BasicScalarValue<?> readUntaggedClassFieldValue(Reference klass, PacketStream ps) {
             return ps.readUntaggedValue(ps.vm.getFieldTagForClass(klass.value, value));
+        }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.FIELD_REF;
         }
     }
 
@@ -327,6 +364,11 @@ public class Reference extends BasicValue<Long> {
         public static FrameReference read(PacketStream ps) {
             return new FrameReference(ps.readFrameRef());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.FRAME_REF;
+        }
     }
 
     public static class ClassLoaderReference extends Reference {
@@ -337,9 +379,14 @@ public class Reference extends BasicValue<Long> {
         public static ClassLoaderReference read(PacketStream ps) {
             return new ClassLoaderReference(ps.readObjectRef());
         }
+
+        @Override
+        public BasicGroup getGroup() {
+            return BasicGroup.CLASSLOADER_REF;
+        }
     }
 
-    public static class ClassObjectReference extends Reference {
+    public static class ClassObjectReference extends HeapReference {
         ClassObjectReference(long val) {
             super(Type.CLASS_OBJECT, val);
         }
@@ -349,13 +396,4 @@ public class Reference extends BasicValue<Long> {
         }
     }
 
-    @Override
-    public int hashCode() {
-        return value.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        return o instanceof Reference && ((Reference) o).value.equals(value);
-    }
 }

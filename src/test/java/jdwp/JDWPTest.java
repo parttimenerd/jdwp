@@ -15,7 +15,6 @@ import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.JDWP.SuspendPolicy;
 import jdwp.MethodCmds.IsObsoleteReply;
 import jdwp.MethodCmds.LineTableReply;
-import jdwp.Reference.ThreadReference;
 import jdwp.ReferenceTypeCmds.*;
 import jdwp.ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo;
 import jdwp.StackFrameCmds.ThisObjectRequest;
@@ -1130,12 +1129,6 @@ class JDWPTest {
     }
 
     @Test
-    public void testCompareReferences() {
-        assertEquals(Reference.klass(1), Reference.interfaceType(1));
-        assertNotEquals(Reference.klass(1), Reference.interfaceType(2));
-    }
-
-    @Test
     public void testWriteValueChecked() {
         Assertions.assertAll(
                 () -> twh(new ObjectReferenceImpl(ovm, 17), Reference.object(17)),
@@ -1146,7 +1139,7 @@ class JDWPTest {
     }
 
     @SneakyThrows
-    private <T> void twh(ValueImpl oracleValue, BasicValue<T> value) {
+    private <T> void twh(ValueImpl oracleValue, BasicScalarValue<T> value) {
         var ops = new PacketStream(ovm, 0, 0);
         ops.writeValueChecked(oracleValue);
         ops.send();
@@ -1236,7 +1229,7 @@ class JDWPTest {
         assertArrayEquals(expectedPacket.toByteArray(), actualPacket.toByteArray());
     }
 
-    static <T> void assertEquals2(T expected, T oracle, BasicValue<T> jdwp) {
+    static <T> void assertEquals2(T expected, T oracle, BasicScalarValue<T> jdwp) {
         assertEquals(expected, oracle);
         assertEquals(expected, jdwp.value);
     }

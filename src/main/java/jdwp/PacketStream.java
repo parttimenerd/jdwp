@@ -28,7 +28,7 @@ package jdwp;
 import jdwp.Reference.ArrayReference;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ObjectReference;
-import jdwp.Value.BasicValue;
+import jdwp.Value.BasicScalarValue;
 
 import java.io.ByteArrayOutputStream;
 
@@ -192,7 +192,7 @@ class PacketStream {
         val.write(this);
     }
 
-    void writeValueTagged(BasicValue<?> val) {
+    void writeValueTagged(BasicScalarValue<?> val) {
         if (val instanceof jdwp.Reference) {
             writeValueTagged((jdwp.Reference)val);
         } else {
@@ -356,27 +356,27 @@ class PacketStream {
     /**
      * Read a value, first byte describes type of value to read.
      */
-    BasicValue<?> readValue() {
+    BasicScalarValue<?> readValue() {
         byte tag = readByte();
         return readUntaggedValue(tag);
     }
 
-    BasicValue<?> readUntaggedValue(byte tag) {
+    BasicScalarValue<?> readUntaggedValue(byte tag) {
        if (isObjectTag(tag)) {
            return Reference.readReference(this, tag);
        }
        return PrimitiveValue.readValue(this, tag);
     }
 
-    public BasicValue<?> readUntaggedFieldValue(ObjectReference instance, Reference.FieldReference field) {
+    public BasicScalarValue<?> readUntaggedFieldValue(ObjectReference instance, Reference.FieldReference field) {
         return readUntaggedValue(vm.getFieldTagForObj(instance.value, field.value));
     }
 
-    public BasicValue<?> readUntaggedFieldValue(ClassTypeReference klass, Reference.FieldReference field) {
+    public BasicScalarValue<?> readUntaggedFieldValue(ClassTypeReference klass, Reference.FieldReference field) {
         return readUntaggedValue(vm.getFieldTagForClass(klass.value, field.value));
     }
 
-    public BasicValue<?> readUntaggedArrayValue(ArrayReference arrayObject) {
+    public BasicScalarValue<?> readUntaggedArrayValue(ArrayReference arrayObject) {
         return readUntaggedValue(vm.getArrayTag(arrayObject.value));
     }
 
