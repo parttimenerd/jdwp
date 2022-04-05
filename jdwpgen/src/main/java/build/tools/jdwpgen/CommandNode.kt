@@ -69,8 +69,7 @@ internal class CommandNode : AbstractCommandNode() {
 
     public override fun genJava(writer: PrintWriter, depth: Int) {
         genJavaClassSpecifics(writer, depth)
-        var str = ""
-        str = if (components.size == 4) {
+        var str = if (components.size == 4) {
             val out = components[0] as OutNode
             val reply = components[1] as ReplyNode
             val error = components[2] as ErrorSetNode
@@ -217,6 +216,9 @@ internal class CommandNode : AbstractCommandNode() {
             `public`(TypeName.VOID, "accept", param(requestReplyVisitorName, "visitor"),
                 param(bg("Reply"), "reply")) {
                 `@Override`()
+                `if`("this.id != id") {
+                    `throw new2`(bg("AssertionError"), "wrong id".S)
+                }.end()
                 statement("visitor.visit(this, (${replyClassName})reply)")
             }
         }

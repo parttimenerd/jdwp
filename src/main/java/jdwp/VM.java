@@ -34,6 +34,8 @@ import jdwp.ObjectReferenceCmds.ReferenceTypeReply;
 import jdwp.ObjectReferenceCmds.ReferenceTypeRequest;
 import jdwp.PrimitiveValue.StringValue;
 import jdwp.Reference.FieldReference;
+import jdwp.Reference.TypeObjectReference;
+import jdwp.Reference.TypeReference;
 import jdwp.ReferenceTypeCmds.*;
 import jdwp.ReferenceTypeCmds.FieldsReply.FieldInfo;
 import jdwp.VM.NoTagPresentException.Source;
@@ -308,7 +310,7 @@ class VM {
                 var requestValues = request.fields.values;
                 var replyFields = reply.values.values;
                 for (int i = 0; i < requestValues.size(); i++) {
-                    addFieldTag(klass, requestValues.get(i).fieldID, (byte) replyFields.get(i).type.tag);
+                    addFieldObjectTag(klass, requestValues.get(i).fieldID, (byte) replyFields.get(i).type.tag);
                 }
             }
 
@@ -368,8 +370,12 @@ class VM {
         }, reply);
     }
 
-    public void addFieldTag(Reference klass, FieldReference field, byte tag) {
+    public void addFieldTag(TypeReference klass, FieldReference field, byte tag) {
         addFieldTag(klass.value, field.value, tag);
+    }
+
+    public void addFieldObjectTag(TypeObjectReference obj, FieldReference field, byte tag) {
+        addFieldObjectTag(obj.value, field.value, tag);
     }
 
     public void addFieldTag(Reference klass, FieldReference field, StringValue signature) {

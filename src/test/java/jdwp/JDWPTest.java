@@ -79,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for the JDWP classes, including many reply and request classes.
- *
+ * <p>
  * Some classes are omitted as there is (near) duplication in the specification
  */
 class JDWPTest {
@@ -392,12 +392,12 @@ class JDWPTest {
     @Test
     public void testVirtualMachine_RedefineClassesRequestParsing() {
         testBasicRequestParsing(RedefineClasses.enqueueCommand(ovm, new ClassDef[]{
-                    new ClassDef(new ClassTypeImpl(ovm, 100), "hallo".getBytes(StandardCharsets.UTF_8))
+                        new ClassDef(new ClassTypeImpl(ovm, 100), "hallo".getBytes(StandardCharsets.UTF_8))
                 }),
                 new RedefineClassesRequest(0, new ListValue<>(
                         new RedefineClassesRequest.ClassDef(Reference.klass(100),
                                 new ByteList("hallo".getBytes(StandardCharsets.UTF_8))
-                ))));
+                        ))));
         testBasicRequestParsing(RedefineClasses.enqueueCommand(ovm, new ClassDef[]{}),
                 new RedefineClassesRequest(0, new ListValue<>(Type.OBJECT)));
     }
@@ -407,7 +407,7 @@ class JDWPTest {
         testReplyParsing(AllModules::new,
                 new AllModulesReply(0, new ListValue<>(Reference.module(100110))),
                 (o, r) -> {
-                    assertEquals2((long)100110, o.modules[0].ref, r.modules.get(0));
+                    assertEquals2((long) 100110, o.modules[0].ref, r.modules.get(0));
                     assertEquals(1, o.modules.length);
                 });
     }
@@ -432,7 +432,7 @@ class JDWPTest {
         testReplyParsing(ReferenceType.GetValues::new,
                 new ReferenceTypeCmds.GetValuesReply(0, new ListValue<>(Type.VALUE, wrap(1), wrap(-1))),
                 (o, r) -> {
-                    assertEquals2(1, ((PrimitiveValueImpl)o.values[0]).intValue(), (IntValue)r.values.get(0));
+                    assertEquals2(1, ((PrimitiveValueImpl) o.values[0]).intValue(), (IntValue) r.values.get(0));
                 });
     }
 
@@ -447,7 +447,7 @@ class JDWPTest {
         testReplyParsing(Interfaces::new,
                 new InterfacesReply(0, new ListValue<>(Reference.interfaceType(-2))),
                 (o, r) -> {
-                    assertEquals2((long)-2, o.interfaces[0].ref, r.interfaces.get(0));
+                    assertEquals2((long) -2, o.interfaces[0].ref, r.interfaces.get(0));
                 });
     }
 
@@ -463,7 +463,7 @@ class JDWPTest {
         testReplyParsing(ClassObject::new,
                 new ClassObjectReply(0, Reference.classObject(-2)),
                 (o, r) -> {
-                    assertEquals2((long)-2, o.classObject.ref, r.classObject);
+                    assertEquals2((long) -2, o.classObject.ref, r.classObject);
                 });
     }
 
@@ -476,7 +476,8 @@ class JDWPTest {
                                 wrap("class"), wrap("sig"),
                                 wrap("blub"), wrap(1))
                 )),
-                (o, r) -> {});
+                (o, r) -> {
+                });
     }
 
     @Test
@@ -487,8 +488,8 @@ class JDWPTest {
                         Reference.object(100)
                 )),
                 (o, r) -> {
-                    assertEquals2((long)-324, o.instances[0].ref, r.instances.get(0));
-                    assertEquals2((long)100, o.instances[1].ref, r.instances.get(1));
+                    assertEquals2((long) -324, o.instances[0].ref, r.instances.get(0));
+                    assertEquals2((long) 100, o.instances[1].ref, r.instances.get(1));
                 });
     }
 
@@ -502,11 +503,11 @@ class JDWPTest {
     @Test
     public void testReferenceType_ConstantPoolReplyParsing() {
         testReplyParsing(ConstantPool::new,
-                new ConstantPoolReply(0, wrap(100), new ByteList((byte)1, (byte)2, (byte)3)),
+                new ConstantPoolReply(0, wrap(100), new ByteList((byte) 1, (byte) 2, (byte) 3)),
                 (o, r) -> {
-                    assertEquals2((byte)1, o.bytes[0], r.bytes.get(0));
-                    assertEquals2((byte)2, o.bytes[1], r.bytes.get(1));
-                    assertEquals2((byte)3, o.bytes[2], r.bytes.get(2));
+                    assertEquals2((byte) 1, o.bytes[0], r.bytes.get(0));
+                    assertEquals2((byte) 2, o.bytes[1], r.bytes.get(1));
+                    assertEquals2((byte) 3, o.bytes[2], r.bytes.get(2));
                 });
     }
 
@@ -608,8 +609,8 @@ class JDWPTest {
         testReplyParsing(NewInstance::new,
                 new NewInstanceReply(0, Reference.object(1), Reference.object(10)),
                 (o, r) -> {
-                    assertEquals2((long)1, o.newObject.ref, r.newObject);
-                    assertEquals2((long)10, o.exception.ref, r.exception);
+                    assertEquals2((long) 1, o.newObject.ref, r.newObject);
+                    assertEquals2((long) 10, o.exception.ref, r.exception);
                 });
     }
 
@@ -623,10 +624,10 @@ class JDWPTest {
     @Tag("basic")
     public void testMethod_LineTableReplyParsing() {
         testReplyParsing(LineTable::new,
-                new LineTableReply(0, wrap((long)1), wrap((long)11),
-                        new ListValue<>(new LineTableReply.LineInfo(wrap((long)-1), wrap(10)))),
+                new LineTableReply(0, wrap((long) 1), wrap((long) 11),
+                        new ListValue<>(new LineTableReply.LineInfo(wrap((long) -1), wrap(10)))),
                 (o, r) -> {
-                    assertEquals2((long)-1, o.lines[0].lineCodeIndex, r.lines.get(0).lineCodeIndex);
+                    assertEquals2((long) -1, o.lines[0].lineCodeIndex, r.lines.get(0).lineCodeIndex);
                 });
     }
 
@@ -645,17 +646,17 @@ class JDWPTest {
     public void testObjectReference_GetValuesRequestParsing() {
         testBasicRequestParsing(ObjectReference.GetValues.enqueueCommand(ovm,
                 new ObjectReferenceImpl(ovm, 10), new ObjectReference.GetValues.Field[]{
-                new ObjectReference.GetValues.Field(10),
-                new ObjectReference.GetValues.Field(10000)
-        }), new ObjectReferenceCmds.GetValuesRequest(0, Reference.object(10),
+                        new ObjectReference.GetValues.Field(10),
+                        new ObjectReference.GetValues.Field(10000)
+                }), new ObjectReferenceCmds.GetValuesRequest(0, Reference.object(10),
                 new ListValue<>(new ObjectReferenceCmds.GetValuesRequest.Field(Reference.field(10)),
                         new ObjectReferenceCmds.GetValuesRequest.Field(Reference.field(10000)))));
     }
 
     @Test
     public void testObjectReference_SetValuesRequestParsing() {
-        vm.addFieldTag(10, 10, (byte)Type.INT.tag);
-        vm.addFieldTag(10, 11, (byte)Type.STRING.tag);
+        vm.addFieldTag(10, 10, (byte) Type.INT.tag);
+        vm.addFieldTag(10, 11, (byte) Type.STRING.tag);
         vm.setClass(10, 10);
         testBasicRequestParsing(ObjectReference.SetValues.enqueueCommand(ovm,
                 new ObjectReferenceImpl(ovm, 10), new ObjectReference.SetValues.FieldValue[]{
@@ -664,7 +665,7 @@ class JDWPTest {
                 }), new ObjectReferenceCmds.SetValuesRequest(0, Reference.object(10),
                 new ListValue<>
                         (new ObjectReferenceCmds.SetValuesRequest.FieldValue(Reference.field(10), wrap(-1)),
-                        new ObjectReferenceCmds.SetValuesRequest.FieldValue(Reference.field(11), Reference.string(-2)))));
+                                new ObjectReferenceCmds.SetValuesRequest.FieldValue(Reference.field(11), Reference.string(-2)))));
     }
 
     @Test
@@ -786,17 +787,17 @@ class JDWPTest {
     @SneakyThrows
     public void testEventRequest_SetRequestParsing() {
         // can we generate the same package as the oracle
-        Modifier[] omods = new Modifier[] {
-                new Modifier((byte)1, new Count(11)),
-                new Modifier((byte)5, new ClassMatch("asd"))
+        Modifier[] omods = new Modifier[]{
+                new Modifier((byte) 1, new Count(11)),
+                new Modifier((byte) 5, new ClassMatch("asd"))
         };
-        ModifierCommon[] mods = new ModifierCommon[] {
+        ModifierCommon[] mods = new ModifierCommon[]{
                 new SetRequest.Count(wrap(11)),
                 new SetRequest.ClassMatch(wrap("asd"))
         };
-        var oraclePs = Set.enqueueCommand(ovm, (byte)0, (byte)0, omods);
+        var oraclePs = Set.enqueueCommand(ovm, (byte) 0, (byte) 0, omods);
         var oraclePacket = oraclePs.finishedPacket;
-        var packet = new SetRequest(0, wrap((byte)0), wrap((byte)0),
+        var packet = new SetRequest(0, wrap((byte) 0), wrap((byte) 0),
                 new ListValue<>(Type.OBJECT, mods)).toPacket(vm);
         assertPacketsEqual(oraclePacket, packet);
 
@@ -1119,7 +1120,7 @@ class JDWPTest {
 
     @Test
     public void testByteListSameAsListOfBytes() {
-        var list = new BasicListValue<>(wrap((byte)1), wrap((byte)-2), wrap((byte)100));
+        var list = new BasicListValue<>(wrap((byte) 1), wrap((byte) -2), wrap((byte) 100));
         var ps = new jdwp.PacketStream(vm, 0, 0);
         list.writeUntagged(ps);
         var list2 = new ByteList(new byte[]{1, -2, 100});
@@ -1171,6 +1172,22 @@ class JDWPTest {
 
         // can we parse our package?
         assertEquals(10, NameReply.parse(vm, reply.toPacket(vm)).getErrorCode());
+    }
+
+    @Test
+    public void testVisitorAndBasicInformationGathering() {
+        var request = new ReferenceTypeCmds.GetValuesRequest(0,
+                Reference.klass(-2),
+                new ListValue<>(
+                        new ReferenceTypeCmds.GetValuesRequest.Field(Reference.field(1000)),
+                        new ReferenceTypeCmds.GetValuesRequest.Field(Reference.field(-1))
+                ));
+        var reply = new ReferenceTypeCmds.GetValuesReply(0, new ListValue<>(wrap("a"), wrap(1)));
+        vm.captureInformation(request, reply);
+        assertTrue(vm.hasFieldTagForObj(-2, 1000));
+        assertTrue(vm.hasFieldTagForObj(-2, -1));
+        assertEquals(jdwp.JDWP.Tag.STRING, vm.getFieldTagForObj(-2, 1000));
+        assertEquals(jdwp.JDWP.Tag.INT, vm.getFieldTagForObj(-2, -1));
     }
 
     /**

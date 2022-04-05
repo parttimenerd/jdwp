@@ -461,7 +461,7 @@ interface TypeNode {
         }
 
         String javaType() {
-            return "Value.BasicValue<?>";
+            return "Value.BasicScalarValue<?>";
         }
 
         public void genJavaWrite(PrintWriter writer, int depth,

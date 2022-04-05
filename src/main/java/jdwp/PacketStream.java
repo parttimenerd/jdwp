@@ -29,6 +29,7 @@ import jdwp.Reference.ArrayReference;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ObjectReference;
 import jdwp.Value.BasicScalarValue;
+import jdwp.Value.BasicValue;
 
 import java.io.ByteArrayOutputStream;
 
@@ -192,7 +193,7 @@ class PacketStream {
         val.write(this);
     }
 
-    void writeValueTagged(BasicScalarValue<?> val) {
+    void writeValueTagged(BasicValue val) {
         if (val instanceof jdwp.Reference) {
             writeValueTagged((jdwp.Reference)val);
         } else {
