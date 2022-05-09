@@ -25,9 +25,6 @@
 
 package build.tools.jdwpgen;
 
-import java.util.*;
-import java.io.*;
-
 class EventNode extends ReplyNode {
 
     void constrain(Context ctx) {

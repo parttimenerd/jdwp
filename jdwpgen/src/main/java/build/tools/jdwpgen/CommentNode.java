@@ -25,12 +25,9 @@
 
 package build.tools.jdwpgen;
 
-import java.util.*;
-import java.io.*;
-
 class CommentNode extends AbstractSimpleNode {
 
-    String text;
+    final String text;
 
     CommentNode(String text) {
         this.text = text;

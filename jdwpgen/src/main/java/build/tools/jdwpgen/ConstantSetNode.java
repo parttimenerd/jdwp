@@ -27,6 +27,7 @@ package build.tools.jdwpgen;
 
 import java.util.*;
 import java.io.*;
+import java.util.stream.Collectors;
 
 class ConstantSetNode extends AbstractNamedNode {
 
@@ -34,15 +35,6 @@ class ConstantSetNode extends AbstractNamedNode {
      * The mapping between a constant and its value.
      */
     protected static final Map<String, String> constantMap = new HashMap<>();
-
-    void prune() {
-        List<Node> addons = new ArrayList<>();
-
-        if (!addons.isEmpty()) {
-            components.addAll(addons);
-        }
-        super.prune();
-    }
 
     void constrainComponent(Context ctx, Node node) {
         if (node instanceof ConstantNode) {
@@ -70,27 +62,20 @@ class ConstantSetNode extends AbstractNamedNode {
     void documentIndex(PrintWriter writer) {
         writer.print("<li><a href=\"#" + context.whereC + "\">");
         writer.println(name() + "</a> Constants");
-//        writer.println("<ul>");
-//        for (Iterator it = components.iterator(); it.hasNext();) {
-//            ((Node)it.next()).documentIndex(writer);
-//        }
-//        writer.println("</ul>");
-    }
-
-    void genJavaClassSpecifics(PrintWriter writer, int depth) {
-    }
-
-    void genJava(PrintWriter writer, int depth) {
-        genJavaClass(writer, depth);
+        writer.println("<ul>");
+        for (Iterator it = components.iterator(); it.hasNext();) {
+            ((Node)it.next()).documentIndex(writer);
+        }
+        writer.println("</ul>");
     }
 
     public static String getConstant(String key){
         String com = constantMap.get(key);
-        if(com == null){
-            return "";
-        } else {
-            return com;
-        }
+        return Objects.requireNonNullElse(com, "");
     }
 
+    public List<ConstantNode> getConstantNodes() {
+        return components.stream().filter(c -> c instanceof ConstantNode).map(c -> (ConstantNode)c)
+                .collect(Collectors.toList());
+    }
 }

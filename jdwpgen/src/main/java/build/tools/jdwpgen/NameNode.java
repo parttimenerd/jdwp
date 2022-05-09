@@ -25,12 +25,9 @@
 
 package build.tools.jdwpgen;
 
-import java.util.*;
-import java.io.*;
-
 class NameNode extends AbstractSimpleNode {
 
-    String name;
+    final String name;
 
     NameNode(String name) {
         this.name = name;

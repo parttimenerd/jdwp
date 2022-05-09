@@ -89,8 +89,8 @@ fun TypeSpec.Builder.`public abstract`(type: TypeName, name: String, vararg para
                                      codeMethod: MethodMethod = { this })
         = addMethod(applyParams(listOf(public, abstract), type, name, params = *params, function = codeMethod))!!
 
-fun TypeSpec.Builder.`default`(type: TypeName, name: String, vararg params: ParameterSpec.Builder,
-                                       codeMethod: MethodMethod = { this })
+fun TypeSpec.Builder.default(type: TypeName, name: String, vararg params: ParameterSpec.Builder,
+                             codeMethod: MethodMethod = { this })
         = addMethod(applyParams(listOf(), type, name, params = *params, function = codeMethod))!!
 
 fun param(type: String, name: String, paramMethod: ParamMethod = { this })

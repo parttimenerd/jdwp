@@ -2,10 +2,7 @@ package tunnel;
 
 
 import picocli.CommandLine;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.ITypeConverter;
-import picocli.CommandLine.Parameters;
-import picocli.CommandLine.TypeConversionException;
+import picocli.CommandLine.*;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.Callable;
@@ -29,14 +26,14 @@ public class Main implements Callable<Integer> {
     }
 
     @Parameters(index = "0")
-    private InetSocketAddress src;
+    private int clientPort;
 
     @Parameters(index = "1")
-    private InetSocketAddress dst;
+    private InetSocketAddress serverAddress;
 
     @Override
     public Integer call() throws Exception {
-        new Tunnel(src, dst).run();
+        //new Tunnel(clientPort, serverAddress).run();
         return 0;
     }
 

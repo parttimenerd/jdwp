@@ -73,31 +73,6 @@ abstract class AbstractNamedNode extends Node {
         return name();
     }
 
-    void genJavaClassSpecifics(PrintWriter writer, int depth) {
-    }
-
-    String javaClassImplements() {
-        return ""; // does not implement anything, by default
-    }
-
-    void genJavaClass(PrintWriter writer, int depth) {
-        writer.println();
-        genJavaComment(writer, depth);
-        indent(writer, depth);
-        writer.print("public ");
-        if (depth != 0) {
-            writer.print("static ");
-        }
-        writer.print("class " + javaClassName());
-        writer.println(javaClassImplements() + " {");
-        genJavaClassSpecifics(writer, depth+1);
-        for (Node node : components) {
-            node.genJava(writer, depth+1);
-        }
-        indent(writer, depth);
-        writer.println("}");
-    }
-
     void genCInclude(PrintWriter writer) {
         if (nameNode instanceof NameValueNode) {
             writer.println("#define " + context.whereC +

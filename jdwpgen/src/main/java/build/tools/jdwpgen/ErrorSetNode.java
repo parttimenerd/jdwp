@@ -55,24 +55,4 @@ class ErrorSetNode extends AbstractSimpleNode {
         writer.print("</dd>");
     }
 
-    void genJavaComment(PrintWriter writer, int depth) {}
-
-    void genJava(PrintWriter writer, int depth) {}
-
-    void genCInclude(PrintWriter writer) {}
-
-    void genJavaDebugWrite(PrintWriter writer, int depth,
-                           String writeLabel) {}
-
-    void genJavaDebugWrite(PrintWriter writer, int depth,
-                           String writeLabel, String displayValue) {}
-
-    public void genJavaRead(PrintWriter writer, int depth,
-                            String readLabel) {}
-
-    void genJavaDebugRead(PrintWriter writer, int depth,
-                          String readLabel, String displayValue) {}
-
-    void genJavaPreDef(PrintWriter writer, int depth) {}
-
 }

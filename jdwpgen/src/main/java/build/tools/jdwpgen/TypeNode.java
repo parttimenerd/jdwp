@@ -26,23 +26,24 @@
 package build.tools.jdwpgen;
 
 
-import com.squareup.javapoet.CodeBlock;
-import com.squareup.javapoet.FieldSpec;
-
-import java.util.*;
 import java.io.*;
 
 interface TypeNode {
 
     String name();
 
-    void genJavaWrite(PrintWriter writer, int depth, String writeLabel);
+    default void genJavaWrite(PrintWriter writer, int depth,
+                              String writeLabel) {
+        writer.println(writeLabel + ".write(ps);");
+    }
 
-    void genJavaRead(PrintWriter writer, int depth, String readLabel);
+    default void genJavaRead(PrintWriter writer, int depth,
+                             String readLabel) {
+        writer.print(readLabel);
+        writer.print(" = " + name() + ".parse(ps);");
+    }
 
-    void genJavaDeclaration(PrintWriter writer, int depth);
-
-    String javaParam();
+   default void genJavaDeclaration(PrintWriter writer, int depth) {}
 
     abstract class AbstractTypeNode extends AbstractNamedNode
             implements TypeNode {
@@ -95,10 +96,6 @@ interface TypeNode {
             writer.print(javaType());
             writer.print(" " + name);
             writer.println(";");
-        }
-
-        public String javaParam() {
-            return javaType() + " " + name;
         }
     }
 
@@ -503,7 +500,7 @@ interface TypeNode {
                                 "   ps.readUntaggedFieldValue((Reference.ClassTypeReference)%s, %s)",
                         iter, iter, fieldVarName, iter, fieldVarName);
             }
-            if (((ArrayObjectTypeNode) this.parent.parent.components.get(0)).name().equals("arrayObject")) {
+            if (this.parent.parent.components.get(0).name().equals("arrayObject")) {
                 return "ps.readUntaggedArrayValue(arrayObject);";
             }
             throw new AssertionError();

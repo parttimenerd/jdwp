@@ -32,7 +32,7 @@ import java.lang.reflect.InvocationTargetException;
 class Parse {
 
     final StreamTokenizer izer;
-    final Map<String, Node> kindMap = new HashMap<String, Node>();
+    final Map<String, Node> kindMap = new HashMap<>();
 
     Parse(Reader reader) {
         izer = new StreamTokenizer(new BufferedReader(reader));
@@ -93,7 +93,7 @@ class Parse {
     }
 
     RootNode items() throws IOException {
-        List<Node> list = new ArrayList<Node>();
+        List<Node> list = new ArrayList<>();
 
         while (izer.nextToken() != StreamTokenizer.TT_EOF) {
             izer.pushBack();
@@ -134,7 +134,7 @@ class Parse {
             case '(': {
                 if (izer.nextToken() == StreamTokenizer.TT_WORD) {
                     String kind = izer.sval;
-                    List<Node> list = new ArrayList<Node>();
+                    List<Node> list = new ArrayList<>();
 
                     while (izer.nextToken() != ')') {
                         izer.pushBack();
@@ -149,16 +149,7 @@ class Parse {
                             Node node = proto.getClass().getDeclaredConstructor().newInstance();
                             node.set(kind, list, izer.lineno());
                             return node;
-                        } catch (InstantiationException exc) {
-                            error(exc.toString());
-                            return null;
-                        } catch (NoSuchMethodException exc) {
-                            error(exc.toString());
-                            return null;
-                        } catch (InvocationTargetException exc) {
-                            error(exc.toString());
-                            return null;
-                        } catch (IllegalAccessException exc) {
+                        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException exc) {
                             error(exc.toString());
                             return null;
                         }

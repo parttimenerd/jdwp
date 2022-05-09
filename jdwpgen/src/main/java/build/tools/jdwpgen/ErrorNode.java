@@ -33,7 +33,7 @@ class ErrorNode extends AbstractCommandNode {
     protected static final String NAME_OF_ERROR_TABLE = "Error";
 
     ErrorNode() {
-        this(new ArrayList<Node>());
+        this(new ArrayList<>());
     }
 
     ErrorNode(List<Node> components) {
@@ -60,24 +60,4 @@ class ErrorNode extends AbstractCommandNode {
                 + "<td>" + com + "&nbsp;"
                 + "</tr>");
     }
-
-    void genJavaComment(PrintWriter writer, int depth) {}
-
-    void genJava(PrintWriter writer, int depth) {}
-
-    void genCInclude(PrintWriter writer) {}
-
-    void genJavaDebugWrite(PrintWriter writer, int depth,
-                           String writeLabel) {}
-
-    void genJavaDebugWrite(PrintWriter writer, int depth,
-                           String writeLabel, String displayValue) {}
-
-    public void genJavaRead(PrintWriter writer, int depth,
-                            String readLabel) {}
-
-    void genJavaDebugRead(PrintWriter writer, int depth,
-                          String readLabel, String displayValue) {}
-
-    void genJavaPreDef(PrintWriter writer, int depth) {}
 }

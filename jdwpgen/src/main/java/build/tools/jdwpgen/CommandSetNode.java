@@ -26,6 +26,8 @@
 package build.tools.jdwpgen;
 
 import java.io.*;
+import java.util.List;
+import java.util.stream.Collectors;
 
 class CommandSetNode extends AbstractNamedNode {
 
@@ -65,16 +67,7 @@ class CommandSetNode extends AbstractNamedNode {
         }
     }
 
-    void genJavaClassSpecifics(PrintWriter writer, int depth) {
-        indent(writer, depth);
-        writer.println("static final int COMMAND_SET = " + nameNode.value() + ";");
-        indent(writer, depth);
-        writer.println("private " + name() + "() {}  // hide constructor");
-        indentAndPrintMultiline(writer, depth, CommandNode.Companion.genAdditionalCommandSetCode(this));
+    List<CommandNode> getCommandNodes() {
+        return components.stream().filter(c -> c instanceof CommandNode).map(c -> (CommandNode)c).collect(Collectors.toList());
     }
-
-    void genJava(PrintWriter writer, int depth) {
-        genJavaClass(writer, depth);
-    }
-
 }

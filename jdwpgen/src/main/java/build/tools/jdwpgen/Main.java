@@ -60,17 +60,21 @@ public class Main {
             String arg = args[i];
             if (arg.startsWith("-")) {
                 String fn = args[++i];
-                if (arg.equals("-doc")) {
-                    doc = new PrintWriter(new FileWriter(fn));
-                } else if (arg.equals("-jdi")) {
-                    jdiFile = Paths.get(fn);
-                    jdi = new PrintWriter(new FileWriter(fn));
-                } else if (arg.equals("-include")) {
-                    include = new PrintWriter(new FileWriter(fn));
-                } else {
-                    System.err.println("Invalid option: " + arg);
-                    usage();
-                    return;
+                switch (arg) {
+                    case "-doc":
+                        doc = new PrintWriter(new FileWriter(fn));
+                        break;
+                    case "-jdi":
+                        jdiFile = Paths.get(fn);
+                        jdi = new PrintWriter(new FileWriter(fn));
+                        break;
+                    case "-include":
+                        include = new PrintWriter(new FileWriter(fn));
+                        break;
+                    default:
+                        System.err.println("Invalid option: " + arg);
+                        usage();
+                        return;
                 }
             } else {
                 specSource = arg;

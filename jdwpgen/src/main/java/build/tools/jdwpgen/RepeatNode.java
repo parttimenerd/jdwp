@@ -109,7 +109,7 @@ class RepeatNode extends TypeNode.AbstractTypeNode {
         writer.println("for (int i = 0; i < " + cntLbl + "; i++) {");
         indent(writer, depth + 1);
         if (iterVariable() != null) { // only support for group nodes currently
-            ((GroupNode)member).genJavaRead(writer, depth, member.javaType() + " tmp", iterVariable());
+            member.genJavaRead(writer, depth, member.javaType() + " tmp", iterVariable());
         } else {
             member.genJavaRead(writer, depth, member.javaType() + " tmp");
         }

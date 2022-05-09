@@ -34,7 +34,7 @@ abstract class Node {
     String kind;
     List<Node> components;
     int lineno;
-    List<String> commentList = new ArrayList<>();
+    final List<String> commentList = new ArrayList<>();
     Node parent = null;
     Context context = null;
 
@@ -109,7 +109,7 @@ abstract class Node {
     }
 
     String comment() {
-        StringBuffer comment = new StringBuffer();
+        StringBuilder comment = new StringBuilder();
         for (String st : commentList) {
             comment.append(st);
         }
@@ -130,7 +130,7 @@ abstract class Node {
     }
 
     String javaType() {
-        return "-- WRONG ---";
+        return name();
     }
 
     void genJava(PrintWriter writer, int depth) {
@@ -145,57 +145,21 @@ abstract class Node {
         }
     }
 
-    String debugValue(String label) {
-        return label;
-    }
-
-    void genJavaDebugWrite(PrintWriter writer, int depth,
-                           String writeLabel) {
-        //genJavaDebugWrite(writer, depth, writeLabel, debugValue(writeLabel));
-    }
-
-    void genJavaDebugWrite(PrintWriter writer, int depth,
-                           String writeLabel, String displayValue) {
-        if (!Main.genDebug) {
-            return;
-        }
-        indent(writer, depth);
-        writer.println(
-          "if ((ps.vm.traceFlags & VirtualMachineImpl.TRACE_SENDS) != 0) {");
-        indent(writer, depth+1);
-        writer.print("ps.vm.printTrace(\"Sending: ");
-        indent(writer, depth);  // this is inside the quotes
-        writer.print(writeLabel + "(" + javaType() + "): \" + ");
-        writer.println(displayValue + ");");
-        indent(writer, depth);
-        writer.println("}");
+    public String name() {
+        return "no";
     }
 
     public void genJavaRead(PrintWriter writer, int depth,
                             String readLabel) {
-        error("Internal - Should not call Node.genJavaRead()");
+        writer.print(readLabel);
+        writer.print(" = " + name() + ".parse(ps);");
     }
 
-    void genJavaDebugRead(PrintWriter writer, int depth,
-                          String readLabel, String displayValue) {
-        if (!Main.genDebug) {
-            return;
-        }
+    public void genJavaRead(PrintWriter writer, int depth,
+                            String readLabel, String iterLabel) {
         indent(writer, depth);
-        writer.println(
-          "if (vm.traceReceives) {");
-        indent(writer, depth+1);
-        writer.print("vm.printReceiveTrace(" + depth + ", \"");
-        writer.print(readLabel + "(" + javaType() + "): \" + ");
-        writer.println(displayValue + ");");
-        indent(writer, depth);
-        writer.println("}");
-    }
-
-    void genJavaPreDef(PrintWriter writer, int depth) {
-        for (Node node : components) {
-            node.genJavaPreDef(writer, depth);
-        }
+        writer.print(readLabel);
+        writer.print(String.format(" = %s.parse(ps, %s);", name(), iterLabel));
     }
 
     void error(String errmsg) {

@@ -26,7 +26,6 @@
 package build.tools.jdwpgen;
 
 import java.util.*;
-import java.io.*;
 
 class ReplyNode extends AbstractTypeListNode {
 
@@ -41,33 +40,5 @@ class ReplyNode extends AbstractTypeListNode {
         super.constrain(ctx.replyReadingSubcontext());
         CommandNode cmd = (CommandNode)parent;
         cmdName = cmd.name;
-    }
-
-    void genJava(PrintWriter writer, int depth) {
-        genJavaPreDef(writer, depth);
-        super.genJava(writer, depth);
-        writer.println();
-        genJavaReadingClassBody(writer, depth, cmdName);
-    }
-
-    void genJavaReads(PrintWriter writer, int depth) {
-        if (Main.genDebug) {
-            indent(writer, depth);
-            writer.println(
-                "if (vm.traceReceives) {");
-            indent(writer, depth+1);
-            writer.print(
-                "vm.printTrace(\"Receiving Command(id=\" + ps.pkt.id + \") ");
-            writer.print(parent.context.whereJava);
-            writer.print("\"");
-            writer.print(
-                "+(ps.pkt.flags!=0?\", FLAGS=\" + ps.pkt.flags:\"\")");
-            writer.print(
-                "+(ps.pkt.errorCode!=0?\", ERROR CODE=\" + ps.pkt.errorCode:\"\")");
-            writer.println(");");
-            indent(writer, depth);
-            writer.println("}");
-        }
-        super.genJavaReads(writer, depth);
     }
 }

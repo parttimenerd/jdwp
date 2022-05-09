@@ -26,7 +26,6 @@
 package build.tools.jdwpgen;
 
 import java.util.*;
-import java.io.*;
 
 class OutNode extends AbstractTypeListNode {
 

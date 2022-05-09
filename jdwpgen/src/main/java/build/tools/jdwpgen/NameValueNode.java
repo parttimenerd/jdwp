@@ -25,12 +25,9 @@
 
 package build.tools.jdwpgen;
 
-import java.util.*;
-import java.io.*;
-
 class NameValueNode extends NameNode {
 
-    String val;
+    final String val;
 
     NameValueNode(String name, String val) {
         super(name);

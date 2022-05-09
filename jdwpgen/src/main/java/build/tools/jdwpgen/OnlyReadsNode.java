@@ -7,7 +7,7 @@ import java.util.List;
 public class OnlyReadsNode extends Node {
 
     OnlyReadsNode() {
-        this(new ArrayList<Node>());
+        this(new ArrayList<>());
     }
 
     OnlyReadsNode(List<Node> components) {

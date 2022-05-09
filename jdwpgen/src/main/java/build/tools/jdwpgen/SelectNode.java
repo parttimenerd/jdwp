@@ -70,12 +70,6 @@ class SelectNode extends AbstractGroupNode implements TypeNode {
         super.document(writer);
     }
 
-    String docType() {
-        // should never call this
-        error("Internal - called SelectNode.docType()");
-        return null;
-    }
-
     String commonBaseClass() {
         return name() + "Common";
     }
@@ -89,21 +83,10 @@ class SelectNode extends AbstractGroupNode implements TypeNode {
         return " a" + commonBaseClass();
     }
 
-    void genJavaWrites(PrintWriter writer, int depth) {
-        typeNode.genJavaWrite(writer, depth, typeNode.name());
-        indent(writer, depth);
-        writer.println(commonVar() + ".write(ps);");
-    }
-
     public void genJavaRead(PrintWriter writer, int depth,
                             String readLabel) {
         indent(writer, depth);
         writer.print(readLabel);
         writer.print(" = " + commonBaseClass() + ".parse(ps);");
-    }
-
-    public void genJavaDeclaration(PrintWriter writer, int depth) {
-        typeNode.genJavaDeclaration(writer, depth);
-        super.genJavaDeclaration(writer, depth);
     }
 }

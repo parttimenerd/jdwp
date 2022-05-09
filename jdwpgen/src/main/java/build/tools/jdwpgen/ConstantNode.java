@@ -31,7 +31,7 @@ import java.io.*;
 class ConstantNode extends AbstractCommandNode {
 
     ConstantNode() {
-        this(new ArrayList<Node>());
+        this(new ArrayList<>());
     }
 
     ConstantNode(List<Node> components) {
@@ -45,12 +45,6 @@ class ConstantNode extends AbstractCommandNode {
             error("Constants have no internal structure");
         }
         super.constrain(ctx);
-    }
-
-    void genJava(PrintWriter writer, int depth) {
-        indent(writer, depth);
-        writer.println("static final int " + name + " = " +
-                       nameNode.value() + ";");
     }
 
     void document(PrintWriter writer) {
