@@ -56,7 +56,6 @@ import jdwp.oracle.JDWP.ThreadReference.ThreadGroup;
 import jdwp.oracle.JDWP.VirtualMachine.*;
 import jdwp.oracle.JDWP.VirtualMachine.RedefineClasses.ClassDef;
 import jdwp.oracle.Packet;
-import jdwp.oracle.PacketStream;
 import jdwp.oracle.*;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Assertions;
@@ -93,6 +92,15 @@ class JDWPTest {
     }
 
     @Test
+    public void testPacketToStream() {
+        var outStream = new PacketOutputStream(vm, 1, 2);
+        outStream.writeDouble(1043.4);
+        var pkt = outStream.toPacket();
+        var inStream = pkt.toStream(vm);
+        assertArrayEquals(pkt.toByteArray(), inStream.data());
+    }
+
+    @Test
     public void testVirtualMachine_VersionRequestParsing() throws IOException {
         // can we generate the same package as the oracle
         var oraclePacket = JDWP.VirtualMachine.Version.enqueueCommand(ovm).finishedPacket;
@@ -102,6 +110,7 @@ class JDWPTest {
         // can we parse the package?
         var readPkg =
                 VirtualMachineCmds.VersionRequest.parse(vm, jdwp.Packet.fromByteArray(packet.toByteArray()));
+        assertEquals(0, readPkg.getId());
         assertPacketsEqual(packet, readPkg.toPacket(vm));
         assertEquals(0, readPkg.id);
 
@@ -207,13 +216,13 @@ class JDWPTest {
         // test parsing the related reply
         var reply = new AllClassesReply(1,
                 new ListValue<>(new AllClassesReply.ClassInfo(wrap((byte) 1), Reference.klass(1), wrap("bla"), wrap(1))));
-        var preply = readPkg.parseReply(new jdwp.PacketStream(vm, reply.toPacket(vm))).getReply();
+        var preply = readPkg.parseReply(reply.toStream(vm)).getReply();
         assertEquals(reply.classes.size(), preply.classes.size());
         assertEquals(reply.classes.get(0).signature, preply.classes.get(0).signature);
 
         // test parsing a related reply with different id
-        Assertions.assertThrows(Reply.IdMismatchException.class, () -> readPkg.parseReply(new jdwp.PacketStream(vm, new AllClassesReply(10,
-                new ListValue<>(Type.OBJECT)).toPacket(vm))));
+        Assertions.assertThrows(Reply.IdMismatchException.class, () -> readPkg.parseReply(new AllClassesReply(10,
+                new ListValue<>(Type.OBJECT)).toStream(vm)));
     }
 
     @Test
@@ -545,6 +554,7 @@ class JDWPTest {
         vm.reset();
         Assertions.assertThrows(NoTagPresentException.class, () -> jdwp.JDWP.parse(vm, packet));
     }
+
 
     @Test
     @Tag("basic")
@@ -1089,18 +1099,21 @@ class JDWPTest {
 
     @Test
     public void testEvent_VMDeath() {
-        var event = new VMDeath(wrap(134534));
+        int requestID = 129;
+        var event = new VMDeath(wrap(requestID));
         var ps = eventOraclePacketStream(event);
         var oEvent = new Composite.Events.VMDeath(ovm, ps);
-        assertEquals(event.requestID.value, oEvent.requestID);
-        assertEquals(event, VMDeath.parse(eventPacketStream(event)));
+        assertEquals(requestID, oEvent.requestID);
+        var eps = eventPacketStream(event);
+        var parsedEvent = VMDeath.parse(eps);
+        assertEquals(event, parsedEvent);
     }
 
     /**
      * skips the type byte (but asserts that is correct)
      */
     private PacketStream eventOraclePacketStream(EventCommon event) {
-        var ps = new jdwp.PacketStream(vm, 0, 0);
+        var ps = new jdwp.PacketOutputStream(vm, 0, 0);
         event.write(ps);
         var os = oraclePacketStream(ps.toPacket());
         assertEquals(event.getKind(), os.readByte());
@@ -1110,10 +1123,10 @@ class JDWPTest {
     /**
      * skips the type byte (but asserts that is correct)
      */
-    private jdwp.PacketStream eventPacketStream(EventCommon event) {
-        var ps = new jdwp.PacketStream(vm, 0, 0);
+    private jdwp.PacketInputStream eventPacketStream(EventCommon event) {
+        var ps = new jdwp.PacketOutputStream(vm, 0, 0);
         event.write(ps);
-        var pps = new jdwp.PacketStream(vm, ps.toPacket());
+        var pps = ps.toPacket().toStream(vm);
         assertEquals(event.getKind(), pps.readByte());
         return pps;
     }
@@ -1121,10 +1134,10 @@ class JDWPTest {
     @Test
     public void testByteListSameAsListOfBytes() {
         var list = new BasicListValue<>(wrap((byte) 1), wrap((byte) -2), wrap((byte) 100));
-        var ps = new jdwp.PacketStream(vm, 0, 0);
+        var ps = new jdwp.PacketOutputStream(vm, 0, 0);
         list.writeUntagged(ps);
         var list2 = new ByteList(new byte[]{1, -2, 100});
-        var ps2 = new jdwp.PacketStream(vm, 0, 0);
+        var ps2 = new jdwp.PacketOutputStream(vm, 0, 0);
         list2.write(ps2);
         assertArrayEquals(ps.toPacket().toByteArray(), ps2.toPacket().toByteArray());
     }
@@ -1144,7 +1157,7 @@ class JDWPTest {
         var ops = new PacketStream(ovm, 0, 0);
         ops.writeValueChecked(oracleValue);
         ops.send();
-        var ps = new jdwp.PacketStream(vm, 0, 0);
+        var ps = new jdwp.PacketOutputStream(vm, 0, 0);
         ps.writeValueTagged(value);
         assertArrayEquals(ops.finishedPacket.toByteArray(), ps.toPacket().toByteArray());
     }
@@ -1238,11 +1251,19 @@ class JDWPTest {
 
     static void assertPacketsEqual(Packet expectedPacket, jdwp.Packet actualPacket) {
         assertEquals(expectedPacket.id, actualPacket.id);
+        assertEquals(expectedPacket.cmd, actualPacket.cmd);
+        assertEquals(expectedPacket.cmdSet, actualPacket.cmdSet);
+        assertEquals(expectedPacket.flags, actualPacket.flags);
+        assertEquals(expectedPacket.errorCode, actualPacket.errorCode);
         assertArrayEquals(expectedPacket.toByteArray(), actualPacket.toByteArray());
     }
 
     static void assertPacketsEqual(jdwp.Packet expectedPacket, jdwp.Packet actualPacket) {
-        assertEquals(expectedPacket.id, actualPacket.id);
+        assertEquals(expectedPacket.id, actualPacket.id, "id");
+        assertEquals(expectedPacket.cmd, actualPacket.cmd, "cmd");
+        assertEquals(expectedPacket.cmdSet, actualPacket.cmdSet, "cmdSet");
+        assertEquals(expectedPacket.flags, actualPacket.flags, "flags");
+        assertEquals(expectedPacket.errorCode, actualPacket.errorCode, "errorCode");
         assertArrayEquals(expectedPacket.toByteArray(), actualPacket.toByteArray());
     }
 

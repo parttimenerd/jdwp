@@ -31,9 +31,7 @@ public class Packet {
     public static final short NoFlags = 0x0;
     public static final short Reply = 0x80;
     public static final short ReplyNoError = 0x0;
-
-    static int uID = 1;
-    static final byte[] nullData = new byte[0];
+    private static final byte[] nullData = new byte[0];
 
     // Note! flags, cmdSet, and cmd are all byte values.
     // We represent them as shorts to make them easier
@@ -44,7 +42,6 @@ public class Packet {
     short cmd;
     short errorCode;
     byte[] data;
-    volatile boolean replied = false;
 
     /**
      * Return byte representation of the packet
@@ -119,5 +116,13 @@ public class Packet {
         id = 0;
         flags = NoFlags;
         data = nullData;
+    }
+
+    public PacketInputStream toStream(VM vm) {
+        return new PacketInputStream(vm, toByteArray());
+    }
+
+    public static Packet fromStream(PacketOutputStream stream) {
+        return stream.toPacket();
     }
 }

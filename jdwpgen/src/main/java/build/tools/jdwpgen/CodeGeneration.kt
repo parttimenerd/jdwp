@@ -57,7 +57,7 @@ internal object CodeGeneration {
             param("VM", "vm")
         ) {
             `@Override`()
-            statement("PacketStream ps = new PacketStream(vm, COMMAND_SET, COMMAND)")
+            statement("PacketOutputStream ps = new PacketOutputStream(vm, COMMAND_SET, COMMAND)")
             for (f in fields) {
                 addCode(f.genJavaWrite(f.name()))
             }
@@ -102,15 +102,15 @@ internal object CodeGeneration {
                 param("VM", "vm"),
                 param("Packet", "packet")
             ) {
-                _return("parse(new PacketStream(vm, packet))")
+                _return("parse(packet.toStream(vm))")
             }
 
             `public static`(
                 bg(requestClassName), "parse",
-                param("PacketStream", "ps")
+                param("PacketInputStream", "ps")
             ) {
                 for (f in fields) {
-                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
+                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + "\n")
                 }
                 statement("return new \$T(\$N)",
                     bg(requestClassName),
@@ -122,10 +122,10 @@ internal object CodeGeneration {
             genEquals(requestClassName, fields)
             genHashCode(fields)
 
-            `public`(pt("ReplyOrError", replyClassName), "parseReply", param("PacketStream", "ps")) {
+            `public`(pt("ReplyOrError", replyClassName), "parseReply", param("PacketInputStream", "ps")) {
                 `@Override`()
-                `if`("ps.pkt.id != id") {
-                    `throw new2`(bg("Reply.IdMismatchException"), "id, ps.pkt.id")
+                `if`("ps.id() != id") {
+                    `throw new2`(bg("Reply.IdMismatchException"), "id, ps.id()")
                 }.end()
                 _return("$replyClassName.parse(ps)")
             }
@@ -142,7 +142,7 @@ internal object CodeGeneration {
                 param(bg("Reply"), "reply")
             ) {
                 `@Override`()
-                `if`("this.id != id") {
+                `if`("this.id != reply.getId()") {
                     `throw new2`(bg("AssertionError"), "wrong id".S)
                 }.end()
                 statement("visitor.visit(this, (${replyClassName})reply)")
@@ -168,18 +168,18 @@ internal object CodeGeneration {
                 param("VM", "vm"),
                 param("Packet", "packet")
             ) {
-                _return("parse(new PacketStream(vm, packet))")
+                _return("parse(packet.toStream(vm))")
             }
 
             `public static`(
                 pt("ReplyOrError", replyClassName), "parse",
-                param("PacketStream", "ps")
+                param("PacketInputStream", "ps")
             ) {
                 `if`("ps.errorCode() != 0") {
                     _return("new ReplyOrError<>(ps.id(), ps.flags(), ps.errorCode())")
                 }.`else` {
                     for (f in fields) {
-                        addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
+                        addCode(f.genJavaRead(f.javaType() + " " + f.name()) + "\n")
                     }
                     statement("return new ReplyOrError<>(ps.id(), ps.flags(), new \$T(\$N))",
                         bg(replyClassName),
@@ -212,15 +212,15 @@ internal object CodeGeneration {
                 param("VM", "vm"),
                 param("Packet", "packet")
             ) {
-                _return("parse(new PacketStream(vm, packet))")
+                _return("parse(packet.toStream(vm))")
             }
 
             `public static`(
                 bg(name), "parse",
-                param("PacketStream", "ps")
+                param("PacketInputStream", "ps")
             ) {
                 for (f in fields) {
-                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
+                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + "\n")
                 }
                 statement("return new \$T(\$N)",
                     bg(name),
@@ -276,13 +276,13 @@ internal object CodeGeneration {
             genEquals(node.name(), fields)
             genHashCode(fields)
 
-            val parseParams = arrayOf(param("PacketStream", "ps")) +
+            val parseParams = arrayOf(param("PacketInputStream", "ps")) +
                     (node.iterVariable()?.let { arrayOf(param("Value", it)) } ?: arrayOf())
 
             `public static`(bg(node.name()), "parse", params = parseParams) {
 
                 for (f in fields) {
-                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
+                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + "\n")
                 }
                 _return("new ${node.name()}(${fields.joinToString(", ") { it.name() }})")
             }
@@ -316,7 +316,7 @@ internal object CodeGeneration {
                 this
             }
 
-            `public static`(bg(node.commonBaseClass()), "parse", param("PacketStream", "ps")) {
+            `public static`(bg(node.commonBaseClass()), "parse", param("PacketInputStream", "ps")) {
                 statement("${kindNode.javaType()} ${kindNode.name()} = ${kindNode.javaType()}.read(ps)")
                 switch("${kindNode.name()}.value") {
                     for (alt in alts) {
@@ -368,9 +368,9 @@ internal object CodeGeneration {
                 this
             }
 
-            `public static`(bg(alt.name()), "parse", param("PacketStream", "ps")) {
+            `public static`(bg(alt.name()), "parse", param("PacketInputStream", "ps")) {
                 for (f in fields) {
-                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + ";\n")
+                    addCode(f.genJavaRead(f.javaType() + " " + f.name()) + "\n")
                 }
                 _return("new ${alt.name()}(${(commonFields + uncommonFields).joinToString(", ") { it.name }})")
             }
@@ -388,11 +388,11 @@ internal object CodeGeneration {
     }
 
     private fun TypeSpec.Builder.genWrite(fields: List<TypeNode.AbstractTypeNode>) = `public`(
-        TypeName.VOID, "write", param("PacketStream", "ps")
+        TypeName.VOID, "write", param("PacketOutputStream", "ps")
     ) {
         `@Override`()
         for (f in fields) {
-            addCode(f.genJavaWrite(f.name()) + ";\n")
+            addCode(f.genJavaWrite(f.name()) + "\n")
         }
         this
     }
@@ -542,12 +542,12 @@ internal object CodeGeneration {
             retType, "parse",
             param("VM", "vm"), param("Packet", "packet")
         ) {
-            _return("parse(new PacketStream(vm, packet))")
+            _return("parse(packet.toStream(vm))")
             this
         }
         `public static`(
             retType, "parse",
-            param("PacketStream", "ps")
+            param("PacketInputStream", "ps")
         ) {
             if (node.name == "Event") {
                 `if`("Events.COMMAND == ps.command()") {
@@ -592,13 +592,13 @@ internal object CodeGeneration {
                 pt("Request", "?"), "parse",
                 param("VM", "vm"), param("Packet", "packet")
             ) {
-                _return("parse(new PacketStream(vm, packet))")
+                _return("parse(packet.toStream(vm))")
                 this
             }
 
             `public static`(
                 pt("Request", "?"), "parse",
-                param("PacketStream", "ps")
+                param("PacketInputStream", "ps")
             ) {
                 switch("ps.commandSet()") {
                     for (cmdSet in nodes) {

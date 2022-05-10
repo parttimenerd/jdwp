@@ -29,13 +29,13 @@ public class Location extends CombinedValue {
 
 
     @Override
-    public void write(PacketStream ps) {
+    public void write(PacketOutputStream ps) {
         declaringType.writeTagged(ps);
         methodRef.write(ps);
         codeIndex.write(ps);
     }
 
-    public static Location read(PacketStream ps) {
+    public static Location read(PacketInputStream ps) {
         return new Location(TypeReference.read(ps), MethodReference.read(ps), LongValue.read(ps));
     }
 

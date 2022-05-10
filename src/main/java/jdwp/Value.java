@@ -28,7 +28,7 @@ public abstract class Value {
         return false;
     }
 
-    public abstract void write(PacketStream ps);
+    public abstract void write(PacketOutputStream ps);
 
     public static <T extends Value> Type typeForClass(Class<T> klass) {
         if (klass.equals(BasicScalarValue.class)) {
@@ -190,7 +190,7 @@ public abstract class Value {
         abstract Value get(String key);
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             getKeys().forEach(k -> get(k).write(ps));
         }
     }
@@ -237,7 +237,7 @@ public abstract class Value {
         int size() { return values.size(); }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeInt(values.size());
             values.forEach(value -> value.write(ps));
         }
@@ -280,11 +280,11 @@ public abstract class Value {
         }
 
         @SuppressWarnings("unchecked cast")
-        public static <T extends BasicScalarValue<?>> BasicListValue<T> read(PacketStream ps) {
+        public static <T extends BasicScalarValue<?>> BasicListValue<T> read(PacketInputStream ps) {
             byte tag = ps.readByte();
             int length = ps.readInt();
             List<T> values = new ArrayList<>(length);
-            boolean gettingObjects = PacketStream.isObjectTag(tag);
+            boolean gettingObjects = PacketOutputStream.isObjectTag(tag);
             for (int i = 0; i < length; i++) {
                 /*
                  * Each object comes back with a type key which might
@@ -302,11 +302,11 @@ public abstract class Value {
         }
 
         @SuppressWarnings("unchecked cast")
-        public static <T extends BasicScalarValue<?>> BasicListValue<T> read(PacketStream ps, ArrayReference ref) {
-            byte tag = ps.vm.getArrayTag(ref.value);
+        public static <T extends BasicScalarValue<?>> BasicListValue<T> read(PacketInputStream ps, ArrayReference ref) {
+            byte tag = ps.vm().getArrayTag(ref.value);
             int length = ps.readInt();
             List<T> values = new ArrayList<>(length);
-            boolean gettingObjects = PacketStream.isObjectTag(tag);
+            boolean gettingObjects = PacketOutputStream.isObjectTag(tag);
             for (int i = 0; i < length; i++) {
                 /*
                  * Each object comes back with a type key which might
@@ -324,10 +324,10 @@ public abstract class Value {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeByte((byte)type.tag);
             ps.writeInt(values.size());
-            boolean writingObjects = PacketStream.isObjectTag((byte)type.tag);
+            boolean writingObjects = PacketOutputStream.isObjectTag((byte)type.tag);
             for (T value : values) {
                 if (writingObjects) {
                     ps.writeByte((byte)value.type.tag);
@@ -336,7 +336,7 @@ public abstract class Value {
             }
         }
 
-        public void writeUntagged(PacketStream ps) {
+        public void writeUntagged(PacketOutputStream ps) {
             ps.writeInt(values.size());
             for (T value : values) {
                 ps.writeWritableUntagged(value);
@@ -441,14 +441,14 @@ public abstract class Value {
             return bytes[index];
         }
 
-        public static ByteList read(PacketStream ps) {
+        public static ByteList read(PacketInputStream ps) {
             int length = ps.readInt();
             byte[] bytes = ps.readByteArray(length);
             return new ByteList(bytes);
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeInt(bytes.length);
             ps.writeByteArray(bytes);
         }
@@ -485,7 +485,7 @@ public abstract class Value {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             value.write(ps);
         }
 

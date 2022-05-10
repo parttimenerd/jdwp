@@ -18,7 +18,7 @@ public interface EventCollection extends Request<NullReply>, Reply {
     byte getSuspendPolicy();
 
     @Override
-    default ReplyOrError<NullReply> parseReply(PacketStream ps) {
+    default ReplyOrError<NullReply> parseReply(PacketInputStream ps) {
         throw new AssertionError();
     }
 

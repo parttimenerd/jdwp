@@ -43,11 +43,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.BOOLEAN, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeBoolean(value);
         }
 
-        public static BooleanValue read(PacketStream ps) {
+        public static BooleanValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readBoolean());
         }
 
@@ -67,11 +67,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.BYTE, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeByte(value);
         }
 
-        public static ByteValue read(PacketStream ps) {
+        public static ByteValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readByte());
         }
 
@@ -91,11 +91,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.CHAR, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeChar(value);
         }
 
-        public static CharValue read(PacketStream ps) {
+        public static CharValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readChar());
         }
 
@@ -115,11 +115,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.SHORT, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeShort(value);
         }
 
-        public static ShortValue read(PacketStream ps) {
+        public static ShortValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readShort());
         }
 
@@ -139,11 +139,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.INT, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeInt(value);
         }
 
-        public static IntValue read(PacketStream ps) {
+        public static IntValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readInt());
         }
 
@@ -163,11 +163,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.LONG, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeLong(value);
         }
 
-        public static LongValue read(PacketStream ps) {
+        public static LongValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readLong());
         }
 
@@ -187,11 +187,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.FLOAT, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeFloat(value);
         }
 
-        public static FloatValue read(PacketStream ps) {
+        public static FloatValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readFloat());
         }
 
@@ -211,11 +211,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.DOUBLE, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeDouble(value);
         }
 
-        public static DoubleValue read(PacketStream ps) {
+        public static DoubleValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readDouble());
         }
 
@@ -235,11 +235,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             super(Type.STRING, value);
         }
 
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
             packetStream.writeString(value);
         }
 
-        public static StringValue read(PacketStream ps) {
+        public static StringValue read(PacketInputStream ps) {
             return PrimitiveValue.wrap(ps.readString());
         }
 
@@ -263,11 +263,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
 
 
         @Override
-        public void write(PacketStream packetStream) {
+        public void write(PacketOutputStream packetStream) {
 
         }
 
-        public static VoidValue read(PacketStream ps) {
+        public static VoidValue read(PacketInputStream ps) {
             return VALUE;
         }
 
@@ -277,11 +277,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         }
     }
 
-    public static PrimitiveValue<?> readValue(PacketStream ps) {
+    public static PrimitiveValue<?> readValue(PacketInputStream ps) {
         return readValue(ps, ps.readByte());
     }
 
-    public static PrimitiveValue<?> readValue(PacketStream ps, byte tag) {
+    public static PrimitiveValue<?> readValue(PacketInputStream ps, byte tag) {
         switch ((int)tag) {
             case Tag.BOOLEAN:
                 return BooleanValue.read(ps);

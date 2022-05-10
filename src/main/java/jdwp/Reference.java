@@ -16,15 +16,15 @@ public abstract class Reference extends BasicScalarValue<Long> {
         super(type, ref);
     }
 
-    public void write(PacketStream ps) {
+    public void write(PacketOutputStream ps) {
         ps.writeObjectRef(getValue());
     }
 
-    public static Reference readReference(PacketStream ps) {
+    public static Reference readReference(PacketInputStream ps) {
         return readReference(ps, ps.readByte());
     }
 
-    public static Reference readReference(PacketStream ps, byte tag) {
+    public static Reference readReference(PacketInputStream ps, byte tag) {
         switch ((int)tag) {
             case Tag.OBJECT:
             case Tag.STRING:
@@ -112,15 +112,15 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super(type, ref);
         }
 
-        public static ObjectReference read(PacketStream ps) {
+        public static ObjectReference read(PacketInputStream ps) {
             return new ObjectReference(ps.readObjectRef());
         }
 
-        public static ObjectReference read(byte tag, PacketStream ps) {
+        public static ObjectReference read(byte tag, PacketInputStream ps) {
             return new ObjectReference(Type.forPrimitive(tag), ps.readObjectRef());
         }
 
-        public static ObjectReference readTagged(PacketStream ps) {
+        public static ObjectReference readTagged(PacketInputStream ps) {
             return new ObjectReference(Type.forPrimitive(ps.readByte()), ps.readObjectRef());
         }
     }
@@ -130,7 +130,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super(Type.THREAD, ref);
         }
 
-        public static ThreadReference read(PacketStream ps) {
+        public static ThreadReference read(PacketInputStream ps) {
             return new ThreadReference(ps.readObjectRef());
         }
 
@@ -145,7 +145,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super(Type.THREAD_GROUP, ref);
         }
 
-        public static ThreadGroupReference read(PacketStream ps) {
+        public static ThreadGroupReference read(PacketInputStream ps) {
             return new ThreadGroupReference(ps.readObjectRef());
         }
 
@@ -164,16 +164,16 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeClassRef(value);
         }
 
-        public void writeTagged(PacketStream ps) {
+        public void writeTagged(PacketOutputStream ps) {
             ps.writeByte(typeTag);
             write(ps);
         }
 
-        public static TypeReference read(PacketStream ps) {
+        public static TypeReference read(PacketInputStream ps) {
             byte tag = ps.readByte();
             switch (tag) {
                 case TypeTag.CLASS:
@@ -194,7 +194,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super((byte)TypeTag.INTERFACE, ref);
         }
 
-        public static InterfaceTypeReference read(PacketStream ps) {
+        public static InterfaceTypeReference read(PacketInputStream ps) {
             return new InterfaceTypeReference(ps.readClassRef());
         }
     }
@@ -205,7 +205,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super((byte)TypeTag.CLASS, ref);
         }
 
-        public static ClassTypeReference read(PacketStream ps) {
+        public static ClassTypeReference read(PacketInputStream ps) {
             return new ClassTypeReference(ps.readClassRef());
         }
     }
@@ -216,7 +216,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super((byte)TypeTag.ARRAY, ref);
         }
 
-        public static ArrayTypeReference read(PacketStream ps) {
+        public static ArrayTypeReference read(PacketInputStream ps) {
             return new ArrayTypeReference(ps.readClassRef());
         }
     }
@@ -233,7 +233,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super(ref);
         }
 
-        public static TypeObjectReference read(PacketStream ps) {
+        public static TypeObjectReference read(PacketInputStream ps) {
             return new TypeObjectReference(ps.readClassRef());
         }
     }
@@ -244,11 +244,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeClassRef(value);
         }
 
-        public static ClassReference read(PacketStream ps) {
+        public static ClassReference read(PacketInputStream ps) {
             return new ClassReference(ps.readClassRef());
         }
     }
@@ -259,11 +259,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeClassRef(value);
         }
 
-        public static InterfaceReference read(PacketStream ps) {
+        public static InterfaceReference read(PacketInputStream ps) {
             return new InterfaceReference(ps.readClassRef());
         }
     }
@@ -274,11 +274,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeMethodRef(value);
         }
 
-        public static MethodReference read(PacketStream ps) {
+        public static MethodReference read(PacketInputStream ps) {
             return new MethodReference(ps.readMethodRef());
         }
 
@@ -294,11 +294,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeMethodRef(value);
         }
 
-        public static ArrayReference read(PacketStream ps) {
+        public static ArrayReference read(PacketInputStream ps) {
             return new ArrayReference(ps.readObjectRef());
         }
     }
@@ -309,11 +309,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeModuleRef(value);
         }
 
-        public static ModuleReference read(PacketStream ps) {
+        public static ModuleReference read(PacketInputStream ps) {
             return new ModuleReference(ps.readModuleRef());
         }
 
@@ -329,20 +329,20 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeFieldRef(value);
         }
 
-        public static FieldReference read(PacketStream ps) {
+        public static FieldReference read(PacketInputStream ps) {
             return new FieldReference(ps.readFieldRef());
         }
 
-        public BasicScalarValue<?> readUntaggedInstanceFieldValue(Reference instance, PacketStream ps) {
-            return ps.readUntaggedValue(ps.vm.getFieldTagForObj(instance.value, value));
+        public BasicScalarValue<?> readUntaggedInstanceFieldValue(Reference instance, PacketInputStream ps) {
+            return ps.readUntaggedValue(ps.vm().getFieldTagForObj(instance.value, value));
         }
 
-        public BasicScalarValue<?> readUntaggedClassFieldValue(Reference klass, PacketStream ps) {
-            return ps.readUntaggedValue(ps.vm.getFieldTagForClass(klass.value, value));
+        public BasicScalarValue<?> readUntaggedClassFieldValue(Reference klass, PacketInputStream ps) {
+            return ps.readUntaggedValue(ps.vm().getFieldTagForClass(klass.value, value));
         }
 
         @Override
@@ -357,11 +357,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
 
         @Override
-        public void write(PacketStream ps) {
+        public void write(PacketOutputStream ps) {
             ps.writeFrameRef(value);
         }
 
-        public static FrameReference read(PacketStream ps) {
+        public static FrameReference read(PacketInputStream ps) {
             return new FrameReference(ps.readFrameRef());
         }
 
@@ -376,7 +376,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super(Type.CLASS_LOADER, val);
         }
 
-        public static ClassLoaderReference read(PacketStream ps) {
+        public static ClassLoaderReference read(PacketInputStream ps) {
             return new ClassLoaderReference(ps.readObjectRef());
         }
 
@@ -391,7 +391,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             super(Type.CLASS_OBJECT, val);
         }
 
-        public static ClassObjectReference read(PacketStream ps) {
+        public static ClassObjectReference read(PacketInputStream ps) {
             return new ClassObjectReference(ps.readObjectRef());
         }
     }

@@ -13,7 +13,7 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
 
     Packet toPacket(VM vm);
 
-    ReplyOrError<R> parseReply(PacketStream ps);
+    ReplyOrError<R> parseReply(PacketInputStream ps);
 
     void accept(RequestVisitor visitor);
     void accept(RequestReplyVisitor visitor, Reply reply);

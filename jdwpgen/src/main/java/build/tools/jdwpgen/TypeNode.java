@@ -84,7 +84,11 @@ interface TypeNode {
             indent(writer, depth);
             writer.print(readLabel);
             writer.print(" = ");
-            writer.print(javaRead());
+            String javaRead = javaRead();
+            writer.write(javaRead);
+            if (!javaRead.endsWith(";")) {
+                writer.print(";");
+            }
             //genJavaDebugRead(writer, depth, readLabel, debugValue(readLabel));
         }
 

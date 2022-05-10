@@ -27,7 +27,7 @@ package jdwp.oracle;
 
 import java.io.IOException;
 
-public class Packet extends Object {
+public class Packet {
     public static final short NoFlags = 0x0;
     public static final short Reply = 0x80;
     public static final short ReplyNoError = 0x0;
@@ -39,9 +39,9 @@ public class Packet extends Object {
     // We represent them as shorts to make them easier
     // to work with.
     public int id;
-    short flags;
-    short cmdSet;
-    short cmd;
+    public short flags;
+    public short cmdSet;
+    public short cmd;
     public short errorCode;
     byte[] data;
     volatile boolean replied = false;
@@ -51,7 +51,7 @@ public class Packet extends Object {
      */
     public byte[] toByteArray() {
         int len = data.length + 11;
-        byte b[] = new byte[len];
+        byte[] b = new byte[len];
         b[0] = (byte)((len >>> 24) & 0xff);
         b[1] = (byte)((len >>> 16) & 0xff);
         b[2] = (byte)((len >>>  8) & 0xff);
@@ -77,7 +77,7 @@ public class Packet extends Object {
     /**
      * Create a packet from its byte array representation
      */
-    public static Packet fromByteArray(byte b[]) throws IOException {
+    public static Packet fromByteArray(byte[] b) throws IOException {
         if (b.length < 11) {
             throw new IOException("packet is insufficient size");
         }
