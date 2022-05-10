@@ -418,6 +418,10 @@ public abstract class Value {
         public int hashCode() {
             return super.hashCode() * value.hashCode();
         }
+
+        public abstract boolean isPrimitive();
+
+        public abstract boolean isReference();
     }
 
     /**

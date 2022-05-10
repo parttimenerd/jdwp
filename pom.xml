@@ -11,6 +11,7 @@
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
+        <logback.version>1.2.11</logback.version>
     </properties>
 
     <build>
@@ -40,7 +41,7 @@
                     <useUnlimitedThreads>true</useUnlimitedThreads>
                     <threadCountMethods>2</threadCountMethods>
                     <includes>
-                        <include>**/*Test.java</include>
+                        <include>**/*Test*.java</include>
                     </includes>
                 </configuration>
             </plugin>
@@ -85,6 +86,16 @@
             <artifactId>junit-jupiter-params</artifactId>
             <version>5.8.1</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+            <version>${logback.version}</version>
         </dependency>
         <dependency>
             <groupId>com.spencerwi</groupId>

@@ -26,6 +26,8 @@
 package jdwp;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class Packet {
     public static final short NoFlags = 0x0;
@@ -124,5 +126,13 @@ public class Packet {
 
     public static Packet fromStream(PacketOutputStream stream) {
         return stream.toPacket();
+    }
+
+    public void write(OutputStream outputStream) throws IOException {
+        outputStream.write(toByteArray());
+    }
+
+    public InputStream toInputStream(VM vm) {
+        return toStream(vm).toInputStream();
     }
 }

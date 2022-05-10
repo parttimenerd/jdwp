@@ -396,4 +396,13 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
     }
 
+    @Override
+    public boolean isReference() {
+        return true;
+    }
+
+    @Override
+    public boolean isPrimitive() {
+        return false;
+    }
 }

@@ -36,20 +36,23 @@ import jdwp.PrimitiveValue.StringValue;
 import jdwp.Reference.FieldReference;
 import jdwp.Reference.TypeObjectReference;
 import jdwp.Reference.TypeReference;
-import jdwp.ReferenceTypeCmds.*;
 import jdwp.ReferenceTypeCmds.FieldsReply.FieldInfo;
+import jdwp.ReferenceTypeCmds.*;
 import jdwp.VM.NoTagPresentException.Source;
 import jdwp.VirtualMachineCmds.*;
 import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
 import lombok.Getter;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * id + idSizes, we do not care about capabilities, versions or tracing in this project
  */
 @Getter
-class VM {
+public class VM {
 
     public static class NoTagPresentException extends RuntimeException {
         enum Source {
@@ -272,13 +275,14 @@ class VM {
 
     public void captureInformation(Request<?> request) {
         request.accept(new RequestVisitor() {
+            // there seems to be no information that can be gathered
         });
     }
 
     /**
      * capture information on object, field and array types and idsizes from a reply
      */
-    public <R extends Value & Reply> void captureInformation(Request<R> request, R reply) {
+    public void captureInformation(Request<?> request, Reply reply) {
         request.accept(new RequestReplyVisitor() {
             public void visit(ArrayReferenceCmds.GetValuesRequest request,
                               ArrayReferenceCmds.GetValuesReply reply) {

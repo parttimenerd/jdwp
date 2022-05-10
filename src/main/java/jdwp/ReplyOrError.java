@@ -3,6 +3,8 @@ package jdwp;
 import jdwp.JDWP.CommandVisitor;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Objects;
+
 public class ReplyOrError<R extends Reply> implements ParsedPacket {
     private final int id;
     private final short flags;
@@ -30,6 +32,10 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
 
     public ReplyOrError(int id, R reply) {
         this(id, Packet.Reply, reply);
+    }
+
+    public ReplyOrError(R reply) {
+        this(reply.getId(), Packet.Reply, reply);
     }
 
     public boolean hasError() {
@@ -85,5 +91,27 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
         if (reply != null) {
             reply.accept(visitor);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ReplyOrError<?> that = (ReplyOrError<?>) o;
+
+        if (id != that.id) return false;
+        if (flags != that.flags) return false;
+        if (errorCode != that.errorCode) return false;
+        return Objects.equals(reply, that.reply);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = id;
+        result = 31 * result + (int) flags;
+        result = 31 * result + (reply != null ? reply.hashCode() : 0);
+        result = 31 * result + (int) errorCode;
+        return result;
     }
 }

@@ -28,6 +28,8 @@ package jdwp;
 import jdwp.Value.BasicValue;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -235,5 +237,9 @@ class PacketOutputStream {
 
     public PacketInputStream toPacketInputStream() {
         return toPacket().toStream(vm);
+    }
+
+    public void write(OutputStream outputStream) throws IOException {
+        toPacket().write(outputStream);
     }
 }

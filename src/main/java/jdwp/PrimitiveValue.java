@@ -303,4 +303,14 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
                 throw new AssertionError();
         }
     }
+
+    @Override
+    public boolean isPrimitive() {
+        return true;
+    }
+
+    @Override
+    public boolean isReference() {
+        return false;
+    }
 }
