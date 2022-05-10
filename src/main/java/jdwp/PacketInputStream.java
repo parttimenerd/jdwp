@@ -30,22 +30,24 @@ import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ObjectReference;
 import jdwp.Value.BasicScalarValue;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @SuppressWarnings("ALL")
+public
 class PacketInputStream {
 
-    public static final byte REPLY_FLAG = (byte)0x80;
+    public static final short REPLY_FLAG = 0x80;
     private final VM vm;
 
     // packet specific data
     private final int length;
     private final int id;
     /** if 0x80: reply packet, else command packet */
-    private final byte flags;
+    private final short flags;
 
     // request specific data
     private final byte commandSet;
@@ -63,7 +65,7 @@ class PacketInputStream {
         this.length = data.length;
         this.cursor = 4;
         this.id = readInt();
-        this.flags = readByte();
+        this.flags = (short)(readByte() & 0xff);
         if (isRequest()) {
             this.commandSet = readByte();
             this.command = readByte();
@@ -79,12 +81,19 @@ class PacketInputStream {
         return (bytes[0] << 24) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3];
     }
 
+    /** throws CloseStreamException if stream has been closed */
     public static PacketInputStream read(VM vm, InputStream input) throws IOException {
         byte[] lengthBytes = input.readNBytes(4);
+        if (lengthBytes.length != 4) {
+            throw new ClosedStreamException();
+        }
         int length = readInt(lengthBytes);
         byte[] data = new byte[length];
         System.arraycopy(lengthBytes, 0, data, 0, 4);
-        input.read(data, 4, length - 4);
+        int readBytes = input.read(data, 4, length - 4);
+        if (readBytes != length - 4) {
+            throw new ClosedStreamException();
+        }
         return new PacketInputStream(vm, data);
     }
 
@@ -293,7 +302,7 @@ class PacketInputStream {
         return errorCode;
     }
 
-    boolean isReply() {
+    public boolean isReply() {
         return flags == REPLY_FLAG;
     }
 
@@ -325,5 +334,9 @@ class PacketInputStream {
 
     public byte[] data() {
         return data;
+    }
+
+    public InputStream toInputStream() {
+        return new ByteArrayInputStream(data);
     }
 }

@@ -161,7 +161,7 @@ internal object CodeGeneration {
 
             addJavadoc("@see $requestClassName")
 
-            genCommon(cmd,"Type.REPLY", 0x8, fields)
+            genCommon(cmd,"Type.REPLY", 0x80, fields)
 
             `public static`(
                 pt("ReplyOrError", replyClassName), "parse",
