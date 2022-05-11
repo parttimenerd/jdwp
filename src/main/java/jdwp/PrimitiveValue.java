@@ -300,7 +300,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             case Tag.VOID:
                 return VoidValue.read(ps);
             default:
-                throw new AssertionError();
+                throw new AssertionError("Unknown tag " + tag);
         }
     }
 

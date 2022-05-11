@@ -78,7 +78,14 @@ class PacketInputStream {
     }
 
     private static int readInt(byte[] bytes) {
-        return (bytes[0] << 24) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3];
+        int b1,b2,b3,b4;
+
+        b1 = bytes[0] & 0xff;
+        b2 = bytes[1] & 0xff;
+        b3 = bytes[2] & 0xff;
+        b4 = bytes[3] & 0xff;
+
+        return ((b1 << 24) + (b2 << 16) + (b3 << 8) + b4);
     }
 
     /** throws CloseStreamException if stream has been closed */
@@ -334,6 +341,10 @@ class PacketInputStream {
 
     public byte[] data() {
         return data;
+    }
+
+    public int length() {
+        return length;
     }
 
     public InputStream toInputStream() {
