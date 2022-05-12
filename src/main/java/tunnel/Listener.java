@@ -118,4 +118,53 @@ public interface Listener {
             this.events.add(events);
         }
     }
+
+    /**
+     * Separates the execution of the listener caller from the listener execution.
+     * Blocking listener operations do not block the listener caller.
+     */
+    class ThreadedListener<L extends Listener> implements Listener {
+
+        private volatile boolean closed = false;
+        private final LinkedBlockingQueue<Either<WrappedPacket<Request<?>>,
+                Either<Pair<WrappedPacket<Request<?>>, WrappedPacket<ReplyOrError<?>>>,
+                        WrappedPacket<Events>>>> queue;
+
+        public ThreadedListener(L listener) {
+            this.queue = new LinkedBlockingQueue<>();
+            new Thread(() -> {
+                while (!closed) {
+                    try {
+                        var elem = queue.take();
+                        if (elem.isLeft()) {
+                            listener.onRequest(elem.getLeft());
+                        } else if (elem.getRight().isLeft()) {
+                            var p = elem.getRight().getLeft();
+                            listener.onReply(p.first(), p.second);
+                        } else {
+                            listener.onEvent(elem.getRight().getRight());
+                        }
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }).start();
+        }
+
+        public void onRequest(WrappedPacket<Request<?>> request) {
+            queue.add(Either.left(request));
+        }
+
+        public void onReply(WrappedPacket<Request<?>> request, WrappedPacket<ReplyOrError<?>> reply) {
+            queue.add(Either.right(Either.left(p(request, reply))));
+        }
+
+        public void onEvent(WrappedPacket<Events> event) {
+            queue.add(Either.right(Either.right(event)));
+        }
+
+        public void close() {
+            this.closed = true;
+        }
+    }
 }
