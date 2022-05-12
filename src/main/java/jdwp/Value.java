@@ -193,6 +193,12 @@ public abstract class Value {
         public void write(PacketOutputStream ps) {
             getKeys().forEach(k -> get(k).write(ps));
         }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "(" +
+                    getValues().stream().map(p -> p.second.toString()).collect(Collectors.joining(", ")) + ")";
+        }
     }
 
     /** fields and methods */
