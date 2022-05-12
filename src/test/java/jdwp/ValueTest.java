@@ -1,8 +1,10 @@
 package jdwp;
 
 import jdwp.AccessPath.TaggedAccessPath;
-import jdwp.Value.CombinedValue;
-import jdwp.Value.ListValue;
+import jdwp.ArrayReferenceCmds.GetValuesReply;
+import jdwp.PrimitiveValue.IntValue;
+import jdwp.Reference.ArrayReference;
+import jdwp.Value.*;
 import jdwp.VirtualMachineCmds.DisposeObjectsRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -66,5 +68,21 @@ public class ValueTest {
         assertTrue(vals.stream().allMatch(containedValues::containsBasicValue));
 
         assertEquals(Set.of(new TaggedAccessPath<>(combinedValue, "requests", 0, "object")), containedValues.getPaths(o1));
+    }
+
+    static Object[][] testToCodeMethodSource() {
+        return new Object[][] {
+                {new IntValue(1), "new IntValue(1)"},
+                {new Location(Reference.classType(1), Reference.method(2), wrap(1L)),
+                "new Location(new ClassTypeReference(1), new MethodReference(2), new LongValue(1))"},
+                {new GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057), new IntValue(0)))),
+                "new jdwp.ArrayReferenceCmds.GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057), new IntValue(0))))"}
+        };
+    }
+
+    @ParameterizedTest
+    @MethodSource("testToCodeMethodSource")
+    public void testToCodeMethods(Value value, String expectedCode) {
+        assertEquals(expectedCode, value.toCode());
     }
 }

@@ -11,4 +11,6 @@ public interface ParsedPacket {
     }
 
     void accept(CommandVisitor visitor);
+
+    String toCode();
 }

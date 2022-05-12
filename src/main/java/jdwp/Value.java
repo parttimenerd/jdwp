@@ -30,6 +30,9 @@ public abstract class Value {
 
     public abstract void write(PacketOutputStream ps);
 
+    /** Produces a verbose version of toString that can be copied into Java Code */
+    public abstract String toCode();
+
     public static <T extends Value> Type typeForClass(Class<T> klass) {
         if (klass.equals(BasicScalarValue.class)) {
             return Type.VALUE;
@@ -40,7 +43,7 @@ public abstract class Value {
     static void registerType(Class<? extends Value> klass, Type type) {
         classTypeMap.put(klass, type);
     }
-    
+
     public enum Type {
         THREAD(Tag.THREAD),
         LIST(Tag.ARRAY),
@@ -116,6 +119,10 @@ public abstract class Value {
                     return Type.ARRAY;
             }
             return forPrimitive(tag);
+        }
+
+        String toCode() {
+            return "Type." + name();
         }
     }
 
@@ -199,6 +206,12 @@ public abstract class Value {
             return getClass().getSimpleName() + "(" +
                     getValues().stream().map(p -> p.second.toString()).collect(Collectors.joining(", ")) + ")";
         }
+
+        @Override
+        public String toCode() {
+            return String.format("new %s(%s)", getClass().getSimpleName(),
+                    getValues().stream().map(p -> p.second.toCode()).collect(Collectors.joining(", ")));
+        }
     }
 
     /** fields and methods */
@@ -265,6 +278,12 @@ public abstract class Value {
         @Override
         public String toString() {
             return entryType.name() + values.toString();
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("new %s<>(%s, List.of(%s))", getClass().getSimpleName(), type.toCode(),
+                    values.stream().map(v -> v.toCode()).collect(Collectors.joining(", ")));
         }
 
         @NotNull
@@ -428,6 +447,11 @@ public abstract class Value {
         public abstract boolean isPrimitive();
 
         public abstract boolean isReference();
+
+        @Override
+        public String toCode() {
+            return String.format("new %s(%s)", getClass().getSimpleName(), value);
+        }
     }
 
     /**
@@ -477,6 +501,12 @@ public abstract class Value {
         public BasicGroup getGroup() {
             return BasicGroup.BYTE_LIST;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("new ByteList(%s)",
+                    Arrays.asList(bytes).stream().map(b -> "" + b).collect(Collectors.joining(", ")));
+        }
     }
 
     @Getter
@@ -502,6 +532,11 @@ public abstract class Value {
         @Override
         public BasicGroup getGroup() {
             return value.getGroup();
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("new TaggedBasicValue()"); // currently not supported
         }
     }
 }

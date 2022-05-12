@@ -36,6 +36,24 @@ public interface Listener {
 
     /** prints all packages */
     class LoggingListener implements Listener {
+
+        public enum Mode {
+            STRING,
+            CODE
+        }
+
+        private final Mode mode;
+        private final int maxLineLength;
+
+        public LoggingListener(Mode mode, int maxLineLength) {
+            this.mode = mode;
+            this.maxLineLength = maxLineLength;
+        }
+
+        public LoggingListener() {
+            this(Mode.STRING, 200);
+        }
+
         @Override
         public void onRequest(Request<?> request) {
             print("Request", request);
@@ -52,11 +70,13 @@ public interface Listener {
         }
 
         void print(String prefix, ParsedPacket packet) {
-            var ps = packet.toString();
-            if (ps.length() > 200) {
-                ps = ps.substring(0, 200) + String.format("... (%d more)", ps.length() - 200);
+            String pre = String.format("%.3f: %10s[%7d]: ", System.currentTimeMillis() / 1000.0, prefix, packet.getId());
+            var ps = mode == Mode.STRING ? packet.toString() : packet.toCode();
+            int avLength = (maxLineLength == -1 ? Integer.MAX_VALUE : maxLineLength) - pre.length();
+            if (ps.length() > avLength) {
+                ps = ps.substring(0, avLength) + String.format("... (%d more)", ps.length() - 200);
             }
-            System.out.printf("%.3f: %10s[%7d]: %s\n", System.currentTimeMillis() / 1000.0, prefix, packet.getId(), ps);
+            System.out.println(pre + ps);
         }
     }
 

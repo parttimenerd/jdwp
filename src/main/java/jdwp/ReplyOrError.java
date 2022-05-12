@@ -12,7 +12,7 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
     private final R reply;
     private final short errorCode;
 
-    public ReplyOrError(int id, short flags, R reply) {
+    public ReplyOrError(int id, short flags, @Nullable R reply) {
         this.reply = reply;
         this.errorCode = 0;
         this.id = id;
@@ -62,6 +62,14 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
             return "ErrorReply(" + errorCode + ")";
         }
         return reply.toString();
+    }
+
+    @Override
+    public String toCode() {
+        if (hasError()) {
+            return String.format("new ReplyOrError(%d, %d)", id, errorCode);
+        }
+        return String.format("new ReplyOrError(%d, %s)", id, reply.toCode());
     }
 
     @Override
