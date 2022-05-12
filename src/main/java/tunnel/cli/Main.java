@@ -1,4 +1,4 @@
-package tunnel;
+package tunnel.cli;
 
 
 import ch.qos.logback.classic.Logger;
@@ -7,13 +7,13 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 import picocli.CommandLine;
 import picocli.CommandLine.*;
-import picocli.CommandLine.Model.CommandSpec;
 
 import java.net.InetSocketAddress;
 
 /**
  * Main interface for the tunnel
  */
+@SuppressWarnings("CanBeFinal")
 @Command(name = "tunnel", mixinStandardHelpOptions = true, description = "tunnel",
         subcommands = {PacketLogger.class})
 public class Main {
@@ -45,6 +45,7 @@ public class Main {
     @Getter
     private InetSocketAddress jvmAddress;
 
+    @SuppressWarnings("FieldMayBeFinal")
     @Option(names = "--verbose")
     private Level logLevel = Level.INFO;
 

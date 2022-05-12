@@ -65,7 +65,7 @@
                     <archive>
                         <manifestEntries>
                             <Premain-Class>tunnel.agent.TunnelStartingAgent</Premain-Class>
-                            <Main-Class>tunnel.Main</Main-Class>
+                            <Main-Class>tunnel.cli.Main</Main-Class>
                         </manifestEntries>
                     </archive>
                 </configuration>
@@ -123,9 +123,10 @@
             <version>${logback.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.spencerwi</groupId>
-            <artifactId>Either.java</artifactId>
-            <version>2.9.0</version>
+            <groupId>com.github.rolve</groupId>
+            <artifactId>java-processes</artifactId>
+            <version>7517d8b</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <dependencyManagement>
@@ -139,5 +140,10 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
 </project>

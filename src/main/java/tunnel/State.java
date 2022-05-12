@@ -1,10 +1,9 @@
 package tunnel;
 
-import com.spencerwi.either.Either;
 import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.EventCommon;
-import lombok.Getter;
+import tunnel.util.Either;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,79 +22,6 @@ public class State {
         WrappedPacket(R packet, long time) {
             this.packet = packet;
             this.time = time;
-        }
-    }
-
-    interface Listener {
-
-        default void onRequest(WrappedPacket<Request<?>> request) {
-            onRequest(request.packet);
-        }
-
-        default void onRequest(Request<?> request) {
-        }
-
-        default void onReply(WrappedPacket<Request<?>> request, WrappedPacket<ReplyOrError<?>> reply) {
-            onReply(reply.packet);
-        }
-
-        default void onReply(ReplyOrError<?> reply) {
-        }
-
-        default void onEvent(WrappedPacket<Events> event) {
-            onEvent(event.packet);
-        }
-
-        default void onEvent(Events events) {
-        }
-    }
-
-    public static class LoggingListener implements Listener {
-        @Override
-        public void onRequest(Request<?> request) {
-            print("Request", request);
-        }
-
-        @Override
-        public void onReply(ReplyOrError<?> reply) {
-            print("Reply", reply);
-        }
-
-        @Override
-        public void onEvent(Events events) {
-            print("Event", events);
-        }
-
-        void print(String prefix, ParsedPacket packet) {
-            var ps = packet.toString();
-            if (ps.length() > 200) {
-                ps = ps.substring(0, 200) + String.format("... (%d more)", ps.length() - 200);
-            }
-            System.out.printf("%.3f: %10s[%7d]: %s\n", System.currentTimeMillis() / 1000.0, prefix, packet.getId(), ps);
-        }
-    }
-
-    public static class CollectingListener implements Listener {
-        @Getter
-        private final List<Request<?>> requests = new ArrayList<>();
-        @Getter
-        private final List<ReplyOrError<?>> replies = new ArrayList<>();
-        @Getter
-        private final List<Events> events = new ArrayList<>();
-
-        @Override
-        public void onRequest(Request<?> request) {
-            requests.add(request);
-        }
-
-        @Override
-        public void onReply(ReplyOrError<?> reply) {
-            replies.add(reply);
-        }
-
-        @Override
-        public void onEvent(Events events) {
-            this.events.add(events);
         }
     }
 
@@ -138,8 +64,9 @@ public class State {
         listeners.forEach(l -> l.onEvent(event));
     }
 
-    public void addListener(Listener listener) {
+    public State addListener(Listener listener) {
         listeners.add(listener);
+        return this;
     }
 
     public Request<?> readRequest(InputStream inputStream) throws IOException {

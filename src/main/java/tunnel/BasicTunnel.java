@@ -1,59 +1,50 @@
 package tunnel;
 
 import ch.qos.logback.classic.Logger;
-import com.spencerwi.either.Either;
-import jdwp.*;
 import jdwp.EventCmds.Events;
-import jdwp.VirtualMachineCmds.IDSizesRequest;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.ParentCommand;
-import tunnel.State.LoggingListener;
-import tunnel.agent.TunnelStartingAgent;
+import jdwp.ReplyOrError;
+import jdwp.Request;
+import tunnel.cli.Main;
+import tunnel.util.Either;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Arrays;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * This is the most basic endpoint that just logs a packets that go through it and
- * tries to parse them.
+ * Basic tunnel that works without threads.
+ * Be aware that blocking in a state listener blocks everything
  */
-@Command(name = "logger", mixinStandardHelpOptions = true,
-        description = "Log all packets that go through this tunnel.")
-public class PacketLogger implements Runnable {
+public class BasicTunnel {
 
     private final static Logger LOG = Main.LOG;
 
-    @ParentCommand
-    private Main mainConfig;
+    private final State state;
+    private final InetSocketAddress ownAddress;
+    private final InetSocketAddress jvmAddress;
 
-    private final State state = new State();
-
-    private final AtomicInteger startedThreadCount = new AtomicInteger(0);
-
-    public static PacketLogger create(Main mainConfig) {
-        var pl = new PacketLogger();
-        pl.mainConfig = mainConfig;
-        return pl;
+    BasicTunnel(State state, InetSocketAddress ownAddress, InetSocketAddress jvmAddress) {
+        this.state = state;
+        this.ownAddress = ownAddress;
+        this.jvmAddress = jvmAddress;
     }
 
-    @Override
+    public BasicTunnel(InetSocketAddress ownAddress, InetSocketAddress jvmAddress) {
+        this(new State(), ownAddress, jvmAddress);
+    }
+
+    public BasicTunnel addListener(Listener listener) {
+        this.state.addListener(listener);
+        return this;
+    }
+
     public void run() {
-        mainConfig.setDefaultLogLevel();
-        LOG.info("Starting tunnel from {} to {}", mainConfig.getJvmAddress(), mainConfig.getOwnAddress());
-        startServer();
-    }
-
-    public void startServer() {
         try {
-            state.addListener(new LoggingListener());
-
-            var ownServer = new ServerSocket(mainConfig.getOwnAddress().getPort());
+            var ownServer = new ServerSocket(ownAddress.getPort());
             while (true) {
                 LOG.info("Try to accept");
                 Socket clientSocket = ownServer.accept();
@@ -61,8 +52,7 @@ public class PacketLogger implements Runnable {
                 var clientInputStream = clientSocket.getInputStream();
                 var clientOutputStream = clientSocket.getOutputStream();
                 LOG.info("try to connect to JVM");
-                var jvmSocket = new Socket((String)null,
-                        mainConfig.getJvmAddress().getPort());
+                var jvmSocket = new Socket((String) null, jvmAddress.getPort());
                 LOG.info("connected jvm");
                 var jvmInputStream = jvmSocket.getInputStream();
                 var jvmOutputStream = jvmSocket.getOutputStream();
@@ -75,7 +65,9 @@ public class PacketLogger implements Runnable {
         }
     }
 
-    /** JDWP handshake, see spec */
+    /**
+     * JDWP handshake, see spec
+     */
     private void handshake(InputStream clientInputStream, OutputStream clientOutputStream,
                            InputStream jvmInputStream, OutputStream jvmOutputStream) throws IOException {
         LOG.info("Attempt JDWP-Handshake");
@@ -97,31 +89,39 @@ public class PacketLogger implements Runnable {
         LOG.info("JDWP-Handshake was successful");
     }
 
-    private void readWriteLoop(InputStream clientInputStream, OutputStream clientOutputStream, InputStream jvmInputStream, OutputStream jvmOutputStream) throws IOException {
+    /**
+     * Loops over the client and jvm input streams, processing and propagating the incoming and outgoing packets.
+     */
+    private void readWriteLoop(InputStream clientInputStream, OutputStream clientOutputStream,
+                               InputStream jvmInputStream, OutputStream jvmOutputStream) throws IOException {
         while (true) {
             var clientRequest = readClientRequest(clientInputStream);
             if (clientRequest.isPresent()) {
-                //LOG.info("got request " + clientRequest.get());
                 writeJvmRequest(jvmOutputStream, clientRequest.get());
             }
             var reply = readJvmReply(jvmInputStream);
             if (reply.isPresent()) {
-                //LOG.info("got reply " + (reply.get().isLeft() ? reply.get().getLeft().toString() : reply.get().getRight().toString()));
                 writeClientReply(clientOutputStream, reply.get());
             }
-            Thread.yield();
+            if (!hasDataAvailable(clientInputStream) && !hasDataAvailable(jvmInputStream)) {
+                Thread.yield(); // hint to the scheduler that other work could be done
+            }
         }
     }
 
+    private boolean hasDataAvailable(InputStream inputStream) throws IOException {
+        return inputStream.available() >= 11; // 11 bytes is the minimum size of a JDWP packet
+    }
+
     private Optional<Request<?>> readClientRequest(InputStream clientInputStream) throws IOException {
-        if (clientInputStream.available() > 0) {
+        if (hasDataAvailable(clientInputStream)) {
             return Optional.of(state.readRequest(clientInputStream));
         }
         return Optional.empty();
     }
 
     private Optional<Either<Events, ReplyOrError<?>>> readJvmReply(InputStream jvmInputStream) throws IOException {
-        if (jvmInputStream.available() > 0) {
+        if (hasDataAvailable(jvmInputStream)) {
             return Optional.of(state.readReply(jvmInputStream));
         }
         return Optional.empty();
@@ -135,6 +135,9 @@ public class PacketLogger implements Runnable {
         state.writeRequest(jvmOutputStream, request);
     }
 
+    /**
+     * helpful for debugging
+     */
     static void printStream(String prefix, InputStream inputStream) throws IOException {
         int r;
         while ((r = inputStream.read()) != -1) {

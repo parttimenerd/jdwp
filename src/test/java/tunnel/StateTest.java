@@ -6,7 +6,7 @@ import jdwp.VirtualMachineCmds.VersionReply;
 import jdwp.VirtualMachineCmds.VersionRequest;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
-import tunnel.State.CollectingListener;
+import tunnel.Listener.CollectingListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
