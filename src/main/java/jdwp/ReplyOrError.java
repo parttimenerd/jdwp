@@ -38,27 +38,27 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
         this(reply.getId(), Packet.Reply, reply);
     }
 
-    public boolean hasError() {
+    public boolean isError() {
         return reply == null;
     }
 
-    public boolean hasReply() {
+    public boolean isReply() {
         return reply != null;
     }
 
     public short getErrorCode() {
-        assert hasError();
+        assert isError();
         return errorCode;
     }
 
     public R getReply() {
-        assert hasReply();
+        assert isReply();
         return reply;
     }
 
     @Override
     public String toString() {
-        if (hasError()) {
+        if (isError()) {
             return "ErrorReply(" + errorCode + ")";
         }
         return reply.toString();
@@ -66,10 +66,10 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
 
     @Override
     public String toCode() {
-        if (hasError()) {
-            return String.format("new ReplyOrError(%d, %d)", id, errorCode);
+        if (isError()) {
+            return String.format("new ReplyOrError<>(%d, %d)", id, errorCode);
         }
-        return String.format("new ReplyOrError(%d, %s)", id, reply.toCode());
+        return String.format("new ReplyOrError<>(%d, %s)", id, reply.toCode());
     }
 
     @Override
@@ -84,7 +84,7 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
 
     @Override
     public Packet toPacket(VM vm) {
-        if (hasError()) {
+        if (isError()) {
             Packet packet = new Packet();
             packet.flags = flags;
             packet.id = id;

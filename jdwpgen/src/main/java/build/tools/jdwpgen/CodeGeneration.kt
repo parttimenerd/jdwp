@@ -378,6 +378,7 @@ internal object CodeGeneration {
             genCombinedTypeGet(listOf(kindNode) + fields)
 
             genToString(alt.name(), fields)
+            genToCode(alt.name(), fields)
             genEquals(alt.name(), fields)
             genHashCode(fields)
             genWrite(listOf(kindNode) + fields)
@@ -404,6 +405,17 @@ internal object CodeGeneration {
         } else {
             _return("String.format(" +
                     (listOf("\"$name(${fields.joinToString(", ") { "${it.name()}=%s" }})\"") + fields.map { it.name() }).joinToString(", ") + ")"
+            )
+        }
+    }
+
+    private fun TypeSpec.Builder.genToCode(name: String, fields: List<TypeNode.AbstractTypeNode>) = `public`(String::class, "toCode") {
+        `@Override`()
+        if (fields.isEmpty()) {
+            _return("new $name()".S)
+        } else {
+            _return("String.format(" +
+                    (listOf("\"new $name(${fields.joinToString(", ") { "%s" }})\"") + fields.map { "${it.name()}.toCode()" }).joinToString(", ") + ")"
             )
         }
     }

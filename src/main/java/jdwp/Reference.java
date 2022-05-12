@@ -16,6 +16,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         super(type, ref);
     }
 
+    @Override
+    public String toCode() {
+        return String.format("new %s(%sL)", getClass().getSimpleName(), value);
+    }
+
     public void write(PacketOutputStream ps) {
         ps.writeObjectRef(getValue());
     }
@@ -126,7 +131,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
     }
 
     public static class ThreadReference extends Reference {
-        ThreadReference(long ref) {
+        public ThreadReference(long ref) {
             super(Type.THREAD, ref);
         }
 
@@ -239,7 +244,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
     }
 
     public static class ClassReference extends TypeObjectReference {
-        ClassReference(long ref) {
+        public ClassReference(long ref) {
             super(ref);
         }
 
@@ -269,7 +274,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
     }
 
     public static class MethodReference extends Reference {
-        MethodReference(long val) {
+        public MethodReference(long val) {
             super(Type.OBJECT, val);
         }
 

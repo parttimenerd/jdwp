@@ -33,6 +33,12 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
 
     public static StringValue wrap(String val) { return new StringValue(val); }
 
+    @Override
+    public String toCode() {
+        return String.format("PrimitiveValue.wrap((%s)%s)",
+                getClass().getSimpleName().replace("Value", "").toLowerCase(), value);
+    }
+
     public static class BooleanValue extends jdwp.PrimitiveValue<Boolean> {
 
         static {
@@ -54,6 +60,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         @Override
         public BasicGroup getGroup() {
             return BasicGroup.BOOLEAN;
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("PrimitiveValue.wrap(%s)", value);
         }
     }
 
@@ -151,6 +162,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         public BasicGroup getGroup() {
             return BasicGroup.INT;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("PrimitiveValue.wrap(%s)", value);
+        }
     }
 
     public static class LongValue extends jdwp.PrimitiveValue<Long> {
@@ -223,6 +239,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         public BasicGroup getGroup() {
             return BasicGroup.DOUBLE;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("PrimitiveValue.wrap(%s)", value);
+        }
     }
 
     public static class StringValue extends PrimitiveValue<String> {
@@ -246,6 +267,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         @Override
         public BasicGroup getGroup() {
             return BasicGroup.STRING;
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("PrimitiveValue.wrap(%s)", value);
         }
     }
 

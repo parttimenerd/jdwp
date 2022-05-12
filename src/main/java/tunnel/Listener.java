@@ -2,13 +2,19 @@ package tunnel;
 
 import jdwp.EventCmds.Events;
 import jdwp.ParsedPacket;
+import jdwp.Reply;
 import jdwp.ReplyOrError;
 import jdwp.Request;
+import jdwp.util.Pair;
 import lombok.Getter;
 import tunnel.State.WrappedPacket;
+import tunnel.util.Either;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
+
+import static jdwp.util.Pair.p;
 
 /** JDWP packet listener */
 public interface Listener {
@@ -21,7 +27,15 @@ public interface Listener {
     }
 
     default void onReply(WrappedPacket<Request<?>> request, WrappedPacket<ReplyOrError<?>> reply) {
-        onReply(reply.packet);
+        onReply(request.packet, reply.packet);
+    }
+
+    default void onReply(Request<?> request, Reply reply) {
+        onReply(request, new ReplyOrError<>(reply));
+    }
+
+    default void onReply(Request<?> request, ReplyOrError<?> reply) {
+        onReply(reply);
     }
 
     default void onReply(ReplyOrError<?> reply) {

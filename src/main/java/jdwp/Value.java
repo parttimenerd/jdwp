@@ -6,6 +6,7 @@ import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
+import tunnel.util.ToCode;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -14,7 +15,7 @@ import java.util.stream.Stream;
 import static jdwp.JDWP.Tag;
 
 @SuppressWarnings("ALL")
-public abstract class Value {
+public abstract class Value implements ToCode {
 
     protected static final Map<Class<? extends Value>, Type> classTypeMap = new HashMap<>();
 
@@ -30,9 +31,6 @@ public abstract class Value {
 
     public abstract void write(PacketOutputStream ps);
 
-    /** Produces a verbose version of toString that can be copied into Java Code */
-    public abstract String toCode();
-
     public static <T extends Value> Type typeForClass(Class<T> klass) {
         if (klass.equals(BasicScalarValue.class)) {
             return Type.VALUE;
@@ -44,7 +42,7 @@ public abstract class Value {
         classTypeMap.put(klass, type);
     }
 
-    public enum Type {
+    public enum Type implements ToCode {
         THREAD(Tag.THREAD),
         LIST(Tag.ARRAY),
         REQUEST(-2),
@@ -121,7 +119,7 @@ public abstract class Value {
             return forPrimitive(tag);
         }
 
-        String toCode() {
+        public String toCode() {
             return "Type." + name();
         }
     }
@@ -137,6 +135,10 @@ public abstract class Value {
 
         List<Pair<K, Value>> getValues() {
             return getKeyStream().map(k -> Pair.p(k, get(k))).collect(Collectors.toList());
+        }
+
+        boolean hasValues() {
+            return getValues().size() > 0;
         }
 
         protected Value keyError(Object key) {
@@ -212,6 +214,11 @@ public abstract class Value {
             return String.format("new %s(%s)", getClass().getSimpleName(),
                     getValues().stream().map(p -> p.second.toCode()).collect(Collectors.joining(", ")));
         }
+
+        @Override
+        boolean hasValues() {
+            return getKeys().size() > 0;
+        }
     }
 
     /** fields and methods */
@@ -221,13 +228,13 @@ public abstract class Value {
         final Type entryType;
         final List<T> values;
 
-        protected ListValue(Type entryType, List<T> values) {
+        public ListValue(Type entryType, List<T> values) {
             super(Type.LIST);
             this.entryType = entryType;
             this.values = values;
         }
 
-        protected ListValue(Type entryType, T... values) {
+        public ListValue(Type entryType, T... values) {
             this(entryType, List.of(values));
         }
 
@@ -290,6 +297,11 @@ public abstract class Value {
         @Override
         public Iterator<T> iterator() {
             return values.iterator();
+        }
+
+        @Override
+        boolean hasValues() {
+            return size() > 0;
         }
     }
 

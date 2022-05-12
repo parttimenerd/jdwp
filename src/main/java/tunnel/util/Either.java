@@ -9,7 +9,7 @@ import java.util.Optional;
 
 @Getter
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class Either<L, R> {
+public class Either<L, R> implements ToCode {
 
     public enum Contains {
         LEFT, RIGHT
@@ -46,6 +46,11 @@ public class Either<L, R> {
     @Override
     public String toString() {
         return isLeft() ? left.toString() : right.toString();
+    }
+
+    public String toCode() {
+        return isLeft() ? String.format("Either.left(%s)", ((ToCode)left).toCode()) :
+                String.format("Either.right(%s)", ((ToCode)right).toCode());
     }
 
     @SuppressWarnings("unchecked")

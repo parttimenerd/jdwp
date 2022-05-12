@@ -83,7 +83,7 @@ public class State {
             var request = getUnfinishedRequest(ps.id());
             var reply = request.packet.parseReply(ps);
             addReply(new WrappedPacket<>(reply, System.currentTimeMillis()));
-            if (reply.hasReply()) {
+            if (reply.isReply()) {
                 vm.captureInformation(request.packet, reply.getReply());
             }
             return Either.right(reply);

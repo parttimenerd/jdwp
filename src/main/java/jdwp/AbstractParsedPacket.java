@@ -27,9 +27,12 @@ public abstract class AbstractParsedPacket extends CombinedValue implements Pars
 
     @Override
     public String toCode() {
-        return String.format("new %s(%d, %s)",
-                getClass().getCanonicalName(),
-                id,
-                getValues().stream().map(p -> p.second.toCode()).collect(Collectors.joining(", ")));
+        if (hasValues()) {
+            return String.format("new %s(%d, %s)",
+                    getClass().getCanonicalName(),
+                    id,
+                    getValues().stream().map(p -> p.second.toCode()).collect(Collectors.joining(", ")));
+        }
+        return String.format("new %s(%d)", getClass().getCanonicalName(), id);
     }
 }
