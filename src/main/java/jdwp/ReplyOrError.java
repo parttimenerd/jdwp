@@ -1,6 +1,7 @@
 package jdwp;
 
 import jdwp.JDWP.CommandVisitor;
+import jdwp.Value.CombinedValue;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
@@ -121,5 +122,13 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
         result = 31 * result + (reply != null ? reply.hashCode() : 0);
         result = 31 * result + (int) errorCode;
         return result;
+    }
+
+    @Override
+    public CombinedValue asCombined() {
+        if (reply != null) {
+            return reply.asCombined();
+        }
+        return null;
     }
 }

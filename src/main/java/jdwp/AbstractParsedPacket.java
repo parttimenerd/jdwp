@@ -35,4 +35,8 @@ public abstract class AbstractParsedPacket extends CombinedValue implements Pars
         }
         return String.format("new %s(%d)", getClass().getCanonicalName(), id);
     }
+
+    public CombinedValue asCombined() {
+        return this;
+    }
 }

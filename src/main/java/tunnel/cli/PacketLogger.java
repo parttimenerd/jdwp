@@ -7,7 +7,7 @@ import picocli.CommandLine.ParentCommand;
 import tunnel.BasicTunnel;
 import tunnel.Listener.LoggingListener;
 import tunnel.Listener.LoggingListener.Mode;
-import tunnel.Partitioner;
+import tunnel.synth.Partitioner;
 
 /**
  * This is the most basic endpoint that just logs a packets that go through it and

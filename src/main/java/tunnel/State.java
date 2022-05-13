@@ -1,8 +1,8 @@
 package tunnel;
 
-import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.EventCommon;
+import jdwp.*;
 import tunnel.util.Either;
 
 import java.io.IOException;
@@ -15,11 +15,11 @@ import java.util.*;
  */
 public class State {
 
-    static class WrappedPacket<R> {
+    public static class WrappedPacket<R> {
         final R packet;
         final long time;
 
-        WrappedPacket(R packet, long time) {
+        public WrappedPacket(R packet, long time) {
             this.packet = packet;
             this.time = time;
         }
@@ -40,12 +40,12 @@ public class State {
         this(new VM(0));
     }
 
-    synchronized void addRequest(WrappedPacket<Request<?>> request) {
+    public void addRequest(WrappedPacket<Request<?>> request) {
         unfinished.put(request.packet.getId(), request);
         listeners.forEach(l -> l.onRequest(request));
     }
 
-    synchronized WrappedPacket<Request<?>> getUnfinishedRequest(int id) {
+    public WrappedPacket<Request<?>> getUnfinishedRequest(int id) {
         var ret = unfinished.get(id);
         if (ret == null) {
             throw new NoSuchElementException("No request with id " + id);
@@ -53,14 +53,14 @@ public class State {
         return ret;
     }
 
-    synchronized void addReply(WrappedPacket<ReplyOrError<?>> reply) {
+    public void addReply(WrappedPacket<ReplyOrError<?>> reply) {
         var id = reply.packet.getId();
         var request = getUnfinishedRequest(id);
         listeners.forEach(l -> l.onReply(request, reply));
         unfinished.remove(id);
     }
 
-    void addEvent(WrappedPacket<Events> event) {
+    public void addEvent(WrappedPacket<Events> event) {
         listeners.forEach(l -> l.onEvent(event));
     }
 
@@ -115,7 +115,7 @@ public class State {
         request.toPacket(vm).write(outputStream);
     }
 
-    synchronized void submitRequest(OutputStream outputStream, Request<?> request) throws IOException {
+    void submitRequest(OutputStream outputStream, Request<?> request) throws IOException {
         addRequest(new WrappedPacket<>(request, System.currentTimeMillis()));
         request.toPacket(vm).write(outputStream);
     }

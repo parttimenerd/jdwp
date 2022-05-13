@@ -7,6 +7,8 @@ import jdwp.PrimitiveValue.IntValue;
 import jdwp.Reference.ArrayReference;
 import jdwp.Value.*;
 import jdwp.VirtualMachineCmds.DisposeObjectsRequest;
+import jdwp.VirtualMachineCmds.IDSizesReply;
+import jdwp.VirtualMachineCmds.IDSizesRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -75,11 +77,11 @@ public class ValueTest {
         return new Object[][] {
                 {wrap(1), "PrimitiveValue.wrap(1)"},
                 {new Location(Reference.classType(1), Reference.method(2), wrap(1L)),
-                "new Location(new ClassTypeReference(1), new MethodReference(2), PrimitiveValue.wrap((long)1))"},
+                "new Location(new ClassTypeReference(1L), new MethodReference(2L), PrimitiveValue.wrap((long)1))"},
                 {new GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057), new IntValue(0)))),
-                "new jdwp.ArrayReferenceCmds.GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057), PrimitiveValue.wrap(0))))"},
+                "new jdwp.ArrayReferenceCmds.GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057L), PrimitiveValue.wrap(0))))"},
                 {new VMStart(wrap(1), Reference.thread(2)),
-                "new VMStart(PrimitiveValue.wrap(1), new ThreadReference(2))"}
+                "new VMStart(PrimitiveValue.wrap(1), new ThreadReference(2L))"}
         };
     }
 
@@ -87,5 +89,21 @@ public class ValueTest {
     @MethodSource("testToCodeMethodSource")
     public void testToCodeMethods(Value value, String expectedCode) {
         assertEquals(expectedCode, value.toCode());
+    }
+
+
+    @Test
+    public void testToShortString() {
+        assertEquals("VirtualMachineCmds.IDSizesRequest(11)", new IDSizesRequest(11).toShortString());
+    }
+
+    @Test
+    public void testContainedValueOrder() {
+        var location = new IDSizesReply(1, wrap(1), wrap(1), wrap(2), wrap(1), wrap(2));
+        var containedValues = location.getContainedValues();
+        assertEquals(new TaggedAccessPath<>(location, "fieldIDSize"),
+                containedValues.getFirstTaggedValue(wrap(1)).getPath());
+        assertEquals(new TaggedAccessPath<>(location, "objectIDSize"),
+                containedValues.getFirstTaggedValue(wrap(2)).getPath());
     }
 }

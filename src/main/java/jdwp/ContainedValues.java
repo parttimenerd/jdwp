@@ -1,13 +1,10 @@
 package jdwp;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import jdwp.AccessPath.TaggedAccessPath;
 import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
 
-import java.util.Collections;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -19,27 +16,32 @@ public class ContainedValues {
 
     /** parent to ask if something is not found, removes need for cloning */
     private final ContainedValues parent;
-    private final Multimap<BasicValue, TaggedBasicValue<?>> map;
+    /** assumption: order is the order in the object */
+    private final Map<BasicValue, List<TaggedBasicValue<?>>> map;
 
-    public ContainedValues(Multimap<BasicValue, TaggedBasicValue<?>> map) {
+    public ContainedValues(Map<BasicValue, List<TaggedBasicValue<?>>> map) {
         this(null, map);
     }
 
     public ContainedValues() {
-        this(HashMultimap.create());
+        this(new HashMap<>());
     }
 
-    public ContainedValues(ContainedValues parent, Multimap<BasicValue, TaggedBasicValue<?>> map) {
+    public ContainedValues(ContainedValues parent, Map<BasicValue, List<TaggedBasicValue<?>>> map) {
         this.parent = parent;
         this.map = map;
     }
 
     public ContainedValues(ContainedValues parent) {
-        this(parent, HashMultimap.create());
+        this(parent, new HashMap<>());
     }
 
     public void add(TaggedBasicValue<?> value) {
-        this.map.put(value.value, value);
+        put(value.value, value);
+    }
+
+    private void put(BasicValue value, TaggedBasicValue<?> tagged) {
+        map.computeIfAbsent(value, v -> new ArrayList<>()).add(tagged);
     }
 
     public boolean containsBasicValue(BasicValue value) {
@@ -53,5 +55,14 @@ public class ContainedValues {
 
     public Set<TaggedAccessPath<?>> getPaths(BasicValue value) {
         return map.containsKey(value) ? map.get(value).stream().map(v -> v.path).collect(Collectors.toSet()) : Collections.emptySet();
+    }
+
+    public TaggedBasicValue<?> getFirstTaggedValue(BasicValue value) {
+        assert containsBasicValue(value);
+        return map.get(value).get(0);
+    }
+
+    public Collection<BasicValue> getBasicValues() {
+        return map.keySet();
     }
 }

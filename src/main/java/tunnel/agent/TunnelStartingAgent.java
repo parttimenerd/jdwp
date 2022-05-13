@@ -1,19 +1,8 @@
 package tunnel.agent;
 
-import ch.qos.logback.classic.Logger;
-import com.sun.jdi.VirtualMachineManager;
 import lombok.AllArgsConstructor;
-import org.slf4j.LoggerFactory;
-import org.slf4j.event.Level;
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.lang.ProcessBuilder.Redirect;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.nio.file.Path;
@@ -23,7 +12,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * The sole purpose of this agent is to call a JVM with its own JAR with the passed

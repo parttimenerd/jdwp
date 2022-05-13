@@ -159,6 +159,7 @@ public abstract class Value implements ToCode {
             return Objects.hash(getValues().toArray());
         }
 
+        /** returns the tagged values in pre-order */
         public Stream<TaggedBasicValue<?>> getTaggedValues() {
             return getTaggedValues(new TaggedAccessPath<>(this));
         }

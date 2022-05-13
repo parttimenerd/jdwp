@@ -1,19 +1,6 @@
 package tunnel;
 
-import jdwp.EventInstance;
-import jdwp.Reply;
-import jdwp.Request;
-import jdwp.Value;
-import jdwp.util.Pair;
-import lombok.Getter;
-import org.jetbrains.annotations.Nullable;
-
 import java.net.InetSocketAddress;
-import java.net.Proxy;
-import java.net.Proxy.Type;
-import java.net.Socket;
-import java.util.List;
-import java.util.Map;
 
 public class Tunnel {
 

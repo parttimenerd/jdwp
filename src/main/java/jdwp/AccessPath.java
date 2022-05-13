@@ -21,7 +21,7 @@ public class AccessPath extends AbstractList<Object> {
     /** AccessPath with root packet */
     public static class TaggedAccessPath<T extends WalkableValue<?>> extends AccessPath {
 
-        public final T root;
+        private final T root;
 
         TaggedAccessPath(T root) {
             this.root = root;
@@ -64,7 +64,7 @@ public class AccessPath extends AbstractList<Object> {
         }
     }
 
-    public final Object[] path;
+    protected final Object[] path;
 
     public AccessPath() {
         this.path = new Object[0];

@@ -1,4 +1,4 @@
-package tunnel;
+package tunnel.synth;
 
 import jdwp.EventCmds.Events.VMStart;
 import jdwp.Reference.ClassReference;
@@ -9,7 +9,9 @@ import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import jdwp.VirtualMachineCmds.IDSizesReply;
 import org.junit.jupiter.api.Test;
-import tunnel.Partitioner.Partition;
+import tunnel.State;
+import tunnel.synth.Partitioner;
+import tunnel.synth.Partitioner.Partition;
 import tunnel.State.WrappedPacket;
 
 import java.util.ArrayList;

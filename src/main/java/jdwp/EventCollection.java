@@ -99,5 +99,10 @@ public interface EventCollection extends Request<NullReply>, Reply {
         boolean containsKey(String key) {
             return false;
         }
+
+        @Override
+        public CombinedValue asCombined() {
+            return this;
+        }
     }
 }
