@@ -72,7 +72,7 @@ public class Location extends CombinedValue {
     }
 
     @Override
-    List<Pair<String, Value>> getValues() {
+    public List<Pair<String, Value>> getValues() {
         return List.of(p("declaringType", declaringType), p("methodRef", methodRef), p("codeIndex", codeIndex));
     }
 }

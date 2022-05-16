@@ -129,15 +129,15 @@ public abstract class Value implements ToCode {
             super(type);
         }
 
-        abstract Stream<K> getKeyStream();
-        abstract Value get(K key);
+        public abstract Stream<K> getKeyStream();
+        public abstract Value get(K key);
         protected abstract boolean containsKey(K key);
 
-        List<Pair<K, Value>> getValues() {
+        public List<Pair<K, Value>> getValues() {
             return getKeyStream().map(k -> Pair.p(k, get(k))).collect(Collectors.toList());
         }
 
-        boolean hasValues() {
+        public boolean hasValues() {
             return getValues().size() > 0;
         }
 
@@ -191,7 +191,7 @@ public abstract class Value implements ToCode {
         }
 
         @Override
-        Stream<String> getKeyStream() {
+        public Stream<String> getKeyStream() {
             return getKeys().stream();
         }
 
@@ -217,7 +217,7 @@ public abstract class Value implements ToCode {
         }
 
         @Override
-        boolean hasValues() {
+        public boolean hasValues() {
             return getKeys().size() > 0;
         }
     }
@@ -247,12 +247,12 @@ public abstract class Value implements ToCode {
         }
 
         @Override
-        Stream<Integer> getKeyStream() {
+        public Stream<Integer> getKeyStream() {
             return IntStream.range(0, values.size()).boxed();
         }
 
         @Override
-        T get(Integer key) {
+        public T get(Integer key) {
             return values.get(key);
         }
 
@@ -261,7 +261,7 @@ public abstract class Value implements ToCode {
             return key >= 0 && key < values.size();
         }
 
-        int size() { return values.size(); }
+        public int size() { return values.size(); }
 
         @Override
         public void write(PacketOutputStream ps) {
@@ -301,7 +301,7 @@ public abstract class Value implements ToCode {
         }
 
         @Override
-        boolean hasValues() {
+        public boolean hasValues() {
             return size() > 0;
         }
     }
