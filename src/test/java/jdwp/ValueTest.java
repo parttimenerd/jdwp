@@ -106,4 +106,14 @@ public class ValueTest {
         assertEquals(new TaggedAccessPath<>(location, "objectIDSize"),
                 containedValues.getFirstTaggedValue(wrap(2)).getPath());
     }
+
+    @Test
+    public void testReferenceEquality() {
+        var classTypeRef = Reference.classType(1);
+        var interfaceTypeRef = Reference.interfaceType(1);
+        var threadRef = Reference.thread(1);
+        assertEquals(classTypeRef.hashCode(), interfaceTypeRef.hashCode());
+        assertEquals(classTypeRef, interfaceTypeRef);
+        assertNotEquals(classTypeRef, threadRef);
+    }
 }

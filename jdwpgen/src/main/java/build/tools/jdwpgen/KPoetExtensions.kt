@@ -66,6 +66,9 @@ inline fun `public static class`(className: String, typeSpecFunc: TypeMethod)
 inline fun `public static abstract class`(className: String, typeSpecFunc: TypeMethod)
         = TypeSpec.classBuilder(className).typeSpecFunc().modifiers(public, static, abstract).build()!!
 
+inline fun `public interface`(className: String, typeSpecFunc: TypeMethod)
+        = TypeSpec.interfaceBuilder(className).typeSpecFunc().modifiers(public).build()!!
+
 fun TypeSpec.Builder.extends(type: String) = superclass(ClassName.bestGuess(type))!!
 
 fun TypeSpec.Builder.implements(vararg typeName: String) =

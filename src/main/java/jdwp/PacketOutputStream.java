@@ -53,7 +53,7 @@ class PacketOutputStream {
     PacketOutputStream(VM vm, int errorCode) {
         this.vm = vm;
         this.pkt = new Packet();
-        pkt.flags = 0x80;
+        pkt.flags = Packet.REPLY_FLAG;
         pkt.errorCode = (short)errorCode;
     }
 

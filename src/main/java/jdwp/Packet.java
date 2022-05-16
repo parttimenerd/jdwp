@@ -30,8 +30,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class Packet {
-    public static final short NoFlags = 0x0;
-    public static final short Reply = 0x80;
+    public static final short NO_FLAGS = 0x0;
+    public static final short REPLY_FLAG = 0x80;
     public static final short ReplyNoError = 0x0;
     private static final byte[] nullData = new byte[0];
 
@@ -60,7 +60,7 @@ public class Packet {
         b[6] = (byte)((id >>>  8) & 0xff);
         b[7] = (byte)((id >>>  0) & 0xff);
         b[8] = (byte)flags;
-        if ((flags & Packet.Reply) == 0) {
+        if ((flags & Packet.REPLY_FLAG) == 0) {
             b[9] = (byte)cmdSet;
             b[10] = (byte)cmd;
         } else {
@@ -100,7 +100,7 @@ public class Packet {
 
         p.flags = (short)(b[8] & 0xff);
 
-        if ((p.flags & Packet.Reply) == 0) {
+        if ((p.flags & Packet.REPLY_FLAG) == 0) {
             p.cmdSet = (short)(b[9] & 0xff);
             p.cmd = (short)(b[10] & 0xff);
         } else {
@@ -116,7 +116,7 @@ public class Packet {
 
     public Packet() {
         id = 0;
-        flags = NoFlags;
+        flags = NO_FLAGS;
         data = nullData;
     }
 

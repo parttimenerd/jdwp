@@ -86,17 +86,17 @@ public interface EventCollection extends Request<NullReply>, Reply {
         }
 
         @Override
-        List<String> getKeys() {
+        public List<String> getKeys() {
             return Collections.emptyList();
         }
 
         @Override
-        Value get(String key) {
+        public Value get(String key) {
             throw new AssertionError();
         }
 
         @Override
-        boolean containsKey(String key) {
+        protected boolean containsKey(String key) {
             return false;
         }
 

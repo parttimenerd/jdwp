@@ -27,7 +27,7 @@ public class AccessPath extends AbstractList<Object> {
             this.root = root;
         }
 
-        TaggedAccessPath(T root, Object... path) {
+        public TaggedAccessPath(T root, Object... path) {
             super(path);
             this.root = root;
         }
@@ -42,7 +42,8 @@ public class AccessPath extends AbstractList<Object> {
 
         @Override
         public String toString() {
-            return root + Arrays.toString(path);
+            return (root instanceof AbstractParsedPacket ?
+                    ((AbstractParsedPacket) root).toShortString() : root.toString()) + Arrays.toString(path);
         }
 
         @Override

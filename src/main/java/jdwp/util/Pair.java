@@ -42,6 +42,10 @@ public class Pair<T, V> {
         return first;
     }
 
+    public V second() {
+        return second;
+    }
+
     public static <T, V> Pair<T, V> p(T t, V v) {
         return new Pair<>(t, v);
     }

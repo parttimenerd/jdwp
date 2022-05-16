@@ -517,7 +517,7 @@ internal object CodeGeneration {
     private const val replyVisitorName = "ReplyVisitor"
     private const val requestReplyVisitorName = "RequestReplyVisitor"
 
-    private fun genVisitor(name: String, typeNames: List<String>) = `interface`(name) {
+    private fun genVisitor(name: String, typeNames: List<String>) = `public interface`(name) {
         for (typeName in typeNames) {
             `public`(TypeName.VOID, "visit", param(bg(typeName), "obj")) {
                 addModifiers(Modifier.DEFAULT)
@@ -637,7 +637,7 @@ internal object CodeGeneration {
             addType(genVisitor(requestVisitorName, requestNames))
             addType(genVisitor(replyVisitorName, replyNames))
 
-            addType(`interface`(requestReplyVisitorName) {
+            addType(`public interface`(requestReplyVisitorName) {
                 for ((requestName, replyName) in requestNames.zip(replyNames)) {
                     `public`(TypeName.VOID, "visit", param(bg(requestName), "request"), param(bg(replyName), "reply")) {
                         addModifiers(Modifier.DEFAULT)

@@ -131,7 +131,7 @@ public abstract class Value implements ToCode {
 
         abstract Stream<K> getKeyStream();
         abstract Value get(K key);
-        abstract boolean containsKey(K key);
+        protected abstract boolean containsKey(K key);
 
         List<Pair<K, Value>> getValues() {
             return getKeyStream().map(k -> Pair.p(k, get(k))).collect(Collectors.toList());
@@ -195,9 +195,9 @@ public abstract class Value implements ToCode {
             return getKeys().stream();
         }
 
-        abstract List<String> getKeys();
+        public abstract List<String> getKeys();
 
-        abstract Value get(String key);
+        public abstract Value get(String key);
 
         @Override
         public void write(PacketOutputStream ps) {
@@ -257,7 +257,7 @@ public abstract class Value implements ToCode {
         }
 
         @Override
-        boolean containsKey(Integer key) {
+        protected boolean containsKey(Integer key) {
             return key >= 0 && key < values.size();
         }
 
@@ -550,6 +550,14 @@ public abstract class Value implements ToCode {
         @Override
         public String toCode() {
             return String.format("new TaggedBasicValue()"); // currently not supported
+        }
+
+        @Override
+        public String toString() {
+            return "TaggedBasicValue{" +
+                    "path=" + path +
+                    ", value=" + value +
+                    '}';
         }
     }
 }

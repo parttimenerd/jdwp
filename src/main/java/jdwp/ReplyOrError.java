@@ -28,15 +28,15 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
     }
 
     public ReplyOrError(int id, short errorCode) {
-        this(id, Packet.Reply, errorCode);
+        this(id, Packet.REPLY_FLAG, errorCode);
     }
 
     public ReplyOrError(int id, R reply) {
-        this(id, Packet.Reply, reply);
+        this(id, Packet.REPLY_FLAG, reply);
     }
 
     public ReplyOrError(R reply) {
-        this(reply.getId(), Packet.Reply, reply);
+        this(reply.getId(), Packet.REPLY_FLAG, reply);
     }
 
     public boolean isError() {

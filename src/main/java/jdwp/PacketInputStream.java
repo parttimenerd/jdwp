@@ -40,7 +40,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public
 class PacketInputStream {
 
-    public static final short REPLY_FLAG = 0x80;
     private final VM vm;
 
     // packet specific data
@@ -310,11 +309,11 @@ class PacketInputStream {
     }
 
     public boolean isReply() {
-        return flags == REPLY_FLAG;
+        return flags == Packet.REPLY_FLAG;
     }
 
     boolean isRequest() {
-        return flags != REPLY_FLAG;
+        return flags != Packet.REPLY_FLAG;
     }
 
     static boolean isObjectTag(byte tag) {

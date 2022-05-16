@@ -27,6 +27,9 @@ public class DependencyGraph {
     @Getter
     public static class Edge {
         private final Node target;
+        /**
+         * order is undefined
+         */
         private final List<TaggedBasicValue<?>> usedValues;
 
         public Edge(Node target, List<TaggedBasicValue<?>> usedValues) {
@@ -58,6 +61,14 @@ public class DependencyGraph {
         @Override
         public int hashCode() {
             return 31 * getTargetId();
+        }
+
+        @Override
+        public String toString() {
+            return "Edge{" +
+                    "target=" + target +
+                    ", usedValues=" + usedValues +
+                    '}';
         }
     }
 
@@ -105,7 +116,7 @@ public class DependencyGraph {
         }
 
         boolean dependsOn(Node node) {
-            return dependsOn.contains(node); // TODO: check this
+            return dependsOn.contains(node);
         }
 
         @Override
@@ -125,16 +136,33 @@ public class DependencyGraph {
         public int hashCode() {
             return 31 * id;
         }
+
+        public Set<Node> getDependsOnNodes() {
+            return dependsOn.stream().map(Edge::getTarget).collect(Collectors.toSet());
+        }
+
+        public @Nullable Pair<Request<?>, Reply> getOrigin() {
+            return origin;
+        }
     }
 
     private final @Nullable Node causeNode;
-    private final Map<Pair<Request<?>, Reply>, Node> nodes = new HashMap<>();
+    private final @Nullable Either<Request<?>, Events> cause;
+    /**
+     * does not contain the cause node
+     */
+    private final Map<Integer, Node> nodes = new HashMap<>();
 
-    private DependencyGraph(@Nullable Node causeNode) {
+    private DependencyGraph(@Nullable Node causeNode, @Nullable Either<Request<?>, Events> cause) {
         this.causeNode = causeNode;
+        this.cause = cause;
+        if ((causeNode == null) != (cause == null)) {
+            throw new AssertionError();
+        }
     }
+
     public DependencyGraph(@Nullable Either<Request<?>, Events> cause) {
-        this(cause != null ? new Node() : null);
+        this(cause != null ? new Node() : null, cause);
     }
 
     /**
@@ -152,8 +180,13 @@ public class DependencyGraph {
             containedValues.put(p, p(p.first.asCombined().getContainedValues(), p.second.asCombined().getContainedValues()));
         }
         DependencyGraph graph = new DependencyGraph(partition.getCause());
-        // look for requests that only depend on the cause or values not in the set
 
+        boolean hasRequestCause = partition.hasCause() && partition.getCause().isLeft();
+        if (hasRequestCause && !(partition.get(0).first().equals(partition.getCause().getLeft()))) {
+            throw new AssertionError();
+        }
+
+        // look for requests that only depend on the cause or values not in the set
         for (int i = 0; i < partition.size(); i++) {
             var origin = partition.get(i);
             ContainedValues requestValues = containedValues.get(origin).first; // use the request
@@ -162,10 +195,11 @@ public class DependencyGraph {
                     .collect(Collectors.toMap(v -> v, causeValues::getFirstTaggedValue));
             Map<Pair<Request<?>, Reply>, List<TaggedBasicValue<?>>> dependsOn = new HashMap<>();
             for (BasicValue value : requestValues.getBasicValues()) {
-                if (usedCauseValues.containsKey(value)) { // cause has highest priority
-                    break;
+                if (usedCauseValues.containsKey(value)) { // cause has the highest priority
+                    continue;
                 }
-                // cannot use replies of requests that were send after receiving origin
+                // cannot use replies of requests that were sent after receiving origin
+                System.out.println(value);
                 for (int j = 0; j < i; j++) {
                     var other = partition.get(j);
                     var otherContainedValues = containedValues.get(other).second; // use the reply
@@ -192,13 +226,24 @@ public class DependencyGraph {
         }
     }
 
-    Node getNode(Pair<Request<?>, Reply> origin) {
-        return nodes.computeIfAbsent(origin, o -> new Node(nodes.size(), origin));
+    /**
+     * get node or create if non existent
+     */
+    @SuppressWarnings("unchecked")
+    Node getNode(Pair<? extends Request<?>, ? extends Reply> origin) {
+        assert origin.first.getId() == origin.second.getId();
+        return nodes.computeIfAbsent(origin.first.getId(), o -> new Node(origin.first.getId(), (Pair<Request<?>, Reply>) origin));
+    }
+
+    Node getNode(int id) {
+        return id == -1 ? causeNode : nodes.get(id);
     }
 
     /**
      * Layer 0 nodes only depend on the cause node (its request or event values),
      * layers above only depend on the layers below
+     * <p>
+     * Layer 0 contains the cause node if present
      * <p>
      * Interestingly, I coded a similar code during my PhD:
      * https://git.scc.kit.edu/IPDSnelting/summary_cpp/-/blob/master/src/graph.hpp#L873
@@ -206,7 +251,12 @@ public class DependencyGraph {
     List<Set<Node>> computeLayers() {
         List<Set<Node>> layers = new ArrayList<>();
         Set<Node> activeNodes = new HashSet<>(nodes.values());
-        Set<Node> deadNodes = causeNode != null ? new HashSet<>(List.of(causeNode)) : new HashSet<>();
+        Set<Node> deadNodes = new HashSet<>();
+        if (causeNode != null) {
+            activeNodes.remove(causeNode);
+            deadNodes.add(causeNode);
+            layers.add(Set.of(causeNode));
+        }
         while (activeNodes.size() > 0) {
             var layer = findNodesWithOnlyDeadDependsOn(activeNodes, deadNodes);
             activeNodes.removeAll(layer);
@@ -219,5 +269,9 @@ public class DependencyGraph {
     Set<Node> findNodesWithOnlyDeadDependsOn(Set<Node> nodes, Set<Node> assumeDead) {
         return nodes.stream().filter(n -> assumeDead.containsAll(n.dependsOn))
                 .collect(Collectors.toSet());
+    }
+
+    boolean hasCauseNode() {
+        return causeNode != null;
     }
 }

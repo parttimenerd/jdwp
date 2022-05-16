@@ -48,12 +48,12 @@ public class Location extends CombinedValue {
     private static final Set<String> KEY_SET = new HashSet<>(KEYS);
 
     @Override
-    List<String> getKeys() {
+    public List<String> getKeys() {
         return KEYS;
     }
 
     @Override
-    Value get(String key) {
+    public Value get(String key) {
         switch (key){
             case "declaringType":
                 return declaringType;
@@ -67,7 +67,7 @@ public class Location extends CombinedValue {
     }
 
     @Override
-    boolean containsKey(String key) {
+    protected boolean containsKey(String key) {
         return KEYS.contains(key);
     }
 

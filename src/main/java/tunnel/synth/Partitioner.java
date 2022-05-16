@@ -32,9 +32,9 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     @EqualsAndHashCode(callSuper = true)
     public static class Partition extends AbstractList<Pair<Request<?>, Reply>> implements ToCode {
         private final @Nullable Either<Request<?>, Events> cause;
-        private final List<Pair<Request<?>, Reply>> items;
+        private final List<Pair<? extends Request<?>, ? extends Reply>> items;
 
-        Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<Request<?>, Reply>> items) {
+        Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<? extends Request<?>, ? extends Reply>> items) {
             this.cause = cause;
             this.items = items;
         }
@@ -43,7 +43,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             this(cause, new ArrayList<>());
         }
 
-        public Partition(List<Pair<Request<?>, Reply>> items) {
+        public Partition(List<Pair<? extends Request<?>, ? extends Reply>> items) {
             this(null, items);
         }
 
@@ -60,9 +60,10 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             return items.size();
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public Pair<Request<?>, Reply> get(int index) {
-            return items.get(index);
+            return (Pair<Request<?>, Reply>) items.get(index);
         }
 
         @Override

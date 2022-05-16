@@ -8,7 +8,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Idea collect all values that are contained in a reqest/reply/event
+ * Idea collect all values that are contained in a request/reply/event
  *
  * Supports chaining contained values together
  */
@@ -64,5 +64,13 @@ public class ContainedValues {
 
     public Collection<BasicValue> getBasicValues() {
         return map.keySet();
+    }
+
+    @Override
+    public String toString() {
+        if (parent != null) {
+            return String.format("ContainedValues{%s; %s}", parent, map);
+        }
+        return String.format("ContainedValues{%s}", map);
     }
 }
