@@ -14,7 +14,9 @@ import tunnel.synth.Partitioner.Partition;
 import tunnel.util.Either;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static jdwp.util.Pair.p;
 
@@ -26,19 +28,25 @@ public class DependencyGraph {
 
     @Getter
     public static class Edge {
+        private final Node source;
         private final Node target;
         /**
          * order is undefined
          */
         private final List<TaggedBasicValue<?>> usedValues;
 
-        public Edge(Node target, List<TaggedBasicValue<?>> usedValues) {
+        public Edge(Node source, Node target, List<TaggedBasicValue<?>> usedValues) {
+            this.source = source;
             this.target = target;
             this.usedValues = usedValues;
         }
 
         public boolean isCauseNodeEdge() {
             return target.origin == null;
+        }
+
+        public int getSourceId() {
+            return source.id;
         }
 
         public int getTargetId() {
@@ -49,9 +57,6 @@ public class DependencyGraph {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null) return false;
-            if (o instanceof Node) {
-                return o.equals(target);
-            }
             if (o instanceof Edge) {
                 return ((Edge) o).getTarget().equals(target);
             }
@@ -60,26 +65,25 @@ public class DependencyGraph {
 
         @Override
         public int hashCode() {
-            return 31 * getTargetId();
+            return 31 * getTargetId() * getSourceId();
         }
 
         @Override
         public String toString() {
             return "Edge{" +
-                    "target=" + target +
+                    "source=" + source +
+                    ", target=" + target +
                     ", usedValues=" + usedValues +
                     '}';
         }
     }
 
-    /**
-     * edge and node are interchangeable in situations where only equals and hashCode are used
-     */
     @Getter
     public static class Node {
         private final int id;
         private @Nullable final Pair<Request<?>, Reply> origin;
         private final Set<Edge> dependsOn = new HashSet<>();
+        private final Set<Edge> dependedBy = new HashSet<>();
 
         public Node(int id, @Nullable Pair<Request<?>, Reply> origin) {
             this.id = id;
@@ -107,27 +111,12 @@ public class DependencyGraph {
             return origin == null;
         }
 
-        boolean dependsOnCause() {
-            return dependsOn.stream().anyMatch(Edge::isCauseNodeEdge);
-        }
-
-        boolean addEdge(Edge edge) {
-            return dependsOn.add(edge);
-        }
-
-        boolean dependsOn(Node node) {
-            return dependsOn.contains(node);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null) return false;
             if (o instanceof Node) {
                 return ((Node) o).id == id;
-            }
-            if (o instanceof Edge) {
-                return ((Edge) o).getTargetId() == id;
             }
             return false;
         }
@@ -141,8 +130,41 @@ public class DependencyGraph {
             return dependsOn.stream().map(Edge::getTarget).collect(Collectors.toSet());
         }
 
+        public Set<Node> getDependedByNodes() {
+            return dependedBy.stream().map(Edge::getTarget).collect(Collectors.toSet());
+        }
+
         public @Nullable Pair<Request<?>, Reply> getOrigin() {
             return origin;
+        }
+
+        /**
+         * Returns all nodes that transitively depend on this node
+         */
+        public Set<Node> computeDependedByTransitive() {
+            Set<Node> nodes = new HashSet<>();
+            Stack<Node> stack = new Stack<>();
+            stack.push(this);
+            while (!stack.isEmpty()) {
+                var current = stack.pop();
+                for (Edge edge : current.dependedBy) {
+                    var other = edge.target;
+                    if (!nodes.contains(other)) {
+                        stack.push(other);
+                        nodes.add(other);
+                    }
+                }
+            }
+            return nodes;
+        }
+
+        public void addAllDependsOn(Collection<Edge> edges) {
+            edges.forEach(this::addDependsOn);
+        }
+
+        public void addDependsOn(Edge edge) {
+            dependsOn.add(edge);
+            edge.getTarget().dependedBy.add(new Edge(edge.getTarget(), edge.getSource(), edge.usedValues));
         }
     }
 
@@ -219,10 +241,10 @@ public class DependencyGraph {
     void add(Pair<Request<?>, Reply> origin, Map<Pair<Request<?>, Reply>, List<TaggedBasicValue<?>>> dependsOn,
              Collection<TaggedBasicValue<?>> usedCauseValues) {
         var node = getNode(origin);
-        node.dependsOn.addAll(dependsOn.entrySet().stream()
-                .map(e -> new Edge(getNode(e.getKey()), e.getValue())).collect(Collectors.toList()));
+        node.addAllDependsOn(dependsOn.entrySet().stream()
+                .map(e -> new Edge(node, getNode(e.getKey()), e.getValue())).collect(Collectors.toList()));
         if (causeNode != null && usedCauseValues.size() > 0) {
-            node.dependsOn.add(new Edge(causeNode, new ArrayList<>(usedCauseValues)));
+            node.addDependsOn(new Edge(node, causeNode, new ArrayList<>(usedCauseValues)));
         }
     }
 
@@ -239,6 +261,12 @@ public class DependencyGraph {
         return id == -1 ? causeNode : nodes.get(id);
     }
 
+    public Set<Node> getAllNodes() {
+        var allNodes = new HashSet<>(nodes.values());
+        allNodes.add(causeNode);
+        return allNodes;
+    }
+
     /**
      * Layer 0 nodes only depend on the cause node (its request or event values),
      * layers above only depend on the layers below
@@ -248,7 +276,7 @@ public class DependencyGraph {
      * Interestingly, I coded a similar code during my PhD:
      * https://git.scc.kit.edu/IPDSnelting/summary_cpp/-/blob/master/src/graph.hpp#L873
      */
-    List<Set<Node>> computeLayers() {
+    public Layers computeLayers() {
         List<Set<Node>> layers = new ArrayList<>();
         Set<Node> activeNodes = new HashSet<>(nodes.values());
         Set<Node> deadNodes = new HashSet<>();
@@ -263,15 +291,138 @@ public class DependencyGraph {
             deadNodes.addAll(layer);
             layers.add(layer);
         }
-        return layers;
+        return new Layers(layers);
     }
 
     Set<Node> findNodesWithOnlyDeadDependsOn(Set<Node> nodes, Set<Node> assumeDead) {
-        return nodes.stream().filter(n -> assumeDead.containsAll(n.dependsOn))
+        return nodes.stream().filter(n -> n.dependsOn.stream().allMatch(d -> assumeDead.contains(d.target)))
                 .collect(Collectors.toSet());
     }
 
     boolean hasCauseNode() {
         return causeNode != null;
+    }
+
+    @Getter
+    public static class Layers extends AbstractList<Set<Node>> {
+
+        private final List<Set<Node>> layers; // higher depend on lower
+        private final Map<Node, Integer> nodeToLayerIndex;
+
+        public Layers(List<Set<Node>> layers) {
+            this.layers = layers;
+            this.nodeToLayerIndex = IntStream.range(0, layers.size()).boxed()
+                    .flatMap(i -> layers.get(i).stream().map(n -> p(i, n)))
+                    .collect(Collectors.toMap(p -> p.second, p -> p.first));
+        }
+
+        @Override
+        public Set<Node> get(int index) {
+            return layers.get(index);
+        }
+
+        public Set<Node> getOrEmpty(int index) {
+            return 0 <= index && index < layers.size() ? layers.get(index) : Set.of();
+        }
+
+        public int getLayerIndex(Node node) {
+            return nodeToLayerIndex.get(node);
+        }
+
+        @Override
+        public int size() {
+            return layers.size();
+        }
+
+        /**
+         * Returns all nodes that transitively depend on the header nodes.
+         *
+         * Asserts that all header nodes are on the same layer and that all dependent nodes are in a lower layer.
+         * Returns null if any of the dependent nodes depends on a node outside both sets.
+         */
+        public @Nullable Set<Node> computeDominatedNodes(Set<Node> headerNodes) {
+            if (headerNodes.stream().mapToInt(this::getLayerIndex).distinct().count() != 1) {
+                throw new AssertionError(); // all header nodes have to be in the same layer
+            }
+            int headerLayer = getLayerIndex(headerNodes.iterator().next());
+            Set<Node> dependentNodes = computeDependedByTransitive(headerNodes); // nodes "below" the header
+            if (dependentNodes.isEmpty()) {
+                return Set.of();
+            }
+            if (dependentNodes.stream().mapToInt(this::getLayerIndex).min().getAsInt() <= headerLayer) {
+                throw new AssertionError(); // missing nodes from header
+            }
+            // check also that all nodes below only depend on nodes in the set or in the header set
+            if (dependentNodes.stream().anyMatch(d -> d.dependsOn.stream()
+                    .anyMatch(n -> !headerNodes.contains(n.target) && !dependentNodes.contains(n.target)))) {
+                return null; // not a "closed" subset
+            }
+            return dependentNodes;
+        }
+
+        private Comparator<Node> nodeComparator;
+
+        /**
+         * Sort based on each node's layer, command set, command and edge paths. Only uses the is as measure of
+         * last resort
+         */
+        public Comparator<Node> getNodeComparator() {
+            if (nodeComparator == null) {
+                Map<Node, Long> edgesValue = new HashMap<>();
+                Function<Node, Long> computeEdgesValue = node -> node.dependsOn.stream()
+                        .mapToLong(e -> e.getUsedValues().stream()
+                                .mapToLong(t -> t.path.basicHashCode())
+                                .reduce(1, (x, y) -> x * 31 + y)).reduce(1, (x, y) -> x * 31 + 1);
+                nodeComparator = (left, right) -> {
+                    int layerComp = Integer.compare(getLayerIndex(left), getLayerIndex(right));
+                    if (layerComp != 0) { // order after layers first
+                        return layerComp;
+                    }
+                    // do not use the id here yet, only use the contents of the requests
+                    var leftRequest = left.getOrigin().first;
+                    var rightRequest = right.getOrigin().first;
+                    int commandSetComp = Integer.compare(leftRequest.getCommandSet(), rightRequest.getCommandSet());
+                    if (commandSetComp != 0) {
+                        return commandSetComp;
+                    }
+                    int commandComp = Integer.compare(leftRequest.getCommand(), rightRequest.getCommand());
+                    if (commandComp != 0) {
+                        return commandComp;
+                    }
+                    int edgeSizeComp = Integer.compare(left.dependsOn.size(), right.dependsOn.size());
+                    if (edgeSizeComp != 0) {
+                        return edgeSizeComp;
+                    }
+                    var leftEdgesVal = edgesValue.computeIfAbsent(left, computeEdgesValue);
+                    var rightEdgesVal = edgesValue.computeIfAbsent(right, computeEdgesValue);
+                    var edgesValComp = Long.compare(leftEdgesVal, rightEdgesVal);
+                    if (edgesValComp != 0) {
+                        return edgesValComp;
+                    }
+                    return Integer.compare(left.getId(), right.getId()); // use the ids only as a measure of last resort
+                };
+            }
+            return nodeComparator;
+        }
+    }
+
+    /**
+     * Returns all nodes that transitively depend on the passed node, does not include these
+     */
+    public static Set<Node> computeDependedByTransitive(Set<Node> start) {
+        Set<Node> nodes = new HashSet<>();
+        Stack<Node> stack = new Stack<>();
+        stack.addAll(start);
+        while (!stack.isEmpty()) {
+            var current = stack.pop();
+            for (Edge edge : current.dependedBy) {
+                var other = edge.target;
+                if (!nodes.contains(other) && !start.contains(other)) {
+                    stack.push(other);
+                    nodes.add(other);
+                }
+            }
+        }
+        return nodes;
     }
 }

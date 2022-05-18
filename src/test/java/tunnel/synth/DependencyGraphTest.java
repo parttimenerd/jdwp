@@ -8,6 +8,7 @@ import jdwp.util.TestReply;
 import jdwp.util.TestRequest;
 import org.junit.jupiter.api.Test;
 import tunnel.synth.DependencyGraph.Edge;
+import tunnel.synth.DependencyGraph.Node;
 import tunnel.util.Either;
 
 import java.util.*;
@@ -94,6 +95,68 @@ public class DependencyGraphTest {
     }
 
     @Test
+    public void testNodeComparatorWithDiamondGraph() {
+        var start = rrpair(1, 1, 2);
+        var left = rrpair(2, 2, 3);
+        var right = rrpair(3, 2, 4);
+        var end = rrpair(4, List.of(p("left", 3), p("right", 4)),
+                List.of(p("value", 5)));
+        var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, left, right, end));
+        var graph = DependencyGraph.calculate(partition);
+        var layers = graph.computeLayers();
+        var comparator = layers.getNodeComparator();
+        assertEquals(0, comparator.compare(graph.getNode(start), graph.getNode(start)));
+        assertEquals(-1, comparator.compare(graph.getNode(start), graph.getNode(left)));
+        assertEquals(-1, comparator.compare(graph.getNode(left), graph.getNode(right)));
+        assertEquals(-1, comparator.compare(graph.getNode(right), graph.getNode(end)));
+    }
+
+    @Test
+    public void testDependedByConstruction() {
+        var start = rrpair(1, 1, 2);
+        var end = rrpair(2, 2, 3);
+        // start -> end
+        var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
+        var graph = DependencyGraph.calculate(partition);
+        assertEquals(Set.of(graph.getNode(end)), graph.getNode(start).getDependedByNodes());
+    }
+
+    @Test
+    public void testComputeDependedByTransitive() {
+        var start = rrpair(1, 1, 2);
+        var end = rrpair(2, 2, 3);
+        // start -> end
+        var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
+        var graph = DependencyGraph.calculate(partition);
+        var startNode = graph.getNode(start);
+        var endNode = graph.getNode(end);
+        assertEquals(Set.of(), DependencyGraph.computeDependedByTransitive(Set.of(startNode, endNode)));
+        assertEquals(Set.of(), DependencyGraph.computeDependedByTransitive(Set.of(endNode)));
+        assertEquals(Set.of(endNode), startNode.computeDependedByTransitive());
+        assertEquals(Set.of(endNode), DependencyGraph.computeDependedByTransitive(Set.of(startNode)));
+        assertEquals(Set.of(), endNode.computeDependedByTransitive());
+    }
+
+    @Test
+    public void testComputeDominatedNodes() {
+        var start = rrpair(1, 1, 2);
+        var left = rrpair(2, 2, 3);
+        var right = rrpair(3, 2, 4);
+        var end = rrpair(4, List.of(p("left", 3)),
+                List.of(p("value", 5)));
+        // start -> left -> end
+        //       -> right
+        var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, left, right, end));
+        var graph = DependencyGraph.calculate(partition);
+        var layers = graph.computeLayers();
+        var leftNode = graph.getNode(left);
+        var endNode = graph.getNode(end);
+        assertEquals(Set.of(endNode), leftNode.computeDependedByTransitive());
+        assertEquals(Set.of(endNode), DependencyGraph.computeDependedByTransitive(Set.of(leftNode)));
+        assertEquals(Set.of(graph.getNode(end)), layers.computeDominatedNodes(Set.of(graph.getNode(left))));
+        assertEquals(Set.of(2, 3, 4),
+                layers.computeDominatedNodes(Set.of(graph.getNode(start))).stream().map(Node::getId).collect(Collectors.toSet()));
+    }
 
     private static TestRequest request(int id, Value value) {
         return new TestRequest(id, p("value", value));
