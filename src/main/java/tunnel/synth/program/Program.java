@@ -1,9 +1,13 @@
 package tunnel.synth.program;
 
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import tunnel.synth.program.AST.Parser;
+import tunnel.synth.program.AST.Statement;
+import tunnel.synth.program.AST.StatementVisitor;
+import tunnel.synth.program.AST.Body;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Represents programs of the untyped debugging language.
@@ -21,35 +25,54 @@ import java.util.stream.Collectors;
  *     function_call := ("=" $return $function_name argument*)
  *     loop := ("for" $iter $iterable statement+)
  * </code>
- * Variables are alphanumerical strings and are neither scoped nor strongly typed.
+ * Variables are alphanumerical strings.
+ * There are currently three implemented functions:
+ * <li>
+ *     <ul>get(value, path...): obtain the sub module with the given path</ul>
+ *     <ul>request("command set", "command", args...): place a request</ul>
+ *     <ul>const(literal): returns the value of the literal</ul>
+ * </li>
  */
 @EqualsAndHashCode(callSuper = false)
-public class Program extends AST {
+@Getter
+public class Program {
 
     public static final String INDENT = "  ";
 
-    private final List<Statement> body;
+    private final Body body;
+
+    public Program(Body body) {
+        this.body = body;
+    }
 
     public Program(List<Statement> body) {
-        this.body = body;
+        this(new Body(body));
+    }
+
+    /** run on each sub statement */
+    public void accept(StatementVisitor visitor) {
+        body.forEach(s -> s.accept(visitor));
+    }
+
+    public String toPrettyString() {
+        return String.format("(\n%s)", body.toPrettyString());
     }
 
     @Override
     public String toString() {
-        return String.format("(%s)", body.stream().map(Statement::toString).collect(Collectors.joining("\n")));
+        return String.format("(%s)", body.toString());
     }
 
-    public String toPrettyString() {
-        return String.format("(\n%s)",
-                body.stream().map(s -> s.toPrettyString(INDENT)).collect(Collectors.joining("\n")));
-    }
-
-    public static tunnel.synth.program.Program parse(String string) {
+    public static Program parse(String string) {
         return new Parser(string).parseProgram();
     }
 
-    public void accept(StatementVisitor visitor) {
-        body.forEach(s -> s.accept(visitor));
+    public Program merge(Program other) {
+        return new Program(body.merge(other.body));
+    }
+
+    public Program overlap(Program other) {
+        return new Program(body.overlap(other.body));
     }
 
 }

@@ -26,7 +26,7 @@ public class Pair<T, V> {
             return false;
         }
         Pair<?, ?> pair = (Pair<?, ?>)obj;
-        return pair.first == this.first && pair.second == this.second;
+        return pair.first.equals(this.first) && pair.second.equals(this.second);
     }
 
     public Stream<T> firstStream(){

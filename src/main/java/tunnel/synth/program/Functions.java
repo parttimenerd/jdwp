@@ -9,6 +9,8 @@ import java.util.List;
 
 public abstract class Functions {
 
+    public static final String GET = "get";
+
     @Getter
     @EqualsAndHashCode
     public static abstract class Function {
@@ -31,7 +33,7 @@ public abstract class Functions {
     public abstract Function get();
 
     /**
-     * <code>request(CommandSet.Command, args...)</code>
+     * <code>request("command set", "command", args...)</code>
      */
     public abstract Function request();
 
@@ -49,7 +51,7 @@ public abstract class Functions {
 
     public Function getFunction(String name) {
         switch (name) {
-            case "get":
+            case GET:
                 return get();
             case "request":
                 return request();

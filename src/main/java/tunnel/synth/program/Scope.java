@@ -17,6 +17,7 @@ import java.util.Map;
 @ToString
 @EqualsAndHashCode
 public class Scope {
+
     private final List<Map<String, Value>> scopes;
     private final List<Pair<? extends Request<?>, ? extends Reply>> captured;
 

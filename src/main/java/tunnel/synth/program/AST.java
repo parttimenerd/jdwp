@@ -1,5 +1,6 @@
 package tunnel.synth.program;
 
+import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -7,50 +8,55 @@ import org.apache.commons.text.StringEscapeUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-public class AST {
+import static jdwp.util.Pair.p;
 
-    public static StringLiteral literal(String string) {
+public interface AST {
+
+    static StringLiteral literal(String string) {
         return new StringLiteral(string);
     }
 
-    public static IntegerLiteral literal(long integer) {
+    static IntegerLiteral literal(long integer) {
         return new IntegerLiteral(integer);
     }
 
-    public static Identifier ident(String identifier) {
+    static Identifier ident(String identifier) {
         return new Identifier(identifier);
     }
 
-    public interface StatementVisitor {
+    interface StatementVisitor {
         void visit(FunctionCall functionCall);
 
         void visit(Loop loop);
     }
 
-    public interface PrimitiveVisitor<R> {
+    interface PrimitiveVisitor<R> {
         default R visit(StringLiteral string) {
-            return visit((Literal) string);
+            return visit((Literal<?>) string);
         }
 
         default R visit(IntegerLiteral integer) {
-            return visit((Literal) integer);
+            return visit((Literal<?>) integer);
         }
 
-        default R visit(Literal literal) { return null; }
+        default R visit(Literal<?> literal) { return null; }
 
         R visit(Identifier name);
     }
 
-    public static abstract class Primitive extends AST {
+    abstract class Primitive implements AST {
         public abstract <R> R accept(PrimitiveVisitor<R> visitor);
     }
 
     @EqualsAndHashCode(callSuper = false)
-    public static abstract class Literal<T> extends Primitive {
+    abstract class Literal<T> extends Primitive {
 
         protected final T value;
 
@@ -63,7 +69,7 @@ public class AST {
         }
     }
 
-    public static class StringLiteral extends Literal<String> {
+    class StringLiteral extends Literal<String> {
         public StringLiteral(String string) {
             super(string);
         }
@@ -79,7 +85,7 @@ public class AST {
         }
     }
 
-    public static class IntegerLiteral extends Literal<Long> {
+    class IntegerLiteral extends Literal<Long> {
         public IntegerLiteral(Long integer) {
             super(integer);
         }
@@ -97,7 +103,7 @@ public class AST {
 
 
     @EqualsAndHashCode(callSuper = false)
-    public static class Identifier extends Primitive {
+    class Identifier extends Primitive {
         private final String name;
 
         public Identifier(String name) {
@@ -119,7 +125,7 @@ public class AST {
         }
     }
 
-    public static abstract class Statement extends AST {
+    abstract class Statement implements AST {
 
         public abstract void accept(StatementVisitor visitor);
 
@@ -141,7 +147,7 @@ public class AST {
 
     @Getter
     @EqualsAndHashCode(callSuper = false)
-    public static class FunctionCall extends Statement {
+    class FunctionCall extends Statement {
 
         private final Identifier returnVariable;
         private final Identifier function;
@@ -167,12 +173,16 @@ public class AST {
 
     @Getter
     @EqualsAndHashCode(callSuper = false)
-    public static class Loop extends Statement {
+    class Loop extends Statement {
         private final Identifier iter;
         private final Identifier iterable;
-        private final List<Statement> body;
+        private final Body body;
 
         public Loop(Identifier iter, Identifier iterable, List<Statement> body) {
+            this(iter, iterable, new Body(body));
+        }
+
+        public Loop(Identifier iter, Identifier iterable, Body body) {
             this.iter = iter;
             this.iterable = iterable;
             this.body = body;
@@ -186,19 +196,44 @@ public class AST {
         public String toPrettyString(String indent, String innerIndent) {
             String subIndent = innerIndent + indent;
             return String.format("%s(for %s %s %s%s)", indent, iter, iterable, innerIndent.isEmpty() ? "" : "\n",
-                    body.stream().map(s -> s.toPrettyString(subIndent, innerIndent)).collect(Collectors.joining("\n")));
+                    body.toPrettyString(subIndent, innerIndent));
+        }
+
+        private boolean isHeaderEqual(Loop other) {
+            return other.iter.equals(iter) && other.iterable.equals(iterable);
+        }
+
+        public List<Loop> merge(Loop other) {
+            if (isHeaderEqual(other)) {
+                return List.of(new Loop(iter, iterable, body.merge(other.body)));
+            }
+            return List.of(this, other);
+        }
+
+        public List<Loop> overlap(Loop other) {
+            if (isHeaderEqual(other)) {
+                var newBody = body.overlap(other.body);
+                if (newBody.size() > 0) {
+                    return List.of(new Loop(iter, iterable, newBody));
+                }
+            }
+            return List.of();
+        }
+
+        public Pair<Identifier, Identifier> getHeader() {
+            return p(iter, iterable);
         }
     }
 
-    public static class SyntaxError extends RuntimeException {
+    class SyntaxError extends RuntimeException {
         public SyntaxError(int line, int column, String msg) {
             super(String.format("Error at %d.%d: %s", line, column, msg));
         }
     }
 
-    static class Parser {
+    class Parser {
         private final InputStream stream;
-        private int current = 0;
+        private int current;
         private int line = 1;
         private int column = 1;
 
@@ -316,8 +351,8 @@ public class AST {
         }
 
         Identifier parseIdentifier() {
-            StringBuffer buf = new StringBuffer();
-            while (!isEOF() && Character.isJavaIdentifierPart(current)) {
+            StringBuilder buf = new StringBuilder();
+            while (!isEOF() && current != ' ' && current != ')' && current != '(' && current != '\n') {
                 buf.append(currentChar());
                 next();
             }
@@ -325,7 +360,7 @@ public class AST {
         }
 
         IntegerLiteral parseInteger() {
-            StringBuffer buf = new StringBuffer();
+            StringBuilder buf = new StringBuilder();
             while (!isEOF() && Character.isDigit(current)) {
                 buf.append(currentChar());
                 next();
@@ -334,7 +369,7 @@ public class AST {
         }
 
         StringLiteral parseString() {
-            StringBuffer buf = new StringBuffer();
+            StringBuilder buf = new StringBuilder();
             expect('"');
             while (!isEOF() && current != '"') {
                 buf.append(currentChar());
@@ -348,7 +383,7 @@ public class AST {
             return new StringLiteral(StringEscapeUtils.unescapeJava(buf.toString()));
         }
 
-        Literal parseLiteral() {
+        Literal<?> parseLiteral() {
             if (Character.isDigit(current)) {
                 return parseInteger();
             }
@@ -363,4 +398,131 @@ public class AST {
         }
     }
 
+    class Body extends AbstractList<Statement> implements AST {
+        private final List<Statement> body;
+
+        public Body(List<Statement> body) {
+            this.body = body;
+        }
+
+        @Override
+        public String toString() {
+            return body.stream().map(Statement::toString).collect(Collectors.joining(" "));
+        }
+
+        public String toPrettyString() {
+            return body.stream().map(s -> s.toPrettyString(Program.INDENT)).collect(Collectors.joining("\n"));
+        }
+
+        public String toPrettyString(String indent, String innerIndent) {
+            return body.stream().map(s -> s.toPrettyString(indent, innerIndent)).collect(Collectors.joining("\n"));
+        }
+
+        /** run on each sub statement */
+        public void accept(StatementVisitor visitor) {
+            body.forEach(s -> s.accept(visitor));
+        }
+
+        @Override
+        public int size() {
+            return body.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return body.isEmpty();
+        }
+
+        public Map<Statement, Integer> getIndexesOfStatements() {
+            return IntStream.range(0, body.size()).boxed().collect(Collectors.toMap(body::get, i -> i));
+        }
+
+        public Map<Pair<Identifier, Identifier>, List<Integer>> getLoopIndexes() {
+            return IntStream.range(0, body.size()).boxed().filter(i -> get(i) instanceof Loop).collect(Collectors.groupingBy(i -> {
+                var loop = (Loop)get(i);
+                return p(loop.getIter(), loop.getIterable());
+            }));
+        }
+
+        /**
+         * Merge both programs using a simple algorithm that works if the program generation is highly deterministic.
+         */
+        public Body merge(Body other) {
+            if (other.isEmpty()) {
+                return this;
+            }
+            if (isEmpty()) {
+                return other;
+            }
+            var indexes = other.getIndexesOfStatements();
+            var loopIndexes = other.getLoopIndexes();
+            List<Statement> newStatements = new ArrayList<>();
+            int prevIndex = 0;
+            for (Statement statement : body) {
+                final var pi = prevIndex;
+                List<Integer> loopInd = statement instanceof Loop ? loopIndexes.getOrDefault(((Loop) statement).getHeader(), List.of()).stream().filter(i -> i >= pi).collect(Collectors.toList()) : List.of();
+                if (indexes.containsKey(statement) || loopInd.size() > 0) {
+                    int sIndex;
+                    if (loopInd.size() > 0) {
+                        sIndex = loopInd.get(0);
+                    } else {
+                        sIndex = indexes.get(statement);
+                    }
+                    while (prevIndex < sIndex) { // prevIndex == index: we add the statement later
+                        newStatements.add(other.body.get(prevIndex));
+                        prevIndex++;
+                    }
+                    prevIndex++;
+                    if (loopInd.size() > 0) {
+                        newStatements.addAll(((Loop)statement).merge((Loop) other.body.get(sIndex)));
+                    } else {
+                        newStatements.add(statement);
+                    }
+                } else {
+                    newStatements.add(statement);
+                }
+            }
+            while (prevIndex < other.body.size()) {
+                newStatements.add(other.body.get(prevIndex));
+                prevIndex++;
+            }
+            return new Body(newStatements);
+        }
+
+        public Body overlap(Body other) {
+            if (isEmpty() || other.isEmpty()) {
+                return new Body(List.of());
+            }
+            var statementIndexes = getIndexesOfStatements();
+            var loopIndexes = getLoopIndexes();
+            List<Statement> newStatements = new ArrayList<>();
+            int lastIndex = -1;
+            for (Statement statement : other) {
+                if (statement instanceof Loop) {
+                    var loop = (Loop)statement;
+                    var header = p(loop.getIter(), loop.getIterable());
+                    if (loopIndexes.containsKey(header)) {
+                        for (Integer index : loopIndexes.get(header)) {
+                            if (index > lastIndex) {
+                                newStatements.addAll(((Loop)get(index)).overlap(loop));
+                                lastIndex = index;
+                            }
+                        }
+                    }
+                } else if (statementIndexes.containsKey(statement)) {
+                    var index = statementIndexes.get(statement);
+                    if (index > lastIndex) {
+                        newStatements.add(statement);
+                        lastIndex = index;
+                    }
+                }
+            }
+            return new Body(newStatements);
+        }
+
+        @Override
+        public Statement get(int index) {
+            return body.get(index);
+        }
+    }
 }

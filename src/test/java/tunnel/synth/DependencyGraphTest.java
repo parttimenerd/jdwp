@@ -3,13 +3,11 @@ package tunnel.synth;
 import jdwp.*;
 import jdwp.AccessPath.TaggedAccessPath;
 import jdwp.Value.BasicValue;
-import jdwp.Value.TaggedBasicValue;
 import jdwp.util.Pair;
 import jdwp.util.TestReply;
 import jdwp.util.TestRequest;
 import org.junit.jupiter.api.Test;
 import tunnel.synth.DependencyGraph.Edge;
-import tunnel.synth.DependencyGraph.Node;
 import tunnel.util.Either;
 
 import java.util.*;
@@ -20,19 +18,6 @@ import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class DependencyGraphTest {
-
-    /** checks that node and edge are interchangeable regarding equals and hashCode */
-    @Test
-    public void testNodeSetContainsEdge() {
-        var node = new Node(1, p(null, null));
-        var otherNode = new Node(2, p(null, null));
-        var nodes = Set.of(node);
-        assertTrue(nodes.contains(node));
-        assertFalse(nodes.contains(otherNode));
-        assertTrue(nodes.contains(new Edge(node, List.of())));
-        assertFalse(nodes.contains(new Edge(otherNode, List.of())));
-        assertEquals(new Edge(node, List.of()), new Edge(node, List.of(new TaggedBasicValue<>(null, wrap(1)))));
-    }
 
     @Test
     public void testCalculateBasicDiamondGraph() {
@@ -49,7 +34,8 @@ public class DependencyGraphTest {
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
         assertEquals(Set.of(graph.getCauseNode()), graph.getNode(start).getDependsOnNodes());
         assertEquals(Set.of(graph.getNode(start)), graph.getNode(left).getDependsOnNodes());
-        assertEquals(new Edge(graph.getCauseNode(), List.of(start.first.getContainedValues().getFirstTaggedValue(wrap(1)))),
+        assertEquals(new Edge(graph.getNode(start),
+                        graph.getCauseNode(), List.of(start.first.getContainedValues().getFirstTaggedValue(wrap(1)))),
                 graph.getNode(start).getDependsOn().iterator().next());
         assertEquals(Set.of(graph.getNode(left), graph.getNode(right)), graph.getNode(end).getDependsOnNodes());
         var layers = graph.computeLayers();

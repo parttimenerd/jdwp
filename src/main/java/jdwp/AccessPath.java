@@ -63,6 +63,10 @@ public class AccessPath extends AbstractList<Object> {
             result = 31 * result + (root != null ? root.hashCode() : 0);
             return result;
         }
+
+        public AccessPath removeTag() {
+            return new AccessPath(path);
+        }
     }
 
     protected final Object[] path;
@@ -140,5 +144,61 @@ public class AccessPath extends AbstractList<Object> {
             current = access(current, o);
         }
         return current;
+    }
+
+    public int basicHashCode() {
+        return Objects.hash(path);
+    }
+
+    public boolean startsWith(AccessPath other) {
+        if (other.path.length > this.path.length) {
+            return false;
+        }
+        for (int i = 0; i < path.length; i++) {
+            if (!other.path[i].equals(this.path[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public AccessPath removeListAccesses() {
+        return new AccessPath(Arrays.stream(path).filter(e -> e instanceof String).toArray());
+    }
+
+    public boolean containsListAccesses() {
+        return Arrays.stream(path).anyMatch(e -> e instanceof Integer);
+    }
+
+    /**
+     * Returns -1 if both paths either do not differ or differ at more than two indexes
+     *
+     * Assumes that both paths are equal disregarding indexes
+     */
+    public int onlyDifferingIndex(AccessPath other) {
+        assert other.removeListAccesses().equals(removeListAccesses());
+        if (other.path.length != path.length) {
+           return -1;
+        }
+        int differingIndex = -1;
+        for (int i = 0; i < path.length; i++) {
+            if (!other.path[i].equals(path[i])) {
+                if (isListAccess(other.path[i]) && isListAccess(path[i])) {
+                    if (differingIndex != -1) {
+                        return -1;
+                    }
+                    differingIndex = i;
+                } else {
+                    return -1;
+                }
+            }
+        }
+        return differingIndex;
+    }
+
+    public AccessPath subPath(int inclusiveStart, int exclusiveEnd) {
+        Object[] np = new Object[exclusiveEnd - inclusiveStart];
+        System.arraycopy(path, inclusiveStart, np, 0, exclusiveEnd - inclusiveStart);
+        return new AccessPath(np);
     }
 }
