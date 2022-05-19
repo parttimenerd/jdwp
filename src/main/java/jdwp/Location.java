@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import static jdwp.util.Pair.p;
 
@@ -27,6 +28,11 @@ public class Location extends CombinedValue {
         this.codeIndex = codeIndex;
     }
 
+    public Location(Map<String, Value> arguments) {
+        this((TypeReference) arguments.get("declaringType"),
+                (MethodReference) arguments.get("methodRef"),
+                (LongValue) arguments.get("codeIndex"));
+    }
 
     @Override
     public void write(PacketOutputStream ps) {

@@ -3,12 +3,18 @@ package jdwp;
 import jdwp.AccessPath.TaggedAccessPath;
 import jdwp.ArrayReferenceCmds.GetValuesReply;
 import jdwp.EventCmds.Events.VMStart;
+import jdwp.EventRequestCmds.SetRequest.ClassExclude;
+import jdwp.EventRequestCmds.SetRequest.LocationOnly;
+import jdwp.ObjectReferenceCmds.SetValuesRequest.FieldValue;
 import jdwp.PrimitiveValue.IntValue;
 import jdwp.Reference.ArrayReference;
+import jdwp.StackFrameCmds.SetValuesRequest;
+import jdwp.StackFrameCmds.SetValuesRequest.SlotInfo;
 import jdwp.Value.*;
 import jdwp.VirtualMachineCmds.DisposeObjectsRequest;
 import jdwp.VirtualMachineCmds.IDSizesReply;
 import jdwp.VirtualMachineCmds.IDSizesRequest;
+import jdwp.VirtualMachineCmds.RedefineClassesRequest.ClassDef;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -115,5 +121,77 @@ public class ValueTest {
         assertEquals(classTypeRef.hashCode(), interfaceTypeRef.hashCode());
         assertEquals(classTypeRef, interfaceTypeRef);
         assertNotEquals(classTypeRef, threadRef);
+    }
+
+    private static final Location sampleLocation =
+            new Location(Reference.classType(1), Reference.method(10), wrap(10L));
+
+    static List<CombinedValue> combinedValueCreateTestSource() {
+        return List.of(
+                sampleLocation,
+                new ClassExclude(wrap("s")),
+                new LocationOnly(sampleLocation),
+                new FieldValue(Reference.field(10), wrap(1)),
+                new ClassDef(Reference.klass(1), new ByteList((byte) 1, (byte) 2, (byte) 4))
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("combinedValueCreateTestSource")
+    public void testCombinedValueCreateFromPairs(CombinedValue value) {
+        assertEquals(value, CombinedValue.create(value.getClass(), value.getValues()));
+    }
+
+    @ParameterizedTest
+    @MethodSource("combinedValueCreateTestSource")
+    public void testCombinedValueCreateFromTaggedValues(CombinedValue value) {
+        assertEquals(value, CombinedValue.createForTagged(value.getClass(), value.getTaggedValues()));
+    }
+
+    static List<ListValue<? extends Value>> listValueCreateTestSource() {
+        return List.of(
+                new ListValue<>(wrap(1)),
+                new BasicListValue<>(wrap(1)),
+                new ListValue<>(sampleLocation, sampleLocation)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("listValueCreateTestSource")
+    @SuppressWarnings("unchecked")
+    public void testListValueCreateFromPairs(ListValue<? extends Value> value) {
+        assertEquals(value, ListValue.create(value.getClass(), value.getValues()));
+    }
+
+    @ParameterizedTest
+    @MethodSource("listValueCreateTestSource")
+    @SuppressWarnings("unchecked")
+    public void testListValueCreateFromTaggedValues(ListValue<? extends Value> value) {
+        Class<CombinedValue> elementType =
+                value.get(0) instanceof CombinedValue ? (Class<CombinedValue>) value.get(0).getClass() : null;
+        assertEquals(value, ListValue.createForTagged(value.getClass(), elementType, value.getTaggedValues()));
+    }
+
+    static List<? extends AbstractParsedPacket> abstractPacketCreateTestSource() {
+        return List.of(
+                new GetValuesReply(1, new BasicListValue<>(wrap(1), wrap(2))),
+                new ArrayReferenceCmds.SetValuesRequest(3, Reference.array(1), wrap(1),
+                        new ListValue<>(wrap(true))),
+                new SetValuesRequest(2, Reference.thread(1), Reference.frame(1),
+                        new ListValue<>(new SlotInfo(wrap(1), wrap("slot"))))
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("abstractPacketCreateTestSource")
+    public void testAbstractParsedPacketCreateFromPairs(AbstractParsedPacket value) {
+        assertEquals(value, AbstractParsedPacket.create(value.getId(), value.getClass(), value.getValues()));
+    }
+
+    @ParameterizedTest
+    @MethodSource("abstractPacketCreateTestSource")
+    @SuppressWarnings("unchecked")
+    public void testAbstractParsedPacketCreateFromTaggedValues(AbstractParsedPacket value) {
+        assertEquals(value, AbstractParsedPacket.createForTagged(value.getId(), value.getClass(), value.getTaggedValues()));
     }
 }

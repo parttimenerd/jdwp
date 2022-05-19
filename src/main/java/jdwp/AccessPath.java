@@ -67,6 +67,16 @@ public class AccessPath extends AbstractList<Object> {
         public AccessPath removeTag() {
             return new AccessPath(path);
         }
+
+        public TaggedAccessPath<T> subPath(int inclusiveStart, int exclusiveEnd) {
+            Object[] np = new Object[exclusiveEnd - inclusiveStart];
+            System.arraycopy(path, inclusiveStart, np, 0, exclusiveEnd - inclusiveStart);
+            return new TaggedAccessPath<>(root, np);
+        }
+
+        public TaggedAccessPath<T> dropFirstPathElement() {
+            return subPath(1, size());
+        }
     }
 
     protected final Object[] path;
@@ -200,5 +210,9 @@ public class AccessPath extends AbstractList<Object> {
         Object[] np = new Object[exclusiveEnd - inclusiveStart];
         System.arraycopy(path, inclusiveStart, np, 0, exclusiveEnd - inclusiveStart);
         return new AccessPath(np);
+    }
+
+    public AccessPath dropFirstPathElement() {
+        return subPath(1, size());
     }
 }

@@ -6,13 +6,18 @@ import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import tunnel.util.ToCode;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
 import static jdwp.JDWP.Tag;
+import static jdwp.util.Pair.p;
 
 @SuppressWarnings("ALL")
 public abstract class Value implements ToCode {
@@ -134,7 +139,7 @@ public abstract class Value implements ToCode {
         protected abstract boolean containsKey(K key);
 
         public List<Pair<K, Value>> getValues() {
-            return getKeyStream().map(k -> Pair.p(k, get(k))).collect(Collectors.toList());
+      return getKeyStream().map(k -> p(k, get(k))).collect(Collectors.toList());
         }
 
         public boolean hasValues() {
@@ -165,16 +170,18 @@ public abstract class Value implements ToCode {
         }
 
         private Stream<TaggedBasicValue<?>> getTaggedValues(TaggedAccessPath<?> basePath) {
-            return getValues().stream().flatMap(p -> {
+      return getValues().stream()
+          .flatMap(
+              p -> {
                 var subPath = basePath.appendElement(p.first);
-                if (p.second instanceof BasicValue) {
-                    return Stream.of(new TaggedBasicValue<>(subPath, (BasicValue)p.second));
+                if (p.second instanceof ListValue.BasicValue) {
+                  return Stream.of(new TaggedBasicValue<>(subPath, (BasicValue) p.second));
                 }
                 if (p.second instanceof WalkableValue<?>) {
-                    return ((WalkableValue<?>) p.second).getTaggedValues(subPath);
+                  return ((WalkableValue<?>) p.second).getTaggedValues(subPath);
                 }
                 throw new AssertionError();
-            });
+              });
         }
 
         public ContainedValues getContainedValues() {
@@ -184,7 +191,15 @@ public abstract class Value implements ToCode {
         }
     }
 
-    public static abstract class CombinedValue extends WalkableValue<String> {
+  /**
+   * Implicit contract that every instantiatable sub class has to fulfill in order to be usable with
+   * the create function (request, reply and event are excluded): - implement a constructor that
+   * accepts all parameters in order - implement a constructor that accepts a Map<String, Value>
+   * containing all parameters - getValues and getTaggedValues return all values to construct the
+   * exact same object - all list valued fields with entries of CombinedValue type have an {@link
+   * EntryClass} annotation - lists are not nested
+   */
+  public abstract static class CombinedValue extends WalkableValue<String> {
 
         protected CombinedValue(Type type) {
             super(type);
@@ -220,11 +235,101 @@ public abstract class Value implements ToCode {
         public boolean hasValues() {
             return getKeys().size() > 0;
         }
+
+    /**
+     * Create an object of the passed class with the given constructor arguments, inverse of {@link
+     * #getValues()}
+     *
+     * <p>assumes that all constructor arguments are present
+     *
+     * <p>uses reflection
+     */
+    public static <T extends CombinedValue> T create(
+        Class<T> klass, List<Pair<String, Value>> arguments) {
+      return create(
+          klass, arguments.stream().collect(Collectors.toMap(p -> p.first, p -> p.second)));
     }
 
-    /** fields and methods */
+    public static <T extends CombinedValue> T create(Class<T> klass, Map<String, Value> arguments) {
+      try {
+        return (T) klass.getConstructor(Map.class).newInstance(arguments);
+      } catch (InstantiationException
+          | IllegalAccessException
+          | InvocationTargetException
+          | NoSuchMethodException e) {
+        throw new AssertionError(e);
+      }
+    }
 
-    public static class ListValue<T extends Value> extends WalkableValue<Integer> implements Iterable<T> {
+    /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
+    public static <T extends CombinedValue> T createForTagged(
+        Class<T> klass, Stream<TaggedBasicValue<?>> taggedArguments) {
+      return CombinedValue.createForTagged(klass, taggedArguments, CombinedValue::create);
+    }
+
+    /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
+    protected static <T extends CombinedValue> T createForTagged(
+        Class<T> klass,
+        Stream<TaggedBasicValue<?>> taggedArguments,
+        BiFunction<Class<T>, Map<String, Value>, T> creator) {
+      return creator.apply(
+          klass,
+          collectArguments(
+              taggedArguments,
+              (name, values) -> {
+                try {
+                  var field = klass.getField(name);
+                  var type = (Class<? extends Value>) field.getType();
+                  if (CombinedValue.class.isAssignableFrom(type)) {
+                    return createForTagged((Class<? extends CombinedValue>) type, values.stream());
+                  } else if (ListValue.class.isAssignableFrom(type)) {
+                    // the required element type is encoded in a field annotation
+                    var annotation = field.getAnnotation(EntryClass.class);
+                    var elementType =
+                        annotation == null
+                            ? null
+                            : (Class<? extends CombinedValue>) annotation.klass();
+                    return ListValue.createForTagged(
+                        (Class<? extends ListValue<?>>) type, elementType, values.stream());
+                  } else {
+                    throw new AssertionError();
+                  }
+                } catch (NoSuchFieldException e) {
+                  throw new AssertionError(e);
+                }
+              }));
+    }
+
+    private static <T> Map<T, Value> collectArguments(
+        Stream<TaggedBasicValue<?>> taggedArguments,
+        BiFunction<T, List<TaggedBasicValue<?>>, Value> subCreate) {
+      Map<T, Value> arguments = new HashMap<>();
+      Map<T, List<TaggedBasicValue<?>>> subValues = new HashMap<>();
+      taggedArguments.forEach(
+          tv -> {
+            var name = (T) tv.getFirstPathElement();
+            if (tv.hasSinglePath()) {
+              arguments.put(name, tv.value);
+            } else {
+              subValues
+                  .computeIfAbsent(name, p -> new ArrayList<>())
+                  .add(tv.dropFirstPathElement());
+            }
+          });
+      for (var entry : subValues.entrySet()) {
+        arguments.put(entry.getKey(), subCreate.apply(entry.getKey(), entry.getValue()));
+      }
+      return arguments;
+    }
+    }
+
+  /**
+   * Implicit contract that every instantiatable sub class has to fulfill in order to be usable with
+   * the create function: - implement a constructor X(Type entryType, List<T> values) - getValues()
+   * and getTaggedValues() return all values of an object that are necessary to construct a copy
+   */
+  public static class ListValue<T extends Value> extends WalkableValue<Integer>
+      implements Iterable<T> {
 
         final Type entryType;
         final List<T> values;
@@ -304,16 +409,73 @@ public abstract class Value implements ToCode {
         public boolean hasValues() {
             return size() > 0;
         }
+
+    /** inverse of {@link #getValues()} using reflection */
+    public static <T extends ListValue<? extends Value>> T create(
+        Class<T> klass, List<Pair<Integer, Value>> arguments) {
+      return createForList(
+          klass,
+          arguments.stream()
+              .sorted((x, y) -> Integer.compare(x.first, y.first))
+              .map(p -> p.second)
+              .collect(Collectors.toList()));
+    }
+
+    public static <T extends ListValue<? extends Value>> T createForList(
+        Class<T> klass, List<Value> arguments) {
+      try {
+        Type type = Type.OBJECT;
+        if (arguments.size() > 0) {
+          type = arguments.get(0).type.tag == -1 ? Type.OBJECT : arguments.get(0).type;
+        }
+        return (T) klass.getConstructor(Type.class, List.class).newInstance(type, arguments);
+      } catch (InstantiationException
+          | IllegalAccessException
+          | InvocationTargetException
+          | NoSuchMethodException e) {
+        throw new AssertionError(e);
+      }
+    }
+
+    /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
+    public static <T extends ListValue<? extends Value>> T createForTagged(
+        Class<T> klass,
+        @Nullable
+            Class<? extends CombinedValue> elementType, // obtain via annotation on level above
+        Stream<TaggedBasicValue<?>> taggedArguments) {
+      if (elementType != null && ListValue.class.isAssignableFrom(elementType)) {
+        throw new AssertionError("no nested lists supported");
+      }
+      return create(
+          klass,
+          CombinedValue.<Integer>collectArguments(
+                  taggedArguments,
+                  (name, values) -> {
+                    if (!(name instanceof Integer)) {
+                      throw new AssertionError();
+                    }
+                    if (elementType == null) {
+                      throw new AssertionError(
+                          "elementType == null only works for scalar element values, "
+                              + "probably missing an EntryType annotation");
+                    }
+                    return CombinedValue.createForTagged(elementType, values.stream());
+                  })
+              .entrySet()
+              .stream()
+              .map(e -> p(e.getKey(), e.getValue()))
+              .collect(Collectors.toList()));
+    }
     }
 
     /** also known as array region */
     public static class BasicListValue<T extends BasicScalarValue<?>> extends ListValue<T> {
 
-        protected BasicListValue(Type entryType, List<T> values) {
+    public BasicListValue(Type entryType, List<T> values) {
             super(entryType, values);
         }
 
-        protected BasicListValue(T value, T... values) {
+    public BasicListValue(T value, T... values) {
             super(value, values);
         }
 
@@ -559,5 +721,20 @@ public abstract class Value implements ToCode {
                     ", value=" + value +
                     '}';
         }
+
+    public boolean hasSinglePath() {
+      return path.size() == 1;
+    }
+
+    /** returns the first path element, either string or int */
+    public Object getFirstPathElement() {
+      return path.get(0);
+    }
+
+    /** assumes that the path has at least size 2 and drops the first path element */
+    public TaggedBasicValue<?> dropFirstPathElement() {
+      assert path.size() >= 2;
+      return new TaggedBasicValue<>(path.dropFirstPathElement(), value);
+    }
     }
 }

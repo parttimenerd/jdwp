@@ -31,11 +31,11 @@ internal object CodeGeneration {
         `public static final field`(TypeName.INT, "COMMAND") { `=`(cmd.nameNode.value()) }
 
         for (f in fields) {
-            `public final field`(f.javaType(), f.name()) { addJavadoc(f.comment()) }
+            addPublicField(f)
         }
 
         `public constructor`(
-            mutableListOf(param(TypeName.INT, "id"), param(TypeName.SHORT, "flags")) +
+            listOf(param(TypeName.INT, "id"), param(TypeName.SHORT, "flags")) +
                     fields.map { param(it.javaType(), it.name()) }) {
             statement("super($valType, id, flags)")
             for (f in fields) {
@@ -45,12 +45,20 @@ internal object CodeGeneration {
         }
 
         `public constructor`(
-            mutableListOf(param(TypeName.INT, "id")) +
+            listOf(param(TypeName.INT, "id")) +
                     fields.map { param(it.javaType(), it.name()) }) {
             statement("this(\$N)",
                 (listOf("id", "(short)$defaultFlag") + fields.map { it.name() }).joinToString(", ")
             )
         }
+
+        `public constructor`(listOf(param(TypeName.INT, "id"), param(pt("java.util.Map", "String", "Value"), "arguments"))) {
+            statement("this(\$N)",
+                (listOf("id", "(short)$defaultFlag") + fields.map { "(${it.javaType()}) Objects.requireNonNull(arguments.get(\"${it.name()}\"))" }).joinToString(", ")
+            )
+            this
+        }
+
 
         `public`(
             bg("Packet"), "toPacket",
@@ -82,6 +90,20 @@ internal object CodeGeneration {
         genVisitorAccept(allVisitorName)
 
         return this
+    }
+
+    private fun TypeSpec.Builder.addPublicField(f: TypeNode.AbstractTypeNode) {
+        `public final field`(f.javaType(), f.name()) {
+            addJavadoc(f.comment())
+            if (f is RepeatNode) {
+                addAnnotation(
+                    `@`(
+                        bg("EntryClass"),
+                        mapFunc = { this["klass"] = "${f.member.javaType().split("<")[0]}.class" }).build()
+                )
+            }
+            this
+        }
     }
 
     private fun genRequestClass(cmd: CommandNode): TypeSpec {
@@ -258,7 +280,7 @@ internal object CodeGeneration {
             extends("Value.CombinedValue")
 
             for (f in fields) {
-                `public final field`(f.javaType(), f.name()) { addJavadoc(f.comment()) }
+                addPublicField(f)
             }
 
             `public constructor`(
@@ -266,6 +288,14 @@ internal object CodeGeneration {
                 statement("super(Type.OBJECT)")
                 for (f in fields) {
                     statement("this.\$N = \$N", f.name(), f.name())
+                }
+                this
+            }
+
+            `public constructor`(listOf(param(pt("java.util.Map", "String", "Value"), "arguments"))) {
+                statement("super(Type.OBJECT)")
+                for (f in fields) {
+                    statement("this.\$N = (\$N) Objects.requireNonNull(arguments.get(\$S))", f.name(), f.javaType(), f.name())
                 }
                 this
             }
@@ -304,7 +334,7 @@ internal object CodeGeneration {
             extends(instanceName)
 
             for (f in commonFields) {
-                `public final field`(f.javaType(), f.name()) { addJavadoc(f.comment()) }
+                addPublicField(f)
             }
 
             `public constructor`(
@@ -357,13 +387,22 @@ internal object CodeGeneration {
             `public static final field`(TypeName.BYTE, "KIND") { `=`(alt.nameNode.value()) }
 
             for (f in uncommonFields) {
-                `public final field`(f.javaType(), f.name()) { addJavadoc(f.comment()) }
+                addPublicField(f)
             }
 
             `public constructor`((commonFields + uncommonFields).map { param(it.javaType(), it.name()) }) {
                 statement("super(${(listOf("PrimitiveValue.wrap(KIND)") + commonFields.map { it.name() }).joinToString(", ")})")
                 for (f in uncommonFields) {
                     statement("this.\$N = \$N", f.name(), f.name())
+                }
+                this
+            }
+
+            `public constructor`(listOf(param(pt("java.util.Map", "String", "Value"), "arguments"))) {
+                statement("super(${(listOf("PrimitiveValue.wrap(KIND)") + 
+                        commonFields.map { "(${it.javaType()}) Objects.requireNonNull(arguments.get(\"${it.name()}\"))" }).joinToString(", ")})")
+                for (f in uncommonFields) {
+                    statement("this.\$N = (\$N) Objects.requireNonNull(arguments.get(\$S))", f.name(), f.javaType(), f.name())
                 }
                 this
             }
@@ -375,7 +414,7 @@ internal object CodeGeneration {
                 _return("new ${alt.name()}(${(commonFields + uncommonFields).joinToString(", ") { it.name }})")
             }
 
-            genCombinedTypeGet(listOf(kindNode) + fields)
+            genCombinedTypeGet( fields)
 
             genToString(alt.name(), fields)
             genToCode(alt.name(), fields)
