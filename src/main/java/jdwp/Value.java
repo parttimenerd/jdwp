@@ -637,7 +637,7 @@ public abstract class Value implements ToCode {
 
         public final byte[] bytes;
 
-        protected ByteList(byte... bytes) {
+        public ByteList(byte... bytes) {
             super(Type.LIST);
             this.bytes = bytes;
         }

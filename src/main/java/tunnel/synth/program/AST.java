@@ -1,6 +1,7 @@
 package tunnel.synth.program;
 
 import jdwp.util.Pair;
+import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -143,11 +144,20 @@ public interface AST {
         }
 
         public abstract String toPrettyString(String indent, String innerIndent);
+
+        public static Statement parse(String input) {
+            return new Parser(input).parseStatement();
+        }
+    }
+
+    interface FunctionCallLike extends AST {
+        Identifier getFunction();
+        List<Primitive> getArguments();
     }
 
     @Getter
     @EqualsAndHashCode(callSuper = false)
-    class FunctionCall extends Statement {
+    class FunctionCall extends Statement implements FunctionCallLike {
 
         private final Identifier returnVariable;
         private final Identifier function;
@@ -168,6 +178,23 @@ public interface AST {
         public String toPrettyString(String indent, String innerIndent) {
             return String.format("%s(= %s %s%s%s)", indent, returnVariable, function,
                     arguments.size() > 0 ? " " : "", arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
+        }
+    }
+
+    @Getter
+    @AllArgsConstructor
+    class InnerFunctionCall implements FunctionCallLike {
+        private final Identifier function;
+        private final List<Primitive> arguments;
+
+        @Override
+        public String toString() {
+            return String.format("(%s %s)", function,
+                    arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
+        }
+
+        public FunctionCall toFunctionCall(Identifier ret) {
+            return new FunctionCall(ret, function, arguments);
         }
     }
 
@@ -279,6 +306,10 @@ public interface AST {
             next();
         }
 
+        private void expect(String expected) {
+            expected.chars().forEach(c -> expect((char)c));
+        }
+
         private void skipWhitespace() {
             while (!isEOF() && Character.isWhitespace(current)) {
                 next();
@@ -321,8 +352,6 @@ public interface AST {
         }
 
         FunctionCall parseFunctionCall() {
-            expect('=');
-            expect(' ');
             skipWhitespace();
             var ret = parseIdentifier();
             skipWhitespace();
@@ -337,10 +366,7 @@ public interface AST {
         }
 
         Loop parseLoop() {
-            expect('f');
-            expect('o');
-            expect('r');
-            expect(' ');
+            expect("for ");
             skipWhitespace();
             var iter = parseIdentifier();
             skipWhitespace();
@@ -370,8 +396,9 @@ public interface AST {
 
         StringLiteral parseString() {
             StringBuilder buf = new StringBuilder();
-            expect('"');
-            while (!isEOF() && current != '"') {
+            char usedQuote = current == '\'' ? '\'' : '"';
+            expect(usedQuote);
+            while (!isEOF() && current != usedQuote) {
                 buf.append(currentChar());
                 next();
                 if (current == '\\') {
@@ -379,8 +406,8 @@ public interface AST {
                     next();
                 }
             }
-            expect('"');
-            return new StringLiteral(StringEscapeUtils.unescapeJava(buf.toString()));
+            expect(usedQuote);
+            return new StringLiteral(StringEscapeUtils.unescapeEcmaScript(buf.toString()));
         }
 
         Literal<?> parseLiteral() {

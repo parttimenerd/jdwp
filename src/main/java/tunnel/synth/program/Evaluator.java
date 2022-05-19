@@ -11,17 +11,6 @@ import static jdwp.PrimitiveValue.wrap;
 
 public class Evaluator {
 
-    private static class Environment {
-        private final Scope scope;
-        private final Functions functions;
-
-        public Environment(Functions functions) {
-            this.scope = new Scope();
-            this.functions = functions;
-        }
-
-    }
-
     private final Functions functions;
 
     public Evaluator(Functions functions) {
@@ -29,29 +18,14 @@ public class Evaluator {
     }
 
     public Scope evaluate(Program program) {
-        Scope scope = new Scope();
+        return evaluate(new Scope(), program);
+    }
+
+    public Scope evaluate(Scope scope, Program program) {
         program.accept(new StatementVisitor() {
             @Override
             public void visit(FunctionCall functionCall) {
-                Value ret = functions.getFunction(functionCall.getFunction().getName())
-                        .evaluate(functionCall.getArguments().stream().map(p ->
-                                p.accept(new PrimitiveVisitor<Value>() {
-
-                            @Override
-                            public Value visit(IntegerLiteral integer) {
-                                return wrap(integer.get());
-                            }
-
-                            @Override
-                            public Value visit(StringLiteral string) {
-                                return wrap(string.get());
-                            }
-
-                            @Override
-                            public Value visit(Identifier name) {
-                                return scope.get(name.getName());
-                            }
-                        })).collect(Collectors.toList()));
+                Value ret = evaluateFunction(scope, functionCall);
                 scope.set(functionCall.getReturnVariable().getName(), ret);
             }
 
@@ -70,5 +44,27 @@ public class Evaluator {
             }
         });
         return scope;
+    }
+
+    public Value evaluateFunction(Scope scope, FunctionCallLike functionCall) {
+        return functions.getFunction(functionCall.getFunction().getName())
+                .evaluate(functionCall.getArguments().stream().map(p ->
+                        p.accept(new PrimitiveVisitor<Value>() {
+
+                            @Override
+                            public Value visit(IntegerLiteral integer) {
+                                return wrap(integer.get());
+                            }
+
+                            @Override
+                            public Value visit(StringLiteral string) {
+                                return wrap(string.get());
+                            }
+
+                            @Override
+                            public Value visit(Identifier name) {
+                                return scope.get(name.getName());
+                            }
+                        })).collect(Collectors.toList()));
     }
 }

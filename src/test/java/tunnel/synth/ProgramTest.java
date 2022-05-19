@@ -1,16 +1,21 @@
 package tunnel.synth;
 
+import jdwp.Reference;
+import jdwp.Request;
+import jdwp.Value.BasicValue;
+import jdwp.Value.ByteList;
+import jdwp.VirtualMachineCmds;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import tunnel.synth.program.AST;
+import tunnel.synth.program.*;
 import tunnel.synth.program.AST.FunctionCall;
 import tunnel.synth.program.AST.Loop;
 import tunnel.synth.program.AST.Statement;
-import tunnel.synth.program.Program;
 
 import java.util.List;
 
+import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static tunnel.synth.program.AST.ident;
 import static tunnel.synth.program.AST.literal;
@@ -82,4 +87,24 @@ public class ProgramTest {
     public void testOverlap(String program1, String program2, String overlap) {
         assertEquals(Program.parse(overlap), Program.parse(program1).overlap(Program.parse(program2)));
     }
+
+    private static Object[][] wrapFunctionTestSource() {
+        return new Object[][] {
+                {"(= ret wrap 'bytes' '234')", new ByteList((byte)'2', (byte)'3', (byte)'4')},
+                {"(= ret wrap 'string' '234')", wrap("234")},
+                {"(= ret wrap 'array-reference' 32)", Reference.array(32)}
+        };
+    }
+
+    @ParameterizedTest
+    @MethodSource("wrapFunctionTestSource")
+    public void testWrapFunction(String statement, BasicValue expectedValue) {
+        assertEquals(new Evaluator(new Functions()).evaluateFunction(new Scope(),
+                (FunctionCall)Statement.parse(statement)), expectedValue);
+        // round trip again
+        assertEquals(new Evaluator(new Functions()).evaluateFunction(new Scope(),
+                (FunctionCall)Statement.parse(Functions.createWrapperFunctionCall(expectedValue)
+                        .toFunctionCall(ident("ret")).toPrettyString())), expectedValue);
+    }
+
 }

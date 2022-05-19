@@ -45,7 +45,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             registerType(BooleanValue.class, Type.BOOLEAN);
         }
 
-        protected BooleanValue(Boolean value) {
+        public BooleanValue(Boolean value) {
             super(Type.BOOLEAN, value);
         }
 
@@ -74,7 +74,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             registerType(ByteValue.class, Type.BYTE);
         }
 
-        protected ByteValue(Byte value) {
+        public ByteValue(Byte value) {
             super(Type.BYTE, value);
         }
 
@@ -98,7 +98,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             registerType(CharValue.class, Type.CHAR);
         }
 
-        protected CharValue(Character value) {
+        public CharValue(Character value) {
             super(Type.CHAR, value);
         }
 
@@ -122,7 +122,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             registerType(ShortValue.class, Type.SHORT);
         }
 
-        protected ShortValue(Short value) {
+        public ShortValue(Short value) {
             super(Type.SHORT, value);
         }
 
@@ -146,7 +146,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             registerType(IntValue.class, Type.INT);
         }
 
-        protected IntValue(Integer value) {
+        public IntValue(Integer value) {
             super(Type.INT, value);
         }
 
@@ -175,7 +175,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             registerType(LongValue.class, Type.LONG);
         }
 
-        protected LongValue(Long value) {
+        public LongValue(Long value) {
             super(Type.LONG, value);
         }
 
@@ -252,7 +252,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             registerType(StringValue.class, Type.STRING);
         }
 
-        protected StringValue(String value) {
+        public StringValue(String value) {
             super(Type.STRING, value);
         }
 

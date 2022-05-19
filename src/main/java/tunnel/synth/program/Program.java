@@ -49,6 +49,10 @@ public class Program {
         this(new Body(body));
     }
 
+    public Program(Statement... body) {
+        this(new Body(List.of(body)));
+    }
+
     /** run on each sub statement */
     public void accept(StatementVisitor visitor) {
         body.forEach(s -> s.accept(visitor));
