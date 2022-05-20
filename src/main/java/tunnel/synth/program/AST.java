@@ -1,5 +1,8 @@
 package tunnel.synth.program;
 
+import jdwp.AccessPath;
+import jdwp.Request;
+import jdwp.Value.TaggedBasicValue;
 import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -15,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static jdwp.util.Pair.p;
 
@@ -36,6 +40,8 @@ public interface AST {
         void visit(FunctionCall functionCall);
 
         void visit(Loop loop);
+
+        void visit(RequestCall requestCall);
     }
 
     interface PrimitiveVisitor<R> {
@@ -47,7 +53,9 @@ public interface AST {
             return visit((Literal<?>) integer);
         }
 
-        default R visit(Literal<?> literal) { return null; }
+        default R visit(Literal<?> literal) {
+            return null;
+        }
 
         R visit(Identifier name);
     }
@@ -102,7 +110,7 @@ public interface AST {
         }
     }
 
-
+    @Getter
     @EqualsAndHashCode(callSuper = false)
     class Identifier extends Primitive {
         private final String name;
@@ -152,6 +160,7 @@ public interface AST {
 
     interface FunctionCallLike extends AST {
         Identifier getFunction();
+
         List<Primitive> getArguments();
     }
 
@@ -176,25 +185,105 @@ public interface AST {
 
         @Override
         public String toPrettyString(String indent, String innerIndent) {
-            return String.format("%s(= %s %s%s%s)", indent, returnVariable, function,
-                    arguments.size() > 0 ? " " : "", arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
+            return String.format(
+                    "%s(= %s %s%s%s)",
+                    indent,
+                    returnVariable,
+                    function,
+                    arguments.size() > 0 ? " " : "",
+                    arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
         }
     }
 
     @Getter
     @AllArgsConstructor
+    @EqualsAndHashCode
     class InnerFunctionCall implements FunctionCallLike {
         private final Identifier function;
         private final List<Primitive> arguments;
 
         @Override
         public String toString() {
-            return String.format("(%s %s)", function,
-                    arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
+            return String.format(
+                    "(%s %s)",
+                    function, arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
         }
 
         public FunctionCall toFunctionCall(Identifier ret) {
             return new FunctionCall(ret, function, arguments);
+        }
+    }
+
+    @Getter
+    @AllArgsConstructor
+    @EqualsAndHashCode
+    class RequestCall extends Statement {
+        private final Identifier returnVariable;
+        private final Identifier commandSet;
+        private final Identifier command;
+        private final List<RequestCallProperty> properties;
+
+        @Override
+        public void accept(StatementVisitor visitor) {
+            visitor.visit(this);
+        }
+
+        @Override
+        public String toPrettyString(String indent, String innerIndent) {
+            return String.format(
+                    "%s(request %s %s %s%s%s)",
+                    indent,
+                    returnVariable,
+                    commandSet,
+                    command,
+                    properties.isEmpty() ? "" : " ",
+                    properties.stream().map(Object::toString).collect(Collectors.joining(" ")));
+        }
+
+        public static RequestCall create(
+                String returnVariable,
+                String commandSet,
+                String command,
+                Stream<TaggedBasicValue<?>> taggedValues,
+                List<RequestCallProperty> properties) {
+            return new RequestCall(
+                    ident(returnVariable),
+                    ident(commandSet),
+                    ident(command),
+                    Stream.concat(taggedValues.map(RequestCallProperty::create), properties.stream())
+                            .collect(Collectors.toList()));
+        }
+
+        public static RequestCall create(String returnVariable, Request<?> request) {
+            return create(
+                    returnVariable,
+                    request.getCommandSetName(),
+                    request.getCommandName(),
+                    request.asCombined().getTaggedValues(),
+                    List.of());
+        }
+    }
+
+    @Getter
+    @AllArgsConstructor
+    @EqualsAndHashCode
+    class RequestCallProperty implements AST {
+        private final AccessPath path;
+        private final InnerFunctionCall accessor;
+
+        @Override
+        public String toString() {
+            return String.format(
+                    "(%s)=%s",
+                    path.stream()
+                            .map(o -> o instanceof String ? String.format("\"%s\"", o) : o.toString())
+                            .collect(Collectors.joining(" ")),
+                    accessor);
+        }
+
+        public static RequestCallProperty create(TaggedBasicValue<?> taggedValue) {
+            return new RequestCallProperty(
+                    taggedValue.path, Functions.createWrapperFunctionCall(taggedValue.getValue()));
         }
     }
 
@@ -222,7 +311,12 @@ public interface AST {
 
         public String toPrettyString(String indent, String innerIndent) {
             String subIndent = innerIndent + indent;
-            return String.format("%s(for %s %s %s%s)", indent, iter, iterable, innerIndent.isEmpty() ? "" : "\n",
+            return String.format(
+                    "%s(for %s %s %s%s)",
+                    indent,
+                    iter,
+                    iterable,
+                    innerIndent.isEmpty() ? "" : "\n",
                     body.toPrettyString(subIndent, innerIndent));
         }
 
@@ -270,7 +364,7 @@ public interface AST {
             this.current = stream.read();
         }
 
-        Parser(String input) {
+        public Parser(String input) {
             this(new ByteArrayInputStream(input.getBytes()));
         }
 
@@ -300,14 +394,16 @@ public interface AST {
 
         private void expect(char expected) {
             if (current != expected) {
-                throw new SyntaxError(line, column,
+                throw new SyntaxError(
+                        line,
+                        column,
                         String.format("Expected '%s' but got '%s'", expected, Character.toString(current)));
             }
             next();
         }
 
         private void expect(String expected) {
-            expected.chars().forEach(c -> expect((char)c));
+            expected.chars().forEach(c -> expect((char) c));
         }
 
         private void skipWhitespace() {
@@ -344,6 +440,9 @@ public interface AST {
                 case 'f':
                     ret = parseLoop();
                     break;
+                case 'r':
+                    ret = parseRequestCall();
+                    break;
                 default:
                     throw new SyntaxError(line, column, String.format("Unexpected %s", (char) current));
             }
@@ -352,6 +451,7 @@ public interface AST {
         }
 
         FunctionCall parseFunctionCall() {
+            expect("= ");
             skipWhitespace();
             var ret = parseIdentifier();
             skipWhitespace();
@@ -363,6 +463,62 @@ public interface AST {
                 skipWhitespace();
             }
             return new FunctionCall(ret, function, arguments);
+        }
+
+        /**
+         * request ret commandSet command ("p1" p2)=(wrap type primitive) or ... (p1 p2)=(get obj p1 p2)
+         */
+        RequestCall parseRequestCall() {
+            expect("request ");
+            skipWhitespace();
+            var ret = parseIdentifier();
+            skipWhitespace();
+            var commandSet = parseIdentifier();
+            skipWhitespace();
+            var command = parseIdentifier();
+            skipWhitespace();
+            List<RequestCallProperty> arguments = new ArrayList<>();
+            while (current != ')') {
+                arguments.add(parseRequestCallProperty());
+                skipWhitespace();
+            }
+            return new RequestCall(ret, commandSet, command, arguments);
+        }
+
+        RequestCallProperty parseRequestCallProperty() {
+            AccessPath path = parseAccessPath();
+            expect('=');
+            InnerFunctionCall call = parseInnerFunctionCall();
+            return new RequestCallProperty(path, call);
+        }
+
+        public AccessPath parseAccessPath() {
+            expect('(');
+            skipWhitespace();
+            List<Literal<?>> path = new ArrayList<>();
+            while (current != ')') {
+                path.add(parseLiteral());
+                skipWhitespace();
+            }
+            expect(')');
+            return new AccessPath(
+                    path.stream()
+                            .map(l -> l.value instanceof Long ? ((Long) l.value).intValue() : l.value)
+                            .toArray());
+        }
+
+        InnerFunctionCall parseInnerFunctionCall() {
+            expect('(');
+            skipWhitespace();
+            var function = parseIdentifier();
+            skipWhitespace();
+            List<Primitive> arguments = new ArrayList<>();
+            while (current != ')') {
+                arguments.add(parsePrimitive());
+                skipWhitespace();
+            }
+            expect(')');
+            return new InnerFunctionCall(function, arguments);
         }
 
         Loop parseLoop() {
@@ -438,11 +594,15 @@ public interface AST {
         }
 
         public String toPrettyString() {
-            return body.stream().map(s -> s.toPrettyString(Program.INDENT)).collect(Collectors.joining("\n"));
+            return body.stream()
+                    .map(s -> s.toPrettyString(Program.INDENT))
+                    .collect(Collectors.joining("\n"));
         }
 
         public String toPrettyString(String indent, String innerIndent) {
-            return body.stream().map(s -> s.toPrettyString(indent, innerIndent)).collect(Collectors.joining("\n"));
+            return body.stream()
+                    .map(s -> s.toPrettyString(indent, innerIndent))
+                    .collect(Collectors.joining("\n"));
         }
 
         /** run on each sub statement */
@@ -465,14 +625,20 @@ public interface AST {
         }
 
         public Map<Pair<Identifier, Identifier>, List<Integer>> getLoopIndexes() {
-            return IntStream.range(0, body.size()).boxed().filter(i -> get(i) instanceof Loop).collect(Collectors.groupingBy(i -> {
-                var loop = (Loop)get(i);
-                return p(loop.getIter(), loop.getIterable());
-            }));
+            return IntStream.range(0, body.size())
+                    .boxed()
+                    .filter(i -> get(i) instanceof Loop)
+                    .collect(
+                            Collectors.groupingBy(
+                                    i -> {
+                                        var loop = (Loop) get(i);
+                                        return p(loop.getIter(), loop.getIterable());
+                                    }));
         }
 
         /**
-         * Merge both programs using a simple algorithm that works if the program generation is highly deterministic.
+         * Merge both programs using a simple algorithm that works if the program generation is highly
+         * deterministic.
          */
         public Body merge(Body other) {
             if (other.isEmpty()) {
@@ -487,7 +653,12 @@ public interface AST {
             int prevIndex = 0;
             for (Statement statement : body) {
                 final var pi = prevIndex;
-                List<Integer> loopInd = statement instanceof Loop ? loopIndexes.getOrDefault(((Loop) statement).getHeader(), List.of()).stream().filter(i -> i >= pi).collect(Collectors.toList()) : List.of();
+                List<Integer> loopInd =
+                        statement instanceof Loop
+                                ? loopIndexes.getOrDefault(((Loop) statement).getHeader(), List.of()).stream()
+                                .filter(i -> i >= pi)
+                                .collect(Collectors.toList())
+                                : List.of();
                 if (indexes.containsKey(statement) || loopInd.size() > 0) {
                     int sIndex;
                     if (loopInd.size() > 0) {
@@ -501,7 +672,7 @@ public interface AST {
                     }
                     prevIndex++;
                     if (loopInd.size() > 0) {
-                        newStatements.addAll(((Loop)statement).merge((Loop) other.body.get(sIndex)));
+                        newStatements.addAll(((Loop) statement).merge((Loop) other.body.get(sIndex)));
                     } else {
                         newStatements.add(statement);
                     }
@@ -526,12 +697,12 @@ public interface AST {
             int lastIndex = -1;
             for (Statement statement : other) {
                 if (statement instanceof Loop) {
-                    var loop = (Loop)statement;
+                    var loop = (Loop) statement;
                     var header = p(loop.getIter(), loop.getIterable());
                     if (loopIndexes.containsKey(header)) {
                         for (Integer index : loopIndexes.get(header)) {
                             if (index > lastIndex) {
-                                newStatements.addAll(((Loop)get(index)).overlap(loop));
+                                newStatements.addAll(((Loop) get(index)).overlap(loop));
                                 lastIndex = index;
                             }
                         }

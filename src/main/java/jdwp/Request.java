@@ -9,6 +9,10 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
 
     int getCommand();
 
+    String getCommandName();
+
+    String getCommandSetName();
+
     boolean onlyReads();
 
     Packet toPacket(VM vm);

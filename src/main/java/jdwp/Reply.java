@@ -4,7 +4,12 @@ import jdwp.JDWP.ReplyVisitor;
 
 public interface Reply extends ParsedPacket {
     int getCommand();
+
     int getCommandSet();
+
+    String getCommandName();
+
+    String getCommandSetName();
 
     /** Thrown if the id of a reply does not match the id of the request which should parse it*/
     class IdMismatchException extends RuntimeException {

@@ -5,7 +5,9 @@ import jdwp.Value.ListValue;
 import jdwp.Value.WalkableValue;
 import lombok.EqualsAndHashCode;
 
-import java.util.*;
+import java.util.AbstractList;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
@@ -85,7 +87,7 @@ public class AccessPath extends AbstractList<Object> {
         this.path = new Object[0];
     }
 
-    public AccessPath(Object[] path) {
+  public AccessPath(Object... path) {
         this.path = path;
     }
 

@@ -40,6 +40,16 @@ public class TestReply extends AbstractTestParsedPacket implements Reply {
     }
 
     @Override
+    public String getCommandName() {
+        return "";
+    }
+
+    @Override
+    public String getCommandSetName() {
+        return "";
+    }
+
+    @Override
     public void accept(ReplyVisitor visitor) {
         throw new UnsupportedOperationException();
     }

@@ -18,7 +18,7 @@ public class AbstractTestParsedPacket extends AbstractParsedPacket {
 
     @SafeVarargs
     public AbstractTestParsedPacket(Type type, int id, Pair<String, ? extends Value>... values) {
-        super(type, id, (short) (type == Type.REPLY ? Packet.REPLY_FLAG : 0));
+    super(type, id, (type == Type.REPLY ? Packet.REPLY_FLAG : 0));
         this.values = Arrays.stream(values).collect(Collectors.toMap(Pair::first, Pair::second));
     }
 

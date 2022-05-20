@@ -1,9 +1,9 @@
 package jdwp.util;
 
-import jdwp.*;
 import jdwp.JDWP.CommandVisitor;
 import jdwp.JDWP.RequestReplyVisitor;
 import jdwp.JDWP.RequestVisitor;
+import jdwp.*;
 
 public class TestRequest extends AbstractTestParsedPacket implements Request<jdwp.util.TestReply> {
 
@@ -20,6 +20,16 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
     @Override
     public int getCommand() {
         return 0;
+    }
+
+    @Override
+    public String getCommandName() {
+        return "";
+    }
+
+    @Override
+    public String getCommandSetName() {
+        return "";
     }
 
     @Override

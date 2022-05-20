@@ -1,6 +1,5 @@
 package jdwp;
 
-import jdwp.AccessPath.TaggedAccessPath;
 import jdwp.ArrayReferenceCmds.GetValuesReply;
 import jdwp.EventCmds.Events.VMStart;
 import jdwp.EventRequestCmds.SetRequest.ClassExclude;
@@ -21,6 +20,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -76,18 +77,18 @@ public class ValueTest {
         var containedValues = combinedValue.getContainedValues();
         assertTrue(vals.stream().allMatch(containedValues::containsBasicValue));
 
-        assertEquals(Set.of(new TaggedAccessPath<>(combinedValue, "requests", 0, "object")), containedValues.getPaths(o1));
+        assertEquals(Set.of(new AccessPath("requests", 0, "object")), containedValues.getPaths(o1));
     }
 
     static Object[][] testToCodeMethodSource() {
         return new Object[][] {
                 {wrap(1), "PrimitiveValue.wrap(1)"},
                 {new Location(Reference.classType(1), Reference.method(2), wrap(1L)),
-                "new Location(new ClassTypeReference(1L), new MethodReference(2L), PrimitiveValue.wrap((long)1))"},
+                        "new Location(new ClassTypeReference(1L), new MethodReference(2L), PrimitiveValue.wrap((long)1))"},
                 {new GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057), new IntValue(0)))),
-                "new jdwp.ArrayReferenceCmds.GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057L), PrimitiveValue.wrap(0))))"},
+                        "new jdwp.ArrayReferenceCmds.GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057L), PrimitiveValue.wrap(0))))"},
                 {new VMStart(wrap(1), Reference.thread(2)),
-                "new VMStart(PrimitiveValue.wrap(1), new ThreadReference(2L))"}
+                        "new VMStart(PrimitiveValue.wrap(1), new ThreadReference(2L))"}
         };
     }
 
@@ -107,10 +108,10 @@ public class ValueTest {
     public void testContainedValueOrder() {
         var location = new IDSizesReply(1, wrap(1), wrap(1), wrap(2), wrap(1), wrap(2));
         var containedValues = location.getContainedValues();
-        assertEquals(new TaggedAccessPath<>(location, "fieldIDSize"),
-                containedValues.getFirstTaggedValue(wrap(1)).getPath());
-        assertEquals(new TaggedAccessPath<>(location, "objectIDSize"),
-                containedValues.getFirstTaggedValue(wrap(2)).getPath());
+        assertEquals(
+                new AccessPath("fieldIDSize"), containedValues.getFirstTaggedValue(wrap(1)).getPath());
+        assertEquals(
+                new AccessPath("objectIDSize"), containedValues.getFirstTaggedValue(wrap(2)).getPath());
     }
 
     @Test
@@ -126,14 +127,47 @@ public class ValueTest {
     private static final Location sampleLocation =
             new Location(Reference.classType(1), Reference.method(10), wrap(10L));
 
+    private static class ValueWithList extends CombinedValue {
+
+        @EntryClass(IntValue.class)
+        private final ListValue<IntValue> values;
+
+        public ValueWithList(ListValue<IntValue> values) {
+            super(Type.OBJECT);
+            this.values = values;
+        }
+
+        @SuppressWarnings("unchecked")
+        public ValueWithList(Map<String, Value> args) {
+            this((ListValue<IntValue>) Objects.requireNonNull(args.get("values")));
+        }
+
+        @Override
+        protected boolean containsKey(String key) {
+            return key.equals("values");
+        }
+
+        @Override
+        public List<String> getKeys() {
+            return List.of("values");
+        }
+
+        @Override
+        public Value get(String key) {
+            return values;
+        }
+    }
+
     static List<CombinedValue> combinedValueCreateTestSource() {
         return List.of(
                 sampleLocation,
                 new ClassExclude(wrap("s")),
                 new LocationOnly(sampleLocation),
                 new FieldValue(Reference.field(10), wrap(1)),
-                new ClassDef(Reference.klass(1), new ByteList((byte) 1, (byte) 2, (byte) 4))
-        );
+                new ClassDef(Reference.klass(1), new ByteList((byte) 1, (byte) 2, (byte) 4)),
+                new ClassDef(Reference.klass(1), new ByteList()),
+                new ValueWithList(new ListValue<>(wrap(1))),
+                new ValueWithList(new ListValue<>(Type.INT)));
     }
 
     @ParameterizedTest
@@ -160,26 +194,28 @@ public class ValueTest {
     @MethodSource("listValueCreateTestSource")
     @SuppressWarnings("unchecked")
     public void testListValueCreateFromPairs(ListValue<? extends Value> value) {
-        assertEquals(value, ListValue.create(value.getClass(), value.getValues()));
+        assertEquals(
+                value, ListValue.create(value.getClass(), value.get(0).getClass(), value.getValues()));
     }
 
     @ParameterizedTest
     @MethodSource("listValueCreateTestSource")
     @SuppressWarnings("unchecked")
     public void testListValueCreateFromTaggedValues(ListValue<? extends Value> value) {
-        Class<CombinedValue> elementType =
-                value.get(0) instanceof CombinedValue ? (Class<CombinedValue>) value.get(0).getClass() : null;
+        Class<Value> elementType = (Class<Value>) value.get(0).getClass();
         assertEquals(value, ListValue.createForTagged(value.getClass(), elementType, value.getTaggedValues()));
     }
 
     static List<? extends AbstractParsedPacket> abstractPacketCreateTestSource() {
         return List.of(
                 new GetValuesReply(1, new BasicListValue<>(wrap(1), wrap(2))),
-                new ArrayReferenceCmds.SetValuesRequest(3, Reference.array(1), wrap(1),
-                        new ListValue<>(wrap(true))),
-                new SetValuesRequest(2, Reference.thread(1), Reference.frame(1),
-                        new ListValue<>(new SlotInfo(wrap(1), wrap("slot"))))
-        );
+                new ArrayReferenceCmds.SetValuesRequest(
+                        3, Reference.array(1), wrap(1), new ListValue<>(Type.VALUE, wrap(true))),
+                new SetValuesRequest(
+                        2,
+                        Reference.thread(1),
+                        Reference.frame(1),
+                        new ListValue<>(new SlotInfo(wrap(1), wrap("slot")))));
     }
 
     @ParameterizedTest
@@ -190,7 +226,6 @@ public class ValueTest {
 
     @ParameterizedTest
     @MethodSource("abstractPacketCreateTestSource")
-    @SuppressWarnings("unchecked")
     public void testAbstractParsedPacketCreateFromTaggedValues(AbstractParsedPacket value) {
         assertEquals(value, AbstractParsedPacket.createForTagged(value.getId(), value.getClass(), value.getTaggedValues()));
     }

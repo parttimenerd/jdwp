@@ -36,6 +36,10 @@ class CommandSetNode extends AbstractNamedNode {
         return super.name() + "Cmds";
     }
 
+    public String rawName() {
+        return super.name();
+    }
+
     void constrainComponent(Context ctx, Node node) {
         if (node instanceof CommandNode) {
             node.constrain(ctx);

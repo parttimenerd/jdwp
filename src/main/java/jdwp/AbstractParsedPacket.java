@@ -59,12 +59,12 @@ public abstract class AbstractParsedPacket extends CombinedValue implements Pars
      * uses reflection
      */
     public static <T extends AbstractParsedPacket> T create(int id, Class<T> klass,
-                                                     List<Pair<String, Value>> arguments) {
+                                                            List<Pair<String, Value>> arguments) {
         return create(id, klass, arguments.stream().collect(Collectors.toMap(p -> p.first, p -> p.second)));
     }
 
     public static <T extends AbstractParsedPacket> T create(int id, Class<T> klass,
-                                                     Map<String, Value> arguments) {
+                                                            Map<String, Value> arguments) {
         try {
             return klass.getConstructor(int.class, Map.class).newInstance(id, arguments);
         } catch (InstantiationException | IllegalAccessException |
@@ -77,7 +77,7 @@ public abstract class AbstractParsedPacket extends CombinedValue implements Pars
      * Create an object for a list of tagged values, inverse of {@link #getTaggedValues()}
      */
     public static <T extends AbstractParsedPacket> T createForTagged(int id, Class<T> klass,
-                                                              Stream<TaggedBasicValue<?>> taggedArguments) {
+                                                                     Stream<TaggedBasicValue<?>> taggedArguments) {
         return CombinedValue.createForTagged(klass, taggedArguments, (k, values) -> create(id, k, values));
     }
 }

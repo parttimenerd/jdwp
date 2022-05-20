@@ -1,6 +1,5 @@
 package jdwp;
 
-import jdwp.AccessPath.TaggedAccessPath;
 import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
 
@@ -53,7 +52,7 @@ public class ContainedValues {
         return new ContainedValues(parent, map);
     }
 
-    public Set<TaggedAccessPath<?>> getPaths(BasicValue value) {
+  public Set<AccessPath> getPaths(BasicValue value) {
         return map.containsKey(value) ? map.get(value).stream().map(v -> v.path).collect(Collectors.toSet()) : Collections.emptySet();
     }
 

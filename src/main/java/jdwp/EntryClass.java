@@ -9,5 +9,5 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface EntryClass {
-    Class<? extends Value> klass();
+  Class<? extends Value> value();
 }

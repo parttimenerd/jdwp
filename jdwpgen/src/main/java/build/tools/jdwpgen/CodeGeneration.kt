@@ -53,6 +53,7 @@ internal object CodeGeneration {
         }
 
         `public constructor`(listOf(param(TypeName.INT, "id"), param(pt("java.util.Map", "String", "Value"), "arguments"))) {
+            `@SuppressWarnings`("unchecked")
             statement("this(\$N)",
                 (listOf("id", "(short)$defaultFlag") + fields.map { "(${it.javaType()}) Objects.requireNonNull(arguments.get(\"${it.name()}\"))" }).joinToString(", ")
             )
@@ -87,6 +88,16 @@ internal object CodeGeneration {
             _return("COMMAND_SET")
         }
 
+        `public`(String::class, "getCommandName") {
+            `@Override`()
+            _return(cmd.name().S)
+        }
+
+        `public`(String::class, "getCommandSetName") {
+            `@Override`()
+            _return((cmd.parent as CommandSetNode).rawName().S)
+        }
+
         genVisitorAccept(allVisitorName)
 
         return this
@@ -99,7 +110,7 @@ internal object CodeGeneration {
                 addAnnotation(
                     `@`(
                         bg("EntryClass"),
-                        mapFunc = { this["klass"] = "${f.member.javaType().split("<")[0]}.class" }).build()
+                        mapFunc = { this["value"] = "${f.member.javaType().split("<")[0]}.class" }).build()
                 )
             }
             this
@@ -293,6 +304,7 @@ internal object CodeGeneration {
             }
 
             `public constructor`(listOf(param(pt("java.util.Map", "String", "Value"), "arguments"))) {
+                `@SuppressWarnings`("unchecked")
                 statement("super(Type.OBJECT)")
                 for (f in fields) {
                     statement("this.\$N = (\$N) Objects.requireNonNull(arguments.get(\$S))", f.name(), f.javaType(), f.name())
@@ -399,6 +411,7 @@ internal object CodeGeneration {
             }
 
             `public constructor`(listOf(param(pt("java.util.Map", "String", "Value"), "arguments"))) {
+                `@SuppressWarnings`("unchecked")
                 statement("super(${(listOf("PrimitiveValue.wrap(KIND)") + 
                         commonFields.map { "(${it.javaType()}) Objects.requireNonNull(arguments.get(\"${it.name()}\"))" }).joinToString(", ")})")
                 for (f in uncommonFields) {

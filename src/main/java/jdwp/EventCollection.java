@@ -81,6 +81,16 @@ public interface EventCollection extends Request<NullReply>, Reply {
         }
 
         @Override
+        public String getCommandName() {
+            throw new AssertionError();
+        }
+
+        @Override
+        public String getCommandSetName() {
+            throw new AssertionError();
+        }
+
+        @Override
         public void accept(ReplyVisitor visitor) {
 
         }

@@ -3,9 +3,6 @@
 package build.tools.jdwpgen
 import com.grosner.kpoet.*
 import com.squareup.javapoet.*
-import com.squareup.javapoet.ParameterSpec
-import com.squareup.javapoet.TypeName
-import com.squareup.javapoet.TypeSpec
 import javax.lang.model.element.Modifier
 import kotlin.reflect.KClass
 
@@ -106,7 +103,17 @@ fun MethodSpec.Builder._return(arg: String) = addStatement("return $arg")!!
 fun MethodSpec.Builder.`throw new2`(type: ClassName, arg: String)
         = addStatement("throw new \$T($arg)", type)!!
 
-fun MethodSpec.Builder.`throw new2`(type: KClass<*>, arg: String)
-        = addStatement("throw new \$T($arg)", type.java)!!
 
 fun MethodSpec.Builder.`@Override`() = `@`(ClassName.bestGuess("Override"))
+
+fun MethodSpec.Builder.`@SuppressWarnings`(vararg warnings: String): MethodSpec.Builder {
+    addAnnotation(`@`(ClassName.bestGuess("SuppressWarnings"),
+        mapFunc = {
+            this["value"] =
+                if (warnings.size == 1)
+                    warnings[0].S else
+                    "{${warnings.joinToString(", ") { it.S }}}"
+        }).build()
+    )
+    return this
+}

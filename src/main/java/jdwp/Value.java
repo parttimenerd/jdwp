@@ -1,14 +1,13 @@
 package jdwp;
 
-import jdwp.AccessPath.TaggedAccessPath;
 import jdwp.Reference.ArrayReference;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import tunnel.util.ToCode;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -22,8 +21,6 @@ import static jdwp.util.Pair.p;
 @SuppressWarnings("ALL")
 public abstract class Value implements ToCode {
 
-    protected static final Map<Class<? extends Value>, Type> classTypeMap = new HashMap<>();
-
     public final Type type;
 
     protected Value(Type type) {
@@ -35,17 +32,6 @@ public abstract class Value implements ToCode {
     }
 
     public abstract void write(PacketOutputStream ps);
-
-    public static <T extends Value> Type typeForClass(Class<T> klass) {
-        if (klass.equals(BasicScalarValue.class)) {
-            return Type.VALUE;
-        }
-        return classTypeMap.getOrDefault(klass, Type.OBJECT);
-    }
-
-    static void registerType(Class<? extends Value> klass, Type type) {
-        classTypeMap.put(klass, type);
-    }
 
     public enum Type implements ToCode {
         THREAD(Tag.THREAD),
@@ -70,6 +56,9 @@ public abstract class Value implements ToCode {
         CLASS_OBJECT(Tag.CLASS_OBJECT),
         LOCATION(-1), TYPE(-1), ARRAY(Tag.ARRAY),
         VALUE(-1), EVENT_MODIFIER(-1);
+
+        protected static final Map<Class<? extends Value>, Type> classTypeMap = new HashMap<>();
+
         final int tag;
         Type(int tag) {
             this.tag = tag;
@@ -124,6 +113,17 @@ public abstract class Value implements ToCode {
             return forPrimitive(tag);
         }
 
+        public static <T extends Value> Type forClass(Class<T> klass) {
+            if (klass.equals(BasicScalarValue.class)) {
+                return VALUE;
+            }
+            return classTypeMap.getOrDefault(klass, OBJECT);
+        }
+
+        static void registerType(Class<? extends Value> klass, Type type) {
+            classTypeMap.put(klass, type);
+        }
+
         public String toCode() {
             return "Type." + name();
         }
@@ -139,7 +139,7 @@ public abstract class Value implements ToCode {
         protected abstract boolean containsKey(K key);
 
         public List<Pair<K, Value>> getValues() {
-      return getKeyStream().map(k -> p(k, get(k))).collect(Collectors.toList());
+            return getKeyStream().map(k -> p(k, get(k))).collect(Collectors.toList());
         }
 
         public boolean hasValues() {
@@ -166,22 +166,22 @@ public abstract class Value implements ToCode {
 
         /** returns the tagged values in pre-order */
         public Stream<TaggedBasicValue<?>> getTaggedValues() {
-            return getTaggedValues(new TaggedAccessPath<>(this));
+            return getTaggedValues(new AccessPath());
         }
 
-        private Stream<TaggedBasicValue<?>> getTaggedValues(TaggedAccessPath<?> basePath) {
-      return getValues().stream()
-          .flatMap(
-              p -> {
-                var subPath = basePath.appendElement(p.first);
-                if (p.second instanceof ListValue.BasicValue) {
-                  return Stream.of(new TaggedBasicValue<>(subPath, (BasicValue) p.second));
-                }
-                if (p.second instanceof WalkableValue<?>) {
-                  return ((WalkableValue<?>) p.second).getTaggedValues(subPath);
-                }
-                throw new AssertionError();
-              });
+        private Stream<TaggedBasicValue<?>> getTaggedValues(AccessPath basePath) {
+            return getValues().stream()
+                    .flatMap(
+                            p -> {
+                                var subPath = basePath.appendElement(p.first);
+                                if (p.second instanceof ListValue.BasicValue) {
+                                    return Stream.of(new TaggedBasicValue<>(subPath, (BasicValue) p.second));
+                                }
+                                if (p.second instanceof WalkableValue<?>) {
+                                    return ((WalkableValue<?>) p.second).getTaggedValues(subPath);
+                                }
+                                throw new AssertionError();
+                            });
         }
 
         public ContainedValues getContainedValues() {
@@ -191,15 +191,30 @@ public abstract class Value implements ToCode {
         }
     }
 
-  /**
-   * Implicit contract that every instantiatable sub class has to fulfill in order to be usable with
-   * the create function (request, reply and event are excluded): - implement a constructor that
-   * accepts all parameters in order - implement a constructor that accepts a Map<String, Value>
-   * containing all parameters - getValues and getTaggedValues return all values to construct the
-   * exact same object - all list valued fields with entries of CombinedValue type have an {@link
-   * EntryClass} annotation - lists are not nested
-   */
-  public abstract static class CombinedValue extends WalkableValue<String> {
+    /**
+     * Implicit contract that every instantiatable sub class has to fulfill in order to be usable with
+     * the create function (request, reply and event are excluded):
+     *
+     * <ul>
+     *   <ul>
+     *     implement a constructor that accepts all parameters in order
+     *   </ul>
+     *   <ul>
+     *     implement a constructor that accepts a Map<String, Value> containing all parameters
+     *   </ul>
+     *   <ul>
+     *     getValues and getTaggedValues return all values to construct the exact same object
+     *   </ul>
+     *   <ul>
+     *     all list valued fields with entries of CombinedValue type have an {@link EntryClass}
+     *     annotation
+     *   </ul>
+     *   <ul>
+     *     lists are not nested
+     *   </ul>
+     * </ul>
+     */
+    public abstract static class CombinedValue extends WalkableValue<String> {
 
         protected CombinedValue(Type type) {
             super(type);
@@ -221,13 +236,17 @@ public abstract class Value implements ToCode {
 
         @Override
         public String toString() {
-            return getClass().getSimpleName() + "(" +
-                    getValues().stream().map(p -> p.second.toString()).collect(Collectors.joining(", ")) + ")";
+            return getClass().getSimpleName()
+                    + "("
+                    + getValues().stream().map(p -> p.second.toString()).collect(Collectors.joining(", "))
+                    + ")";
         }
 
         @Override
         public String toCode() {
-            return String.format("new %s(%s)", getClass().getSimpleName(),
+            return String.format(
+                    "new %s(%s)",
+                    getClass().getSimpleName(),
                     getValues().stream().map(p -> p.second.toCode()).collect(Collectors.joining(", ")));
         }
 
@@ -236,100 +255,131 @@ public abstract class Value implements ToCode {
             return getKeys().size() > 0;
         }
 
-    /**
-     * Create an object of the passed class with the given constructor arguments, inverse of {@link
-     * #getValues()}
-     *
-     * <p>assumes that all constructor arguments are present
-     *
-     * <p>uses reflection
-     */
-    public static <T extends CombinedValue> T create(
-        Class<T> klass, List<Pair<String, Value>> arguments) {
-      return create(
-          klass, arguments.stream().collect(Collectors.toMap(p -> p.first, p -> p.second)));
-    }
+        /**
+         * Create an object of the passed class with the given constructor arguments, inverse of {@link
+         * #getValues()}
+         *
+         * <p>assumes that all constructor arguments are present
+         *
+         * <p>uses reflection
+         */
+        public static <T extends CombinedValue> T create(
+                Class<T> klass, List<Pair<String, Value>> arguments) {
+            return create(
+                    klass, arguments.stream().collect(Collectors.toMap(p -> p.first, p -> p.second)));
+        }
 
-    public static <T extends CombinedValue> T create(Class<T> klass, Map<String, Value> arguments) {
-      try {
-        return (T) klass.getConstructor(Map.class).newInstance(arguments);
-      } catch (InstantiationException
-          | IllegalAccessException
-          | InvocationTargetException
-          | NoSuchMethodException e) {
-        throw new AssertionError(e);
-      }
-    }
-
-    /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
-    public static <T extends CombinedValue> T createForTagged(
-        Class<T> klass, Stream<TaggedBasicValue<?>> taggedArguments) {
-      return CombinedValue.createForTagged(klass, taggedArguments, CombinedValue::create);
-    }
-
-    /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
-    protected static <T extends CombinedValue> T createForTagged(
-        Class<T> klass,
-        Stream<TaggedBasicValue<?>> taggedArguments,
-        BiFunction<Class<T>, Map<String, Value>, T> creator) {
-      return creator.apply(
-          klass,
-          collectArguments(
-              taggedArguments,
-              (name, values) -> {
-                try {
-                  var field = klass.getField(name);
-                  var type = (Class<? extends Value>) field.getType();
-                  if (CombinedValue.class.isAssignableFrom(type)) {
-                    return createForTagged((Class<? extends CombinedValue>) type, values.stream());
-                  } else if (ListValue.class.isAssignableFrom(type)) {
-                    // the required element type is encoded in a field annotation
-                    var annotation = field.getAnnotation(EntryClass.class);
-                    var elementType =
-                        annotation == null
-                            ? null
-                            : (Class<? extends CombinedValue>) annotation.klass();
-                    return ListValue.createForTagged(
-                        (Class<? extends ListValue<?>>) type, elementType, values.stream());
-                  } else {
-                    throw new AssertionError();
-                  }
-                } catch (NoSuchFieldException e) {
-                  throw new AssertionError(e);
-                }
-              }));
-    }
-
-    private static <T> Map<T, Value> collectArguments(
-        Stream<TaggedBasicValue<?>> taggedArguments,
-        BiFunction<T, List<TaggedBasicValue<?>>, Value> subCreate) {
-      Map<T, Value> arguments = new HashMap<>();
-      Map<T, List<TaggedBasicValue<?>>> subValues = new HashMap<>();
-      taggedArguments.forEach(
-          tv -> {
-            var name = (T) tv.getFirstPathElement();
-            if (tv.hasSinglePath()) {
-              arguments.put(name, tv.value);
-            } else {
-              subValues
-                  .computeIfAbsent(name, p -> new ArrayList<>())
-                  .add(tv.dropFirstPathElement());
+        public static <T extends CombinedValue> T create(Class<T> klass, Map<String, Value> arguments) {
+            try {
+                return (T) klass.getConstructor(Map.class).newInstance(arguments);
+            } catch (InstantiationException
+                    | IllegalAccessException
+                    | InvocationTargetException
+                    | NoSuchMethodException e) {
+                throw new AssertionError(e);
             }
-          });
-      for (var entry : subValues.entrySet()) {
-        arguments.put(entry.getKey(), subCreate.apply(entry.getKey(), entry.getValue()));
-      }
-      return arguments;
-    }
+        }
+
+        /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
+        public static <T extends CombinedValue> T createForTagged(
+                Class<T> klass, Stream<TaggedBasicValue<?>> taggedArguments) {
+            return CombinedValue.createForTagged(klass, taggedArguments, CombinedValue::create);
+        }
+
+        /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
+        protected static <T extends CombinedValue> T createForTagged(
+                Class<T> klass,
+                Stream<TaggedBasicValue<?>> taggedArguments,
+                BiFunction<Class<T>, Map<String, Value>, T> creator) {
+            return creator.apply(
+                    klass,
+                    collectArguments(
+                            klass,
+                            taggedArguments,
+                            (name, values) -> {
+                                try {
+                                    Field field;
+                                    try {
+                                        field = klass.getField(name);
+                                    } catch (NoSuchFieldException e) {
+                                        field = klass.getDeclaredField(name);
+                                    }
+                                    var type = (Class<? extends Value>) field.getType();
+                                    if (CombinedValue.class.isAssignableFrom(type)) {
+                                        return createForTagged((Class<? extends CombinedValue>) type, values.stream());
+                                    } else if (ListValue.class.isAssignableFrom(type)) {
+                                        // the required element type is encoded in a field annotation
+                                        var annotation = field.getAnnotation(EntryClass.class);
+                                        Class<? extends Value> elementType;
+                                        if (annotation != null) {
+                                            elementType = annotation.value();
+                                        } else {
+                                            assert BasicListValue.class.isAssignableFrom(type);
+                                            elementType =
+                                                    values.size() > 0 ? values.get(0).value.getClass() : CombinedValue.class;
+                                        }
+                                        return ListValue.createForTagged(
+                                                (Class<? extends ListValue<?>>) type, elementType, values.stream());
+                                    } else {
+                                        throw new AssertionError();
+                                    }
+                                } catch (NoSuchFieldException e) {
+                                    throw new AssertionError(e);
+                                }
+                            }));
+        }
+
+        private static <T> Map<T, Value> collectArguments(
+                Class<?> klass,
+                Stream<TaggedBasicValue<?>> taggedArguments,
+                BiFunction<T, List<TaggedBasicValue<?>>, Value> subCreate) {
+            Map<T, Value> arguments = new HashMap<>();
+            Map<T, List<TaggedBasicValue<?>>> subValues = new HashMap<>();
+            taggedArguments.forEach(
+                    tv -> {
+                        var name = (T) tv.getFirstPathElement();
+                        if (tv.hasSinglePath()) {
+                            arguments.put(name, tv.value);
+                        } else {
+                            subValues
+                                    .computeIfAbsent(name, p -> new ArrayList<>())
+                                    .add(tv.dropFirstPathElement());
+                        }
+                    });
+            for (var entry : subValues.entrySet()) {
+                arguments.put(entry.getKey(), subCreate.apply(entry.getKey(), entry.getValue()));
+            }
+            // now find fields that are not present
+            // two reasons: values without properties (unsupported currently) or empty lists
+            Stream.concat(Arrays.stream(klass.getDeclaredFields()), Arrays.stream(klass.getFields()))
+                    .filter(f -> !subValues.containsKey(f.getName()))
+                    .distinct()
+                    .forEach(
+                            f -> {
+                                var entryAnn = f.getAnnotation(EntryClass.class);
+                                if (entryAnn != null) { // we found a list field without an argument
+                                    assert ListValue.class.isAssignableFrom(f.getType());
+                                    arguments.put(
+                                            (T) f.getName(),
+                                            ListValue.createForList((Class) f.getType(), entryAnn.value(), List.of()));
+                                }
+                            });
+            return arguments;
+        }
     }
 
-  /**
-   * Implicit contract that every instantiatable sub class has to fulfill in order to be usable with
-   * the create function: - implement a constructor X(Type entryType, List<T> values) - getValues()
-   * and getTaggedValues() return all values of an object that are necessary to construct a copy
-   */
-  public static class ListValue<T extends Value> extends WalkableValue<Integer>
-      implements Iterable<T> {
+    /**
+     * Implicit contract that every instantiatable sub class has to fulfill in order to be usable with
+     * the create function:
+     *
+     * <ul>
+     *   <li>implement a constructor X(Type entryType, List<T> values)
+     *   <li>getValues() and getTaggedValues() return all values of an object that are necessary to
+     *       construct a copy
+     * </ul>
+     */
+    public static class ListValue<T extends Value> extends WalkableValue<Integer>
+            implements Iterable<T> {
 
         final Type entryType;
         final List<T> values;
@@ -345,9 +395,9 @@ public abstract class Value implements ToCode {
         }
 
         @SafeVarargs
-        protected ListValue(T value, T... values) {
+        public ListValue(T value, T... values) {
             super(Type.LIST);
-            this.entryType = Value.typeForClass(value.getClass());
+            this.entryType = Type.forClass(value.getClass());
             this.values = Stream.concat(Stream.of(value), Stream.of(values)).collect(Collectors.toList());
         }
 
@@ -410,72 +460,76 @@ public abstract class Value implements ToCode {
             return size() > 0;
         }
 
-    /** inverse of {@link #getValues()} using reflection */
-    public static <T extends ListValue<? extends Value>> T create(
-        Class<T> klass, List<Pair<Integer, Value>> arguments) {
-      return createForList(
-          klass,
-          arguments.stream()
-              .sorted((x, y) -> Integer.compare(x.first, y.first))
-              .map(p -> p.second)
-              .collect(Collectors.toList()));
-    }
-
-    public static <T extends ListValue<? extends Value>> T createForList(
-        Class<T> klass, List<Value> arguments) {
-      try {
-        Type type = Type.OBJECT;
-        if (arguments.size() > 0) {
-          type = arguments.get(0).type.tag == -1 ? Type.OBJECT : arguments.get(0).type;
+        /** inverse of {@link #getValues()} using reflection */
+        public static <T extends ListValue<? extends Value>> T create(
+                Class<T> klass, Class<? extends Value> elementType, List<Pair<Integer, Value>> arguments) {
+            return createForList(
+                    klass,
+                    elementType,
+                    arguments.stream()
+                            .sorted((x, y) -> Integer.compare(x.first, y.first))
+                            .map(p -> p.second)
+                            .collect(Collectors.toList()));
         }
-        return (T) klass.getConstructor(Type.class, List.class).newInstance(type, arguments);
-      } catch (InstantiationException
-          | IllegalAccessException
-          | InvocationTargetException
-          | NoSuchMethodException e) {
-        throw new AssertionError(e);
-      }
-    }
 
-    /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
-    public static <T extends ListValue<? extends Value>> T createForTagged(
-        Class<T> klass,
-        @Nullable
-            Class<? extends CombinedValue> elementType, // obtain via annotation on level above
-        Stream<TaggedBasicValue<?>> taggedArguments) {
-      if (elementType != null && ListValue.class.isAssignableFrom(elementType)) {
-        throw new AssertionError("no nested lists supported");
-      }
-      return create(
-          klass,
-          CombinedValue.<Integer>collectArguments(
-                  taggedArguments,
-                  (name, values) -> {
-                    if (!(name instanceof Integer)) {
-                      throw new AssertionError();
-                    }
-                    if (elementType == null) {
-                      throw new AssertionError(
-                          "elementType == null only works for scalar element values, "
-                              + "probably missing an EntryType annotation");
-                    }
-                    return CombinedValue.createForTagged(elementType, values.stream());
-                  })
-              .entrySet()
-              .stream()
-              .map(e -> p(e.getKey(), e.getValue()))
-              .collect(Collectors.toList()));
-    }
+        public static <T extends ListValue<? extends Value>> T createForList(
+                Class<T> klass, Class<? extends Value> elementType, List<Value> arguments) {
+            try {
+                Type type = Type.OBJECT;
+                return (T)
+                        klass
+                                .getConstructor(Type.class, List.class)
+                                .newInstance(Type.forClass(elementType), arguments);
+            } catch (InstantiationException
+                    | IllegalAccessException
+                    | InvocationTargetException
+                    | NoSuchMethodException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
+        public static <T extends ListValue<? extends Value>> T createForTagged(
+                Class<T> klass,
+                Class<? extends Value> elementType, // obtain via annotation on level above
+                Stream<TaggedBasicValue<?>> taggedArguments) {
+            Objects.requireNonNull(elementType);
+            if (ListValue.class.isAssignableFrom(elementType)) {
+                throw new AssertionError("no nested lists supported");
+            }
+            return create(
+                    klass,
+                    elementType,
+                    CombinedValue.<Integer>collectArguments(
+                                    klass,
+                                    taggedArguments,
+                                    (name, values) -> {
+                                        if (!(name instanceof Integer)) {
+                                            throw new AssertionError();
+                                        }
+                                        if (elementType == null) {
+                                            throw new AssertionError(
+                                                    "elementType == null only works for scalar element values, "
+                                                            + "probably missing an EntryType annotation");
+                                        }
+                                        return CombinedValue.createForTagged(
+                                                (Class<CombinedValue>) elementType, values.stream());
+                                    })
+                            .entrySet()
+                            .stream()
+                            .map(e -> p(e.getKey(), e.getValue()))
+                            .collect(Collectors.toList()));
+        }
     }
 
     /** also known as array region */
     public static class BasicListValue<T extends BasicScalarValue<?>> extends ListValue<T> {
 
-    public BasicListValue(Type entryType, List<T> values) {
+        public BasicListValue(Type entryType, List<T> values) {
             super(entryType, values);
         }
 
-    public BasicListValue(T value, T... values) {
+        public BasicListValue(T value, T... values) {
             super(value, values);
         }
 
@@ -688,12 +742,11 @@ public abstract class Value implements ToCode {
     @EqualsAndHashCode(callSuper = false)
     public static class TaggedBasicValue<V extends BasicValue> extends BasicValue {
 
-        @NotNull
-        public final TaggedAccessPath<?> path;
+        @NotNull public final AccessPath path;
         @NotNull
         public final V value;
 
-        public TaggedBasicValue(TaggedAccessPath<?> path, V value) {
+        public TaggedBasicValue(AccessPath path, V value) {
             super(value.type);
             this.path = path;
             this.value = value;
@@ -722,19 +775,19 @@ public abstract class Value implements ToCode {
                     '}';
         }
 
-    public boolean hasSinglePath() {
-      return path.size() == 1;
-    }
+        public boolean hasSinglePath() {
+            return path.size() == 1;
+        }
 
-    /** returns the first path element, either string or int */
-    public Object getFirstPathElement() {
-      return path.get(0);
-    }
+        /** returns the first path element, either string or int */
+        public Object getFirstPathElement() {
+            return path.get(0);
+        }
 
-    /** assumes that the path has at least size 2 and drops the first path element */
-    public TaggedBasicValue<?> dropFirstPathElement() {
-      assert path.size() >= 2;
-      return new TaggedBasicValue<>(path.dropFirstPathElement(), value);
-    }
+        /** assumes that the path has at least size 2 and drops the first path element */
+        public TaggedBasicValue<?> dropFirstPathElement() {
+            assert path.size() >= 2;
+            return new TaggedBasicValue<>(path.dropFirstPathElement(), value);
+        }
     }
 }

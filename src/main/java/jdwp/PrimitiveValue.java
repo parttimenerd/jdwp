@@ -42,7 +42,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class BooleanValue extends jdwp.PrimitiveValue<Boolean> {
 
         static {
-            registerType(BooleanValue.class, Type.BOOLEAN);
+            Type.registerType(BooleanValue.class, Type.BOOLEAN);
         }
 
         public BooleanValue(Boolean value) {
@@ -71,7 +71,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class ByteValue extends jdwp.PrimitiveValue<Byte> {
 
         static {
-            registerType(ByteValue.class, Type.BYTE);
+            Type.registerType(ByteValue.class, Type.BYTE);
         }
 
         public ByteValue(Byte value) {
@@ -95,7 +95,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class CharValue extends jdwp.PrimitiveValue<Character> {
 
         static {
-            registerType(CharValue.class, Type.CHAR);
+            Type.registerType(CharValue.class, Type.CHAR);
         }
 
         public CharValue(Character value) {
@@ -119,7 +119,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class ShortValue extends jdwp.PrimitiveValue<Short> {
 
         static {
-            registerType(ShortValue.class, Type.SHORT);
+            Type.registerType(ShortValue.class, Type.SHORT);
         }
 
         public ShortValue(Short value) {
@@ -143,7 +143,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class IntValue extends jdwp.PrimitiveValue<Integer> {
 
         static {
-            registerType(IntValue.class, Type.INT);
+            Type.registerType(IntValue.class, Type.INT);
         }
 
         public IntValue(Integer value) {
@@ -172,7 +172,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class LongValue extends jdwp.PrimitiveValue<Long> {
 
         static {
-            registerType(LongValue.class, Type.LONG);
+            Type.registerType(LongValue.class, Type.LONG);
         }
 
         public LongValue(Long value) {
@@ -196,7 +196,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class FloatValue extends jdwp.PrimitiveValue<Float> {
 
         static {
-            registerType(FloatValue.class, Type.FLOAT);
+            Type.registerType(FloatValue.class, Type.FLOAT);
         }
 
         protected FloatValue(Float value) {
@@ -220,7 +220,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class DoubleValue extends jdwp.PrimitiveValue<Double> {
 
         static {
-            registerType(DoubleValue.class, Type.DOUBLE);
+            Type.registerType(DoubleValue.class, Type.DOUBLE);
         }
 
         protected DoubleValue(Double value) {
@@ -249,7 +249,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class StringValue extends PrimitiveValue<String> {
 
         static {
-            registerType(StringValue.class, Type.STRING);
+            Type.registerType(StringValue.class, Type.STRING);
         }
 
         public StringValue(String value) {
@@ -278,7 +278,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
     public static class VoidValue extends PrimitiveValue<Integer> {
 
         static {
-            registerType(VoidValue.class, Type.VOID);
+            Type.registerType(VoidValue.class, Type.VOID);
         }
 
         protected VoidValue() {

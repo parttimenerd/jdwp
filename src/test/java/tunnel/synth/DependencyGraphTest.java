@@ -1,7 +1,8 @@
 package tunnel.synth;
 
-import jdwp.*;
-import jdwp.AccessPath.TaggedAccessPath;
+import jdwp.AccessPath;
+import jdwp.Reference;
+import jdwp.Value;
 import jdwp.Value.BasicValue;
 import jdwp.util.Pair;
 import jdwp.util.TestReply;
@@ -11,7 +12,8 @@ import tunnel.synth.DependencyGraph.Edge;
 import tunnel.synth.DependencyGraph.Node;
 import tunnel.util.Either;
 
-import java.util.*;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static jdwp.PrimitiveValue.wrap;
@@ -74,9 +76,11 @@ public class DependencyGraphTest {
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
         assertEquals(Set.of(), graph.getNode(start).getDependsOnNodes());
         assertEquals(Set.of(graph.getNode(start)), graph.getNode(end).getDependsOnNodes());
-        assertEquals(Set.of(new TaggedAccessPath<>(start.second(), "left"),
-                new TaggedAccessPath<>(start.second(), "right")),
-                graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream().map(v -> v.path).collect(Collectors.toSet()));
+    assertEquals(
+        Set.of(new AccessPath("left"), new AccessPath("right")),
+        graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream()
+            .map(v -> v.path)
+            .collect(Collectors.toSet()));
         var layers = graph.computeLayers();
         assertEquals(3, layers.size());
         assertEquals(Set.of(graph.getNode(start)), layers.get(1));
@@ -89,9 +93,11 @@ public class DependencyGraphTest {
         var end = rrpair(4, List.of(p("left", 1), p("right", 2)), List.of());
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
         var graph = DependencyGraph.calculate(partition);
-        assertEquals(Set.of(new TaggedAccessPath<>(start.second(), "right"),
-                        new TaggedAccessPath<>(start.second(), "left")),
-                graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream().map(v -> v.path).collect(Collectors.toSet()));
+    assertEquals(
+        Set.of(new AccessPath("right"), new AccessPath("left")),
+        graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream()
+            .map(v -> v.path)
+            .collect(Collectors.toSet()));
     }
 
     @Test

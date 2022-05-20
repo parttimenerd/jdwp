@@ -186,7 +186,7 @@ interface TypeNode {
             indent(writer, depth);
             writer.println("int " + cntLbl + " = ps.readInt();");
             indent(writer, depth);
-            writer.println(readLabel + " = new " + javaType() + "(Value.typeForClass(" + javaType() + ".class), " + cntLbl + ")");
+            writer.println(readLabel + " = new " + javaType() + "(Value.Type.forClass(" + javaType() + ".class), " + cntLbl + ")");
             indent(writer, depth);
             writer.println("for (int i = 0; i < " + cntLbl + "; i++) {;");
             String readLbl = readLabel + "Tmp";

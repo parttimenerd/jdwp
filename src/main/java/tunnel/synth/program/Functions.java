@@ -1,11 +1,8 @@
 package tunnel.synth.program;
 
-import jdwp.AccessPath;
-import jdwp.PrimitiveValue;
+import jdwp.*;
 import jdwp.PrimitiveValue.*;
-import jdwp.Reference;
 import jdwp.Reference.*;
-import jdwp.Value;
 import jdwp.Value.*;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
@@ -19,12 +16,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static jdwp.util.Pair.p;
 import static tunnel.synth.program.AST.ident;
 import static tunnel.synth.program.AST.literal;
+import static tunnel.synth.program.Evaluator.DEFAULT_ID;
 
-public class Functions {
+public abstract class Functions {
 
     public static final String GET = "get";
     public static final String CONST = "const";
@@ -32,7 +31,8 @@ public class Functions {
 
     private static final Map<String, Pair<Class<?>, java.util.function.Function<Long, ? extends BasicScalarValue<?>>>> integerWrapper = new HashMap<>();
     private static final Map<Class<?>, String> classToWrapperName = new HashMap<>();
-    {
+
+    static {
         integerWrapper.put("boolean", p(BooleanValue.class, v -> new BooleanValue(v != 0)));
         integerWrapper.put("byte", p(ByteValue.class, v -> new ByteValue((byte)(long)v)));
         integerWrapper.put("char", p(CharValue.class, v -> new CharValue((char)(long)v)));
@@ -78,6 +78,9 @@ public class Functions {
             }
             return value.type.name().toLowerCase() + "-reference";
         }
+        if (!classToWrapperName.containsKey(value.getClass())) {
+            throw new AssertionError();
+        }
         return classToWrapperName.get(value.getClass());
     }
 
@@ -109,7 +112,7 @@ public class Functions {
     public static InnerFunctionCall createWrapperFunctionCall(BasicValue value) {
         Literal<?> literal;
         if (value instanceof BasicScalarValue<?> && !(value instanceof StringValue)) {
-            literal = literal((Long)((BasicScalarValue<?>) value).value);
+            literal = literal(((Number) ((BasicScalarValue<?>) value).value).longValue());
         } else if (value instanceof StringValue) {
             literal = literal(((StringValue) value).value);
         } else if (value instanceof ByteList) {
@@ -172,6 +175,24 @@ public class Functions {
                     ((BasicScalarValue<?>) arguments.get(1)).value);
         }
     };
+
+    @SuppressWarnings("unchecked")
+    public Value processRequest(
+            String commandSet, String command, Stream<TaggedBasicValue<?>> values) {
+        try {
+            return this.processRequest(
+                    (Request<?>)
+                            AbstractParsedPacket.createForTagged(
+                                    DEFAULT_ID,
+                                    (Class<AbstractParsedPacket>)
+                                            Class.forName(String.format("jdwp.%sCmds$%sRequest", commandSet, command)),
+                                    values));
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    protected abstract Value processRequest(Request<?> request);
 
     @Getter
     @EqualsAndHashCode
