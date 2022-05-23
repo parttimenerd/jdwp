@@ -6,6 +6,8 @@ import jdwp.Value.TaggedBasicValue;
 import jdwp.Value.WalkableValue;
 import jdwp.util.Pair;
 import tunnel.synth.program.AST.*;
+import tunnel.synth.program.Visitors.ReturningExpressionVisitor;
+import tunnel.synth.program.Visitors.StatementVisitor;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,74 +25,79 @@ public class Evaluator {
         this.functions = functions;
     }
 
-    public Scope evaluate(Program program) {
-        return evaluate(new Scope(), program);
+    public Scopes<Value> evaluate(Program program) {
+        return evaluate(new Scopes<>(), program.getBody());
     }
 
-    public Scope evaluate(Scope scope, Program program) {
-        program.accept(
+    public Scopes<Value> evaluate(Scopes<Value> scope, Body body) {
+        body.accept(
                 new StatementVisitor() {
-                    @Override
-                    public void visit(FunctionCall functionCall) {
-                        Value ret = evaluateFunction(scope, functionCall);
-                        scope.set(functionCall.getReturnVariable().getName(), ret);
-                    }
 
                     @Override
                     public void visit(Loop loop) {
-                        Value iterable = scope.get(loop.getIterable().getName());
+                        Value iterable = evaluate(scope, loop.getIterable());
                         if (!(iterable instanceof WalkableValue)) {
                             throw new AssertionError();
                         }
                         for (Pair<?, Value> pair : ((WalkableValue<?>) iterable).getValues()) {
                             scope.push();
-                            scope.set(loop.getIter().getName(), pair.second());
+                            scope.put(loop.getIter().getName(), pair.second());
                             loop.getBody().forEach(s -> s.accept(this));
                             scope.pop();
                         }
-                    }
-
-                    @Override
-                    public void visit(RequestCall requestCall) {
-                        var commandSet = requestCall.getCommandSet().getName();
-                        var command = requestCall.getCommand().getName();
-                        Stream<TaggedBasicValue<?>> values =
-                                requestCall.getProperties().stream()
-                                        .map(
-                                                p -> {
-                                                    var value = evaluateFunction(scope, p.getAccessor());
-                                                    if (!(value instanceof BasicValue)) {
-                                                        throw new AssertionError();
-                                                    }
-                                                    return new TaggedBasicValue<>(p.getPath(), (BasicValue) value);
-                                                });
-                        scope.set(
-                                requestCall.getReturnVariable().getName(),
-                                functions.processRequest(commandSet, command, values));
                     }
                 });
         return scope;
     }
 
-    public Value evaluateFunction(Scope scope, FunctionCallLike functionCall) {
-        return functions.getFunction(functionCall.getFunction().getName())
-                .evaluate(functionCall.getArguments().stream().map(p ->
-                        p.accept(new PrimitiveVisitor<Value>() {
+    public Value evaluate(Expression expression) {
+        return evaluate(new Scopes<>(), expression);
+    }
 
-                            @Override
-                            public Value visit(IntegerLiteral integer) {
-                                return wrap(integer.get());
-                            }
+    public Value evaluate(Scopes<Value> scope, Expression expression) {
+        return expression.accept(
+                new ReturningExpressionVisitor<>() {
+                    @Override
+                    public Value visit(FunctionCall functionCall) {
+                        return functions
+                                .getFunction(functionCall.getFunctionName())
+                                .evaluate(
+                                        functionCall.getArguments().stream()
+                                                .map(a -> a.accept(this))
+                                                .collect(Collectors.toList()));
+                    }
 
-                            @Override
-                            public Value visit(StringLiteral string) {
-                                return wrap(string.get());
-                            }
+                    @Override
+                    public Value visit(RequestCall requestCall) {
+                        var commandSet = requestCall.getCommandSet();
+                        var command = requestCall.getCommand();
+                        Stream<TaggedBasicValue<?>> values =
+                                requestCall.getProperties().stream()
+                                        .map(
+                                                p -> {
+                                                    var value = p.getAccessor().accept(this);
+                                                    if (!(value instanceof BasicValue)) {
+                                                        throw new AssertionError();
+                                                    }
+                                                    return new TaggedBasicValue<>(p.getPath(), (BasicValue) value);
+                                                });
+                        return functions.processRequest(commandSet, command, values);
+                    }
 
-                            @Override
-                            public Value visit(Identifier name) {
-                                return scope.get(name.getName());
-                            }
-                        })).collect(Collectors.toList()));
+                    @Override
+                    public Value visit(IntegerLiteral integer) {
+                        return wrap(integer.get());
+                    }
+
+                    @Override
+                    public Value visit(StringLiteral string) {
+                        return wrap(string.get());
+                    }
+
+                    @Override
+                    public Value visit(Identifier name) {
+                        return scope.get(name.getName());
+                    }
+                });
     }
 }

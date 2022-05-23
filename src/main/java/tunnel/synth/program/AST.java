@@ -7,15 +7,15 @@ import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.SneakyThrows;
+import lombok.Setter;
 import org.apache.commons.text.StringEscapeUtils;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import tunnel.synth.program.Functions.Function;
+import tunnel.synth.program.Visitors.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.util.AbstractList;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -36,32 +36,32 @@ public interface AST {
         return new Identifier(identifier);
     }
 
-    interface StatementVisitor {
-        void visit(FunctionCall functionCall);
+    abstract class Expression implements AST {
+        public static Expression parse(String input) {
+            return new Parser(input).parseExpression();
+        }
 
-        void visit(Loop loop);
+        public abstract void accept(ExpressionVisitor visitor);
 
-        void visit(RequestCall requestCall);
+        public abstract <R> R accept(ReturningExpressionVisitor<R> visitor);
+
+        public abstract List<Expression> getSubExpressions();
     }
 
-    interface PrimitiveVisitor<R> {
-        default R visit(StringLiteral string) {
-            return visit((Literal<?>) string);
+    abstract class Primitive extends Expression {
+        public abstract void accept(PrimitiveVisitor visitor);
+
+        public abstract <R> R accept(ReturningPrimitiveVisitor<R> visitor);
+
+        @Override
+        public <R> R accept(ReturningExpressionVisitor<R> visitor) {
+            return accept((ReturningPrimitiveVisitor<R>) visitor);
         }
 
-        default R visit(IntegerLiteral integer) {
-            return visit((Literal<?>) integer);
+        @Override
+        public void accept(ExpressionVisitor visitor) {
+            accept((PrimitiveVisitor) visitor);
         }
-
-        default R visit(Literal<?> literal) {
-            return null;
-        }
-
-        R visit(Identifier name);
-    }
-
-    abstract class Primitive implements AST {
-        public abstract <R> R accept(PrimitiveVisitor<R> visitor);
     }
 
     @EqualsAndHashCode(callSuper = false)
@@ -76,6 +76,11 @@ public interface AST {
         public T get() {
             return value;
         }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return List.of();
+        }
     }
 
     class StringLiteral extends Literal<String> {
@@ -84,8 +89,13 @@ public interface AST {
         }
 
         @Override
-        public <R> R accept(PrimitiveVisitor<R> visitor) {
+        public <R> R accept(ReturningPrimitiveVisitor<R> visitor) {
             return visitor.visit(this);
+        }
+
+        @Override
+        public void accept(PrimitiveVisitor visitor) {
+            visitor.visit(this);
         }
 
         @Override
@@ -100,8 +110,13 @@ public interface AST {
         }
 
         @Override
-        public <R> R accept(PrimitiveVisitor<R> visitor) {
+        public <R> R accept(ReturningPrimitiveVisitor<R> visitor) {
             return visitor.visit(this);
+        }
+
+        @Override
+        public void accept(PrimitiveVisitor visitor) {
+            visitor.visit(this);
         }
 
         @Override
@@ -111,17 +126,29 @@ public interface AST {
     }
 
     @Getter
-    @EqualsAndHashCode(callSuper = false)
+    @EqualsAndHashCode(
+            callSuper = false,
+            of = {"name"})
+    @AllArgsConstructor
     class Identifier extends Primitive {
         private final String name;
+
+        @Nullable @Setter private Expression source;
+
+        @Setter private boolean isLoopIterableRelated;
 
         public Identifier(String name) {
             this.name = name;
         }
 
         @Override
-        public <R> R accept(PrimitiveVisitor<R> visitor) {
+        public <R> R accept(ReturningPrimitiveVisitor<R> visitor) {
             return visitor.visit(this);
+        }
+
+        @Override
+        public void accept(PrimitiveVisitor visitor) {
+            visitor.visit(this);
         }
 
         @Override
@@ -131,6 +158,23 @@ public interface AST {
 
         public String getName() {
             return name;
+        }
+
+        public boolean hasSource() {
+            return source != null;
+        }
+
+        public @Nullable Expression getSource() {
+            return source;
+        }
+
+        public boolean isGlobalVariable() {
+            return source == null;
+        }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return List.of();
         }
     }
 
@@ -156,84 +200,106 @@ public interface AST {
         public static Statement parse(String input) {
             return new Parser(input).parseStatement();
         }
-    }
 
-    interface FunctionCallLike extends AST {
-        Identifier getFunction();
+        public List<Statement> getSubStatements() {
+            return List.of();
+        }
 
-        List<Primitive> getArguments();
+        public List<Expression> getSubExpressions() {
+            return List.of();
+        }
     }
 
     @Getter
+    @AllArgsConstructor
     @EqualsAndHashCode(callSuper = false)
-    class FunctionCall extends Statement implements FunctionCallLike {
+    class AssignmentStatement extends Statement {
+        private final Identifier variable;
+        private final Expression expression;
 
-        private final Identifier returnVariable;
-        private final Identifier function;
-        private final List<Primitive> arguments;
+        @Override
+        public void accept(StatementVisitor visitor) {
+            visitor.visit(this);
+        }
 
-        public FunctionCall(Identifier returnVariable, Identifier function, List<Primitive> arguments) {
-            this.returnVariable = returnVariable;
-            this.function = function;
+        @Override
+        public String toPrettyString(String indent, String innerIndent) {
+            return String.format("%s(= %s %s)", indent, variable, expression);
+        }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return List.of(variable, expression);
+        }
+    }
+
+    @AllArgsConstructor
+    @Getter
+    @EqualsAndHashCode(exclude = "function", callSuper = false)
+    class FunctionCall extends Expression {
+
+        private final String functionName;
+        @Setter private Function function;
+        private final List<Expression> arguments;
+
+        public FunctionCall(String functionName, List<Expression> arguments) {
+            this.functionName = functionName;
             this.arguments = arguments;
         }
 
         @Override
-        public void accept(StatementVisitor visitor) {
+        public void accept(ExpressionVisitor visitor) {
             visitor.visit(this);
         }
 
         @Override
-        public String toPrettyString(String indent, String innerIndent) {
-            return String.format(
-                    "%s(= %s %s%s%s)",
-                    indent,
-                    returnVariable,
-                    function,
-                    arguments.size() > 0 ? " " : "",
-                    arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
+        public <R> R accept(ReturningExpressionVisitor<R> visitor) {
+            return visitor.visit(this);
         }
-    }
-
-    @Getter
-    @AllArgsConstructor
-    @EqualsAndHashCode
-    class InnerFunctionCall implements FunctionCallLike {
-        private final Identifier function;
-        private final List<Primitive> arguments;
 
         @Override
         public String toString() {
             return String.format(
-                    "(%s %s)",
-                    function, arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
+                    "(%s%s%s)",
+                    functionName,
+                    arguments.size() > 0 ? " " : "",
+                    arguments.stream().map(Object::toString).collect(Collectors.joining(" ")));
         }
 
-        public FunctionCall toFunctionCall(Identifier ret) {
-            return new FunctionCall(ret, function, arguments);
+        @Override
+        public List<Expression> getSubExpressions() {
+            return arguments;
         }
     }
 
     @Getter
     @AllArgsConstructor
-    @EqualsAndHashCode
-    class RequestCall extends Statement {
-        private final Identifier returnVariable;
-        private final Identifier commandSet;
-        private final Identifier command;
+    @EqualsAndHashCode(callSuper = false)
+    class RequestCall extends Expression {
+        private final String commandSet;
+        private final String command;
         private final List<RequestCallProperty> properties;
 
         @Override
-        public void accept(StatementVisitor visitor) {
+        public <R> R accept(ReturningExpressionVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        @Override
+        public void accept(ExpressionVisitor visitor) {
             visitor.visit(this);
         }
 
         @Override
-        public String toPrettyString(String indent, String innerIndent) {
+        @SuppressWarnings("unchecked")
+        public List<Expression> getSubExpressions() {
+            return (List<Expression>) (List<? extends Expression>) properties;
+        }
+
+        @Override
+        public String toString() {
             return String.format(
-                    "%s(request %s %s %s%s%s)",
-                    indent,
-                    returnVariable,
+                    "(request %s %s%s%s)",
                     commandSet,
                     command,
                     properties.isEmpty() ? "" : " ",
@@ -241,22 +307,19 @@ public interface AST {
         }
 
         public static RequestCall create(
-                String returnVariable,
                 String commandSet,
                 String command,
                 Stream<TaggedBasicValue<?>> taggedValues,
                 List<RequestCallProperty> properties) {
             return new RequestCall(
-                    ident(returnVariable),
-                    ident(commandSet),
-                    ident(command),
+                    commandSet,
+                    command,
                     Stream.concat(taggedValues.map(RequestCallProperty::create), properties.stream())
                             .collect(Collectors.toList()));
         }
 
-        public static RequestCall create(String returnVariable, Request<?> request) {
+        public static RequestCall create(Request<?> request) {
             return create(
-                    returnVariable,
                     request.getCommandSetName(),
                     request.getCommandName(),
                     request.asCombined().getTaggedValues(),
@@ -266,10 +329,10 @@ public interface AST {
 
     @Getter
     @AllArgsConstructor
-    @EqualsAndHashCode
-    class RequestCallProperty implements AST {
+    @EqualsAndHashCode(callSuper = false)
+    class RequestCallProperty extends Expression {
         private final AccessPath path;
-        private final InnerFunctionCall accessor;
+        private final FunctionCall accessor;
 
         @Override
         public String toString() {
@@ -285,20 +348,35 @@ public interface AST {
             return new RequestCallProperty(
                     taggedValue.path, Functions.createWrapperFunctionCall(taggedValue.getValue()));
         }
+
+        @Override
+        public void accept(ExpressionVisitor visitor) {
+            visitor.visit(this);
+        }
+
+        @Override
+        public <R> R accept(ReturningExpressionVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return List.of(accessor);
+        }
     }
 
     @Getter
     @EqualsAndHashCode(callSuper = false)
     class Loop extends Statement {
         private final Identifier iter;
-        private final Identifier iterable;
+        private final Expression iterable;
         private final Body body;
 
-        public Loop(Identifier iter, Identifier iterable, List<Statement> body) {
+        public Loop(Identifier iter, Expression iterable, List<Statement> body) {
             this(iter, iterable, new Body(body));
         }
 
-        public Loop(Identifier iter, Identifier iterable, Body body) {
+        public Loop(Identifier iter, Expression iterable, Body body) {
             this.iter = iter;
             this.iterable = iterable;
             this.body = body;
@@ -341,8 +419,18 @@ public interface AST {
             return List.of();
         }
 
-        public Pair<Identifier, Identifier> getHeader() {
+        public Pair<Identifier, Expression> getHeader() {
             return p(iter, iterable);
+        }
+
+        @Override
+        public List<Statement> getSubStatements() {
+            return List.of(body);
+        }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return List.of(iter, iterable);
         }
     }
 
@@ -352,237 +440,31 @@ public interface AST {
         }
     }
 
-    class Parser {
-        private final InputStream stream;
-        private int current;
-        private int line = 1;
-        private int column = 1;
-
-        @SneakyThrows
-        private Parser(InputStream stream) {
-            this.stream = stream;
-            this.current = stream.read();
-        }
-
-        public Parser(String input) {
-            this(new ByteArrayInputStream(input.getBytes()));
-        }
-
-        @SneakyThrows
-        private int next() {
-            current = stream.read();
-            if (current == '\n') {
-                column = 0;
-                line++;
-            } else {
-                column++;
-            }
-            return current;
-        }
-
-        private int current() {
-            return current;
-        }
-
-        private boolean isEOF() {
-            return current == -1;
-        }
-
-        private char currentChar() {
-            return (char) current;
-        }
-
-        private void expect(char expected) {
-            if (current != expected) {
-                throw new SyntaxError(
-                        line,
-                        column,
-                        String.format("Expected '%s' but got '%s'", expected, Character.toString(current)));
-            }
-            next();
-        }
-
-        private void expect(String expected) {
-            expected.chars().forEach(c -> expect((char) c));
-        }
-
-        private void skipWhitespace() {
-            while (!isEOF() && Character.isWhitespace(current)) {
-                next();
-            }
-        }
-
-        Program parseProgram() {
-            expect('(');
-            skipWhitespace();
-            var program = new Program(parseBlock());
-            skipWhitespace();
-            expect(')');
-            return program;
-        }
-
-        List<Statement> parseBlock() {
-            List<Statement> statements = new ArrayList<>();
-            while (current != ')') {
-                skipWhitespace();
-                statements.add(parseStatement());
-            }
-            return statements;
-        }
-
-        Statement parseStatement() {
-            expect('(');
-            Statement ret;
-            switch (current) {
-                case '=':
-                    ret = parseFunctionCall();
-                    break;
-                case 'f':
-                    ret = parseLoop();
-                    break;
-                case 'r':
-                    ret = parseRequestCall();
-                    break;
-                default:
-                    throw new SyntaxError(line, column, String.format("Unexpected %s", (char) current));
-            }
-            expect(')');
-            return ret;
-        }
-
-        FunctionCall parseFunctionCall() {
-            expect("= ");
-            skipWhitespace();
-            var ret = parseIdentifier();
-            skipWhitespace();
-            var function = parseIdentifier();
-            skipWhitespace();
-            List<Primitive> arguments = new ArrayList<>();
-            while (current != ')') {
-                arguments.add(parsePrimitive());
-                skipWhitespace();
-            }
-            return new FunctionCall(ret, function, arguments);
-        }
-
-        /**
-         * request ret commandSet command ("p1" p2)=(wrap type primitive) or ... (p1 p2)=(get obj p1 p2)
-         */
-        RequestCall parseRequestCall() {
-            expect("request ");
-            skipWhitespace();
-            var ret = parseIdentifier();
-            skipWhitespace();
-            var commandSet = parseIdentifier();
-            skipWhitespace();
-            var command = parseIdentifier();
-            skipWhitespace();
-            List<RequestCallProperty> arguments = new ArrayList<>();
-            while (current != ')') {
-                arguments.add(parseRequestCallProperty());
-                skipWhitespace();
-            }
-            return new RequestCall(ret, commandSet, command, arguments);
-        }
-
-        RequestCallProperty parseRequestCallProperty() {
-            AccessPath path = parseAccessPath();
-            expect('=');
-            InnerFunctionCall call = parseInnerFunctionCall();
-            return new RequestCallProperty(path, call);
-        }
-
-        public AccessPath parseAccessPath() {
-            expect('(');
-            skipWhitespace();
-            List<Literal<?>> path = new ArrayList<>();
-            while (current != ')') {
-                path.add(parseLiteral());
-                skipWhitespace();
-            }
-            expect(')');
-            return new AccessPath(
-                    path.stream()
-                            .map(l -> l.value instanceof Long ? ((Long) l.value).intValue() : l.value)
-                            .toArray());
-        }
-
-        InnerFunctionCall parseInnerFunctionCall() {
-            expect('(');
-            skipWhitespace();
-            var function = parseIdentifier();
-            skipWhitespace();
-            List<Primitive> arguments = new ArrayList<>();
-            while (current != ')') {
-                arguments.add(parsePrimitive());
-                skipWhitespace();
-            }
-            expect(')');
-            return new InnerFunctionCall(function, arguments);
-        }
-
-        Loop parseLoop() {
-            expect("for ");
-            skipWhitespace();
-            var iter = parseIdentifier();
-            skipWhitespace();
-            var iterable = parseIdentifier();
-            skipWhitespace();
-            var body = parseBlock();
-            return new Loop(iter, iterable, body);
-        }
-
-        Identifier parseIdentifier() {
-            StringBuilder buf = new StringBuilder();
-            while (!isEOF() && current != ' ' && current != ')' && current != '(' && current != '\n') {
-                buf.append(currentChar());
-                next();
-            }
-            return new Identifier(buf.toString());
-        }
-
-        IntegerLiteral parseInteger() {
-            StringBuilder buf = new StringBuilder();
-            while (!isEOF() && Character.isDigit(current)) {
-                buf.append(currentChar());
-                next();
-            }
-            return new IntegerLiteral(Long.parseLong(buf.toString()));
-        }
-
-        StringLiteral parseString() {
-            StringBuilder buf = new StringBuilder();
-            char usedQuote = current == '\'' ? '\'' : '"';
-            expect(usedQuote);
-            while (!isEOF() && current != usedQuote) {
-                buf.append(currentChar());
-                next();
-                if (current == '\\') {
-                    buf.append(currentChar());
-                    next();
-                }
-            }
-            expect(usedQuote);
-            return new StringLiteral(StringEscapeUtils.unescapeEcmaScript(buf.toString()));
-        }
-
-        Literal<?> parseLiteral() {
-            if (Character.isDigit(current)) {
-                return parseInteger();
-            }
-            return parseString();
-        }
-
-        Primitive parsePrimitive() {
-            if (Character.isAlphabetic(current)) {
-                return parseIdentifier();
-            }
-            return parseLiteral();
-        }
-    }
-
-    class Body extends AbstractList<Statement> implements AST {
+    class Body extends Statement implements List<Statement> {
         private final List<Statement> body;
+
+        @Override
+        public int lastIndexOf(Object o) {
+            return body.lastIndexOf(o);
+        }
+
+        @NotNull
+        @Override
+        public ListIterator<Statement> listIterator() {
+            return body.listIterator();
+        }
+
+        @NotNull
+        @Override
+        public ListIterator<Statement> listIterator(int index) {
+            return body.listIterator(index);
+        }
+
+        @NotNull
+        @Override
+        public List<Statement> subList(int fromIndex, int toIndex) {
+            return body.subList(fromIndex, toIndex);
+        }
 
         public Body(List<Statement> body) {
             this.body = body;
@@ -593,12 +475,7 @@ public interface AST {
             return body.stream().map(Statement::toString).collect(Collectors.joining(" "));
         }
 
-        public String toPrettyString() {
-            return body.stream()
-                    .map(s -> s.toPrettyString(Program.INDENT))
-                    .collect(Collectors.joining("\n"));
-        }
-
+        @Override
         public String toPrettyString(String indent, String innerIndent) {
             return body.stream()
                     .map(s -> s.toPrettyString(indent, innerIndent))
@@ -620,11 +497,114 @@ public interface AST {
             return body.isEmpty();
         }
 
+        @Override
+        public boolean contains(Object o) {
+            return body.contains(o);
+        }
+
+        @NotNull
+        @Override
+        public Iterator<Statement> iterator() {
+            return body.iterator();
+        }
+
+        @NotNull
+        @Override
+        public Object[] toArray() {
+            return body.toArray();
+        }
+
+        @NotNull
+        @Override
+        public <T> T[] toArray(@NotNull T[] a) {
+            return body.toArray(a);
+        }
+
+        @Override
+        public boolean add(Statement statement) {
+            return body.add(statement);
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            return body.remove(o);
+        }
+
+        @Override
+        public boolean containsAll(@NotNull Collection<?> c) {
+            return body.containsAll(c);
+        }
+
+        @Override
+        public boolean addAll(@NotNull Collection<? extends Statement> c) {
+            return body.addAll(c);
+        }
+
+        @Override
+        public boolean addAll(int index, @NotNull Collection<? extends Statement> c) {
+            return body.addAll(index, c);
+        }
+
+        @Override
+        public boolean removeAll(@NotNull Collection<?> c) {
+            return body.removeAll(c);
+        }
+
+        @Override
+        public boolean retainAll(@NotNull Collection<?> c) {
+            return body.retainAll(c);
+        }
+
+        @Override
+        public void replaceAll(UnaryOperator<Statement> operator) {
+            body.replaceAll(operator);
+        }
+
+        @Override
+        public void sort(Comparator<? super Statement> c) {
+            body.sort(c);
+        }
+
+        @Override
+        public void clear() {
+            body.clear();
+        }
+
+        @Override
+        public int hashCode() {
+            return body.hashCode();
+        }
+
+        @Override
+        public Statement set(int index, Statement element) {
+            return body.set(index, element);
+        }
+
+        @Override
+        public void add(int index, Statement element) {
+            body.add(index, element);
+        }
+
+        @Override
+        public Statement remove(int index) {
+            return body.remove(index);
+        }
+
+        @Override
+        public int indexOf(Object o) {
+            return body.indexOf(o);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return (o instanceof Body) && ((Body) o).body.equals(body);
+        }
+
         public Map<Statement, Integer> getIndexesOfStatements() {
             return IntStream.range(0, body.size()).boxed().collect(Collectors.toMap(body::get, i -> i));
         }
 
-        public Map<Pair<Identifier, Identifier>, List<Integer>> getLoopIndexes() {
+        public Map<Pair<Identifier, Expression>, List<Integer>> getLoopIndexes() {
             return IntStream.range(0, body.size())
                     .boxed()
                     .filter(i -> get(i) instanceof Loop)
