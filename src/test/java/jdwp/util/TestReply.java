@@ -41,12 +41,12 @@ public class TestReply extends AbstractTestParsedPacket implements Reply {
 
     @Override
     public String getCommandName() {
-        return "";
+        return "T";
     }
 
     @Override
     public String getCommandSetName() {
-        return "";
+        return "T";
     }
 
     @Override

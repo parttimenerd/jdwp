@@ -11,6 +11,7 @@ import jdwp.Value.Type;
 import jdwp.VirtualMachineCmds.ClassesBySignatureRequest;
 import jdwp.VirtualMachineCmds.DisposeObjectsRequest;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import tunnel.synth.program.*;
 
@@ -92,38 +93,44 @@ public class ProgramTest {
         assertEquals(program, Program.parse(program.toString()), program.toString()); // round-trip for good measure
     }
 
-  /*@ParameterizedTest
-  @CsvSource({
-          "((= ret (func))),((= ret (func))),((= ret (func)))",
-          "((= ret (func2))),((= ret (func))),((= ret (func2)) (= ret (func)))",
-          "((= ret (func2)) (for iter iterable (= iter 1))," +
-                  "((= ret (func)))," +
-                  "((= ret (func2)) (for iter iterable (= iter 1)) (= ret (func)))",
-          "((for iter iterable (= iter const 1)))," +
-                  "((for iter iterable (= iter const 2)))," +
-                  "((for iter iterable (= iter const 1) (= iter const 2)))",
-          "((for iter iterable (= iter const 1) (for iter2 iterable)))," +
-                  "((for iter2 iterable) (for iter iterable (= iter const 2)))," +
-                  "((for iter2 iterable) (for iter iterable (= iter const 1) (for iter2 iterable) (= iter const 2)))"
-  })
-  public void testMerge(String program1, String program2, String merge) {
-      assertEquals(Program.parse(merge), Program.parse(program1).merge(Program.parse(program2)));
-  }*/
+    @ParameterizedTest
+    @CsvSource({
+            "((= ret (func))),((= ret (func))),((= ret (func)))",
+            "((= ret (func2))),((= ret (func))),((= ret (func2)) (= ret (func)))",
+            "((= ret (func2)) (for iter iterable (= iter 1)))," +
+                    "((= ret (func)))," +
+                    "((= ret (func2)) (for iter iterable (= iter 1)) (= ret (func))))",
+            "((for iter iterable (= iter 1)))," +
+                    "((for iter iterable (= iter 2)))," +
+                    "((for iter iterable (= iter 1) (= iter 2)))",
+            "((for iter iterable (= iter 1) (for iter2 iterable)))," +
+                    "((for iter2 iterable) (for iter iterable (= iter 2)))," +
+                    "((for iter2 iterable) (for iter iterable (= iter 1) (for iter2 iterable) (= iter 2)))"
+    })
+    public void testMerge(String program1, String program2, String merge) {
+        var p1 = Program.parse(merge);
+        var p2 = Program.parse(program1);
+        var p3 = Program.parse(program2);
+        assertEquals(p1, p2.merge(p3));
+    }
 
-    /*@ParameterizedTest
-        @CsvSource({
-                "((= ret func)),((= ret func)),((= ret func))",
-                "((= ret func2)),((= ret func)),()",
-                "((for iter iterable (= iter const 1))),((for iter iterable (= iter const 2))),()",
-                "((for iter iterable (= iter const 1))),((for iter iterable (= iter const 1)))," +
-                        "((for iter iterable (= iter const 1)))"
-        })
-        public void testOverlap(String program1, String program2, String overlap) {
-            assertEquals(Program.parse(overlap), Program.parse(program1).overlap(Program.parse(program2)));
-        }
-    */
+    @ParameterizedTest
+    @CsvSource({
+            "((= ret func)),((= ret func)),((= ret func))",
+            "((= ret func2)),((= ret func)),()",
+            "((for iter iterable (= iter 1))),((for iter iterable (= iter 2))),()",
+            "((for iter iterable (= iter 1))),((for iter iterable (= iter 1)))," +
+                    "((for iter iterable (= iter 1)))"
+    })
+    public void testOverlap(String program1, String program2, String overlap) {
+        var overlapParse = Program.parse(overlap);
+        var program1Parse = Program.parse(program1);
+        var program2Parse = Program.parse(program2);
+        assertEquals(overlapParse, program1Parse.overlap(program2Parse));
+    }
+
     private static Object[][] wrapFunctionTestSource() {
-        return new Object[][] {
+        return new Object[][]{
                 {"(wrap 'bytes' '234')", new ByteList((byte) '2', (byte) '3', (byte) '4')},
                 {"(wrap 'string' '234')", wrap("234")},
                 {"(wrap 'array-reference' 32)", Reference.array(32)},

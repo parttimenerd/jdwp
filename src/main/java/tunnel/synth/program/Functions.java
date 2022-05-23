@@ -7,10 +7,12 @@ import jdwp.Value.*;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import tunnel.synth.program.AST.Expression;
 import tunnel.synth.program.AST.FunctionCall;
 import tunnel.synth.program.AST.Literal;
 import tunnel.synth.program.AST.StringLiteral;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static jdwp.util.Pair.p;
+import static tunnel.synth.program.AST.ident;
 import static tunnel.synth.program.AST.literal;
 import static tunnel.synth.program.Evaluator.DEFAULT_ID;
 
@@ -108,7 +111,7 @@ public abstract class Functions {
         }
     }
 
-  public static FunctionCall createWrapperFunctionCall(BasicValue value) {
+    public static FunctionCall createWrapperFunctionCall(BasicValue value) {
         Literal<?> literal;
         if (value instanceof BasicScalarValue<?> && !(value instanceof StringValue)) {
             literal = literal(((Number) ((BasicScalarValue<?>) value).value).longValue());
@@ -119,7 +122,7 @@ public abstract class Functions {
         } else {
             throw new AssertionError();
         }
-    return new FunctionCall(WRAP, WRAP_FUNCTION, List.of(literal(getWrapperName(value)), literal));
+        return new FunctionCall(WRAP, WRAP_FUNCTION, List.of(literal(getWrapperName(value)), literal));
     }
 
     /**
@@ -145,6 +148,13 @@ public abstract class Functions {
             return path.access((WalkableValue<?>)obj);
         }
     };
+
+    public static FunctionCall createGetFunctionCall(String root, AccessPath path) {
+        List<Expression> args = new ArrayList<>();
+        args.add(ident(root));
+        path.stream().map(e -> e instanceof String ? literal((String)e) : literal((Long)e)).forEach(args::add);
+        return new FunctionCall(GET, args);
+    }
 
     public static final Function CONST_FUNCTION = new Function(CONST) {
         @Override

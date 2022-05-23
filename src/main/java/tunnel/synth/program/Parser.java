@@ -57,7 +57,8 @@ public class Parser {
             throw new SyntaxError(
                     line,
                     column,
-                    String.format("Expected '%s' but got '%s'", expected, Character.toString(current)));
+                    String.format("Expected '%s' but got %s", expected,
+                            isEOF() ? "end of line" : "'" + Character.toString(current) + "'"));
         }
         next();
     }

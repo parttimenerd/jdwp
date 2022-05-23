@@ -8,6 +8,7 @@ import jdwp.util.Pair;
 import jdwp.util.TestReply;
 import jdwp.util.TestRequest;
 import org.junit.jupiter.api.Test;
+import tunnel.synth.DependencyGraph.DoublyTaggedBasicValue;
 import tunnel.synth.DependencyGraph.Edge;
 import tunnel.synth.DependencyGraph.Node;
 import tunnel.util.Either;
@@ -37,8 +38,10 @@ public class DependencyGraphTest {
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
         assertEquals(Set.of(graph.getCauseNode()), graph.getNode(start).getDependsOnNodes());
         assertEquals(Set.of(graph.getNode(start)), graph.getNode(left).getDependsOnNodes());
+        var e = new DoublyTaggedBasicValue<>(new AccessPath("value"),
+                start.first.getContainedValues().getFirstTaggedValue(wrap(1)));
         assertEquals(new Edge(graph.getNode(start),
-                        graph.getCauseNode(), List.of(start.first.getContainedValues().getFirstTaggedValue(wrap(1)))),
+                        graph.getCauseNode(), List.of(e)),
                 graph.getNode(start).getDependsOn().iterator().next());
         assertEquals(Set.of(graph.getNode(left), graph.getNode(right)), graph.getNode(end).getDependsOnNodes());
         var layers = graph.computeLayers();
@@ -76,11 +79,11 @@ public class DependencyGraphTest {
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
         assertEquals(Set.of(), graph.getNode(start).getDependsOnNodes());
         assertEquals(Set.of(graph.getNode(start)), graph.getNode(end).getDependsOnNodes());
-    assertEquals(
-        Set.of(new AccessPath("left"), new AccessPath("right")),
-        graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream()
-            .map(v -> v.path)
-            .collect(Collectors.toSet()));
+        assertEquals(
+                Set.of(new AccessPath("left"), new AccessPath("right")),
+                graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream()
+                        .map(v -> v.getAtSetTargets().get(0))
+                        .collect(Collectors.toSet()));
         var layers = graph.computeLayers();
         assertEquals(3, layers.size());
         assertEquals(Set.of(graph.getNode(start)), layers.get(1));
@@ -93,11 +96,11 @@ public class DependencyGraphTest {
         var end = rrpair(4, List.of(p("left", 1), p("right", 2)), List.of());
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
         var graph = DependencyGraph.calculate(partition);
-    assertEquals(
-        Set.of(new AccessPath("right"), new AccessPath("left")),
-        graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream()
-            .map(v -> v.path)
-            .collect(Collectors.toSet()));
+        assertEquals(
+                Set.of(new AccessPath("right"), new AccessPath("left")),
+                graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream()
+                        .map(v -> v.getAtSetTargets().get(0))
+                        .collect(Collectors.toSet()));
     }
 
     @Test
@@ -164,32 +167,32 @@ public class DependencyGraphTest {
                 layers.computeDominatedNodes(Set.of(graph.getNode(start))).stream().map(Node::getId).collect(Collectors.toSet()));
     }
 
-    private static TestRequest request(int id, Value value) {
+    static TestRequest request(int id, Value value) {
         return new TestRequest(id, p("value", value));
     }
 
-    private static TestReply reply(int id, Value value) {
+    static TestReply reply(int id, Value value) {
         return new TestReply(id, p("value", value));
     }
 
-    private static Pair<TestRequest, TestReply> rrpair(int id, Value request, Value reply) {
+    static Pair<TestRequest, TestReply> rrpair(int id, Value request, Value reply) {
         return p(request(id, request), reply(id, reply));
     }
 
-    private static Pair<TestRequest, TestReply> rrpair(int id, int request, int reply) {
+    static Pair<TestRequest, TestReply> rrpair(int id, int request, int reply) {
         return p(request(id, wrap(request)), reply(id, wrap(reply)));
     }
 
-    private static Pair<TestRequest, TestReply> rrvpair(int id, BasicValue request, BasicValue reply) {
+    static Pair<TestRequest, TestReply> rrvpair(int id, BasicValue request, BasicValue reply) {
         return p(request(id, request), reply(id, reply));
     }
 
-    private static Pair<TestRequest, TestReply> rrpair(int id, List<Pair<String, Integer>> request, List<Pair<String, Integer>> reply) {
+    static Pair<TestRequest, TestReply> rrpair(int id, List<Pair<String, Integer>> request, List<Pair<String, Integer>> reply) {
         return p(new TestRequest(id, request.stream().map(p -> p(p.first, wrap(p.second()))).toArray(Pair[]::new)),
                 new TestReply(id, reply.stream().map(p -> p(p.first, wrap(p.second()))).toArray(Pair[]::new)));
     }
 
-    private static Pair<TestRequest, TestReply> rrvpair(int id, List<Pair<String, BasicValue>> request, List<Pair<String, BasicValue>> reply) {
+    static Pair<TestRequest, TestReply> rrvpair(int id, List<Pair<String, BasicValue>> request, List<Pair<String, BasicValue>> reply) {
         return p(new TestRequest(id, request.stream().map(p -> p(p.first, p.second())).toArray(Pair[]::new)),
                 new TestReply(id, reply.stream().map(p -> p(p.first, p.second())).toArray(Pair[]::new)));
     }

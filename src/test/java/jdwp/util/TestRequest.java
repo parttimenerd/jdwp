@@ -24,12 +24,12 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
 
     @Override
     public String getCommandName() {
-        return "";
+        return "T";
     }
 
     @Override
     public String getCommandSetName() {
-        return "";
+        return "T";
     }
 
     @Override

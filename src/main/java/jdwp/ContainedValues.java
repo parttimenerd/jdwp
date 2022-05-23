@@ -4,6 +4,7 @@ import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
 
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 /**
@@ -63,6 +64,10 @@ public class ContainedValues {
 
     public Collection<BasicValue> getBasicValues() {
         return map.keySet();
+    }
+
+    public Collection<Entry<BasicValue, List<TaggedBasicValue<?>>>> entrySet() {
+        return map.entrySet();
     }
 
     @Override

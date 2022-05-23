@@ -4,6 +4,7 @@ import jdwp.Value.CombinedValue;
 import jdwp.Value.ListValue;
 import jdwp.Value.WalkableValue;
 import lombok.EqualsAndHashCode;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.AbstractList;
 import java.util.Arrays;
@@ -18,7 +19,7 @@ import java.util.stream.Stream;
  * paths are not long (less than 5 elements)
  */
 @EqualsAndHashCode(callSuper = false)
-public class AccessPath extends AbstractList<Object> {
+public class AccessPath extends AbstractList<Object> implements Comparable<AccessPath> {
 
     /** AccessPath with root packet */
     public static class TaggedAccessPath<T extends WalkableValue<?>> extends AccessPath {
@@ -216,5 +217,33 @@ public class AccessPath extends AbstractList<Object> {
 
     public AccessPath dropFirstPathElement() {
         return subPath(1, size());
+    }
+
+    @Override
+    public int compareTo(@NotNull AccessPath o) {
+        int lengthComp = Integer.compare(size(), o.size());
+        if (lengthComp != 0) {
+            return lengthComp;
+        }
+        for (int i = 0; i < size(); i++) {
+            int entryComp;
+            var entry = get(i);
+            var otherEntry = o.get(i);
+            if (entry instanceof String) {
+                if (otherEntry instanceof Integer) {
+                    return 1;
+                }
+                entryComp = ((String)entry).compareTo((String)otherEntry);
+            } else {
+                if (otherEntry instanceof String) {
+                    return -1;
+                }
+                entryComp = ((Integer)entry).compareTo((Integer) otherEntry);
+            }
+            if (entryComp != 0) {
+                return entryComp;
+            }
+        }
+        return 0;
     }
 }

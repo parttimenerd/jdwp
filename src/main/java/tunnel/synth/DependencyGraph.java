@@ -1,6 +1,7 @@
 package tunnel.synth;
 
 
+import jdwp.AccessPath;
 import jdwp.ContainedValues;
 import jdwp.EventCmds.Events;
 import jdwp.Reply;
@@ -8,13 +9,16 @@ import jdwp.Request;
 import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.util.Pair;
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.util.Either;
+import tunnel.util.Hashed;
 
 import java.util.*;
-import java.util.function.Function;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -26,6 +30,34 @@ import static jdwp.util.Pair.p;
 @Getter
 public class DependencyGraph {
 
+    /**
+     * (atSource)=(get atTarget)  ===  (atSource)=value,
+     * connects atSource with atTarget (implicit dependsOn edge)
+     */
+    @Getter
+    @AllArgsConstructor
+    @EqualsAndHashCode
+    public static class DoublyTaggedBasicValue<T extends BasicValue> {
+
+        private final List<AccessPath> atSetTargets;
+        /**
+         * first path at the origin of the value
+         */
+        private final AccessPath atValueOrigin;
+        private final T value;
+
+        public DoublyTaggedBasicValue(AccessPath atSetTarget, TaggedBasicValue<T> tagged) {
+            this(List.of(atSetTarget), tagged.getPath(), tagged.value);
+        }
+
+        @Override
+        public String toString() {
+            return String.format("(%s)=(get %s)=%s",
+                    atSetTargets.stream().map(AccessPath::toString).collect(Collectors.joining("; ")),
+                    atValueOrigin, value);
+        }
+    }
+
     @Getter
     public static class Edge {
         private final Node source;
@@ -33,9 +65,9 @@ public class DependencyGraph {
         /**
          * order is undefined
          */
-        private final List<TaggedBasicValue<?>> usedValues;
+        private final List<DoublyTaggedBasicValue<?>> usedValues;
 
-        public Edge(Node source, Node target, List<TaggedBasicValue<?>> usedValues) {
+        public Edge(Node source, Node target, List<DoublyTaggedBasicValue<?>> usedValues) {
             this.source = source;
             this.target = target;
             this.usedValues = usedValues;
@@ -76,12 +108,17 @@ public class DependencyGraph {
                     ", usedValues=" + usedValues +
                     '}';
         }
+
+        public Edge reverse() {
+            return new Edge(target, source, usedValues);
+        }
     }
 
     @Getter
     public static class Node {
         private final int id;
-        private @Nullable final Pair<Request<?>, Reply> origin;
+        private @Nullable
+        final Pair<Request<?>, Reply> origin;
         private final Set<Edge> dependsOn = new HashSet<>();
         private final Set<Edge> dependedBy = new HashSet<>();
 
@@ -164,7 +201,7 @@ public class DependencyGraph {
 
         public void addDependsOn(Edge edge) {
             dependsOn.add(edge);
-            edge.getTarget().dependedBy.add(new Edge(edge.getTarget(), edge.getSource(), edge.usedValues));
+            edge.getTarget().dependedBy.add(edge.reverse());
         }
     }
 
@@ -212,11 +249,17 @@ public class DependencyGraph {
         for (int i = 0; i < partition.size(); i++) {
             var origin = partition.get(i);
             ContainedValues requestValues = containedValues.get(origin).first; // use the request
-            Map<BasicValue, TaggedBasicValue<?>> usedCauseValues = requestValues.getBasicValues().stream()
-                    .filter(causeValues::containsBasicValue)
-                    .collect(Collectors.toMap(v -> v, causeValues::getFirstTaggedValue));
-            Map<Pair<Request<?>, Reply>, List<TaggedBasicValue<?>>> dependsOn = new HashMap<>();
-            for (BasicValue value : requestValues.getBasicValues()) {
+            Map<BasicValue, DoublyTaggedBasicValue<?>> usedCauseValues = requestValues.entrySet().stream()
+                    .filter(e -> causeValues.containsBasicValue(e.getKey()))
+                    .collect(Collectors.toMap(Entry::getKey, e -> {
+                        var first = causeValues.getFirstTaggedValue(e.getKey());
+                        return new DoublyTaggedBasicValue<>(e.getValue().stream()
+                                .map(TaggedBasicValue::getPath)
+                                .collect(Collectors.toList()), first.path, e.getKey());
+                    }));
+            Map<Pair<Request<?>, Reply>, List<DoublyTaggedBasicValue<?>>> dependsOn = new HashMap<>();
+            for (var entry : requestValues.entrySet()) {
+                var value = entry.getKey();
                 if (usedCauseValues.containsKey(value)) { // cause has the highest priority
                     continue;
                 }
@@ -226,8 +269,12 @@ public class DependencyGraph {
                     var other = partition.get(j);
                     var otherContainedValues = containedValues.get(other).second; // use the reply
                     if (otherContainedValues.containsBasicValue(value)) {
+                        var first = otherContainedValues.getFirstTaggedValue(value);
                         dependsOn.computeIfAbsent(other, v -> new ArrayList<>())
-                                .add(otherContainedValues.getFirstTaggedValue(value));
+                                .add(new DoublyTaggedBasicValue<>(entry.getValue().stream()
+                                        .map(TaggedBasicValue::getPath)
+                                        .collect(Collectors.toList()), first.path, value));
+                        break;
                     }
                 }
             }
@@ -238,8 +285,8 @@ public class DependencyGraph {
         return graph;
     }
 
-    void add(Pair<Request<?>, Reply> origin, Map<Pair<Request<?>, Reply>, List<TaggedBasicValue<?>>> dependsOn,
-             Collection<TaggedBasicValue<?>> usedCauseValues) {
+    void add(Pair<Request<?>, Reply> origin, Map<Pair<Request<?>, Reply>, List<DoublyTaggedBasicValue<?>>> dependsOn,
+             Collection<DoublyTaggedBasicValue<?>> usedCauseValues) {
         var node = getNode(origin);
         node.addAllDependsOn(dependsOn.entrySet().stream()
                 .map(e -> new Edge(node, getNode(e.getKey()), e.getValue())).collect(Collectors.toList()));
@@ -336,7 +383,7 @@ public class DependencyGraph {
 
         /**
          * Returns all nodes that transitively depend on the header nodes.
-         *
+         * <p>
          * Asserts that all header nodes are on the same layer and that all dependent nodes are in a lower layer.
          * Returns null if any of the dependent nodes depends on a node outside both sets.
          */
@@ -369,40 +416,51 @@ public class DependencyGraph {
         public Comparator<Node> getNodeComparator() {
             if (nodeComparator == null) {
                 Map<Node, Long> edgesValue = new HashMap<>();
-                Function<Node, Long> computeEdgesValue = node -> node.dependsOn.stream()
-                        .mapToLong(e -> e.getUsedValues().stream()
-                                .mapToLong(t -> t.path.basicHashCode())
-                                .reduce(1, (x, y) -> x * 31 + y)).reduce(1, (x, y) -> x * 31 + 1);
+                Map<Node, Hashed<Node>> hashed = computeHashedNodes();
                 nodeComparator = (left, right) -> {
-                    int layerComp = Integer.compare(getLayerIndex(left), getLayerIndex(right));
-                    if (layerComp != 0) { // order after layers first
-                        return layerComp;
+                    long leftHash = hashed.get(left).hash();
+                    long rightHash = hashed.get(right).hash();
+                    int comparison = Long.compare(leftHash, rightHash);
+                    if (comparison == 0) {
+                        return Integer.compare(left.getId(), right.getId()); // use the ids only as a measure of last resort
                     }
-                    // do not use the id here yet, only use the contents of the requests
-                    var leftRequest = left.getOrigin().first;
-                    var rightRequest = right.getOrigin().first;
-                    int commandSetComp = Integer.compare(leftRequest.getCommandSet(), rightRequest.getCommandSet());
-                    if (commandSetComp != 0) {
-                        return commandSetComp;
-                    }
-                    int commandComp = Integer.compare(leftRequest.getCommand(), rightRequest.getCommand());
-                    if (commandComp != 0) {
-                        return commandComp;
-                    }
-                    int edgeSizeComp = Integer.compare(left.dependsOn.size(), right.dependsOn.size());
-                    if (edgeSizeComp != 0) {
-                        return edgeSizeComp;
-                    }
-                    var leftEdgesVal = edgesValue.computeIfAbsent(left, computeEdgesValue);
-                    var rightEdgesVal = edgesValue.computeIfAbsent(right, computeEdgesValue);
-                    var edgesValComp = Long.compare(leftEdgesVal, rightEdgesVal);
-                    if (edgesValComp != 0) {
-                        return edgesValComp;
-                    }
-                    return Integer.compare(left.getId(), right.getId()); // use the ids only as a measure of last resort
+                    return comparison;
                 };
             }
             return nodeComparator;
+        }
+
+        private class HashedNodeHelper {
+            final Map<Node, Hashed<Node>> hashed = new HashMap<>();
+
+            Hashed<Node> get(Node node) {
+                return hashed.computeIfAbsent(node, this::compute);
+            }
+
+            Hashed<Node> compute(Node node) {
+                short originCode = 389;
+                if (node.getOrigin() != null) {
+                    var request = node.getOrigin().first;
+                    originCode = (short) ((request.getCommandSet() << 8) & request.getCommand());
+                }
+                return Hashed.hash(node, ((short) getLayerIndex(node) << 16) & originCode,
+                        node.getDependsOn().stream()
+                                .flatMapToLong(e -> e.getUsedValues()
+                                        .stream()
+                                        .flatMapToLong(t -> t.getAtSetTargets().stream()
+                                                .mapToLong(p -> ((p.hashCode() * 769L) + t.getAtValueOrigin().hashCode())
+                                                        * 769L + get(e.target).hash()))).sorted().toArray());
+            }
+
+            void process(List<Set<Node>> nodes) {
+                nodes.forEach(ns -> ns.forEach(this::get));
+            }
+        }
+
+        public Map<Node, Hashed<Node>> computeHashedNodes() {
+            HashedNodeHelper helper = new HashedNodeHelper();
+            helper.process(layers);
+            return helper.hashed;
         }
     }
 
