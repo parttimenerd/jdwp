@@ -44,20 +44,18 @@ public class BasicTunnel {
 
     public void run() {
         try (var ownServer = new ServerSocket(ownAddress.getPort())) {
-            while (true) {
-                LOG.info("Try to accept");
-                Socket clientSocket = ownServer.accept();
-                LOG.info("Accepted");
-                var clientInputStream = clientSocket.getInputStream();
-                var clientOutputStream = clientSocket.getOutputStream();
-                LOG.info("try to connect to JVM");
-                try (var jvmSocket = new Socket((String) null, jvmAddress.getPort())) {
-                    LOG.info("connected jvm");
-                    var jvmInputStream = jvmSocket.getInputStream();
-                    var jvmOutputStream = jvmSocket.getOutputStream();
-                    handshake(clientInputStream, clientOutputStream, jvmInputStream, jvmOutputStream);
-                    readWriteLoop(clientInputStream, clientOutputStream, jvmInputStream, jvmOutputStream);
-                }
+            LOG.info("Try to accept");
+            Socket clientSocket = ownServer.accept();
+            LOG.info("Accepted");
+            var clientInputStream = clientSocket.getInputStream();
+            var clientOutputStream = clientSocket.getOutputStream();
+            LOG.info("try to connect to JVM");
+            try (var jvmSocket = new Socket((String) null, jvmAddress.getPort())) {
+                LOG.info("connected jvm");
+                var jvmInputStream = jvmSocket.getInputStream();
+                var jvmOutputStream = jvmSocket.getOutputStream();
+                handshake(clientInputStream, clientOutputStream, jvmInputStream, jvmOutputStream);
+                readWriteLoop(clientInputStream, clientOutputStream, jvmInputStream, jvmOutputStream);
             }
         } catch (IOException ex) {
             LOG.error("Problems with TCP streams", ex);
