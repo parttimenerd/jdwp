@@ -39,13 +39,13 @@ public class DependencyGraphTest {
         assertNull(graph.getCauseNode().getOrigin());
         assertEquals(-1, graph.getCauseNode().getId());
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
-        assertEquals(Set.of(graph.getCauseNode()), graph.getNode(start).getDependsOnNodes());
+        assertEquals(Set.of(), graph.getNode(start).getDependsOnNodes());
         assertEquals(Set.of(graph.getNode(start)), graph.getNode(left).getDependsOnNodes());
         var e = new DoublyTaggedBasicValue<>(new AccessPath("value"),
                 start.first.getContainedValues().getFirstTaggedValue(wrap(1)));
-        assertEquals(new Edge(graph.getNode(start),
-                        graph.getCauseNode(), List.of(e)),
-                graph.getNode(start).getDependsOn().iterator().next());
+        assertEquals(new Edge(graph.getNode(left),
+                        graph.getNode(start), List.of(e)),
+                graph.getNode(left).getDependsOn().iterator().next());
         assertEquals(Set.of(graph.getNode(left), graph.getNode(right)), graph.getNode(end).getDependsOnNodes());
         var layers = graph.computeLayers();
         assertEquals(4, layers.size());
@@ -64,7 +64,7 @@ public class DependencyGraphTest {
         var graph = DependencyGraph.calculate(partition);
         assertNotEquals(graph.getCauseNode(), graph.getNode(start));
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
-        assertEquals(Set.of(graph.getCauseNode()), graph.getNode(start).getDependsOnNodes());
+        assertEquals(Set.of(), graph.getNode(start).getDependsOnNodes());
         assertEquals(Set.of(graph.getNode(start), graph.getCauseNode()), graph.getNode(end).getDependsOnNodes());
         var layers = graph.computeLayers();
         assertEquals(3, layers.size());
@@ -180,7 +180,15 @@ public class DependencyGraphTest {
         var graph = DependencyGraph.calculate(partition);
         assertTrue(graph.getAllNodes().stream().allMatch(Objects::nonNull),
                 "getAllNodes() should not return null values");
-        assertEquals(1, graph.getAllNodes().size());
+        assertEquals(1, graph.getAllNodesWOCause().size());
+    }
+
+    @Test
+    public void testGraphWithCauseAsEntry() {
+        var start = rrpair(1, 1, 2);
+        var partition = new Partitioner.Partition(Either.left(start.first), List.of(start));
+        var graph = DependencyGraph.calculate(partition);
+        assertEquals(1, graph.getAllNodesWOCause().size());
     }
 
     static TestRequest request(int id, Value value) {

@@ -136,7 +136,8 @@ public class ProgramTest {
                 {"(wrap 'string' '234')", wrap("234")},
                 {"(wrap 'array-reference' 32)", Reference.array(32)},
                 {"(wrap 'int' 10)", wrap(10)},
-                {"(wrap 'object' 10)", Reference.object(10)}
+                {"(wrap 'object' 10)", Reference.object(10)},
+                {"(wrap 'boolean' 1)", wrap(true)}
         };
     }
 

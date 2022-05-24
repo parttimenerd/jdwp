@@ -114,7 +114,12 @@ public abstract class Functions {
     public static FunctionCall createWrapperFunctionCall(BasicValue value) {
         Literal<?> literal;
         if (value instanceof BasicScalarValue<?> && !(value instanceof StringValue)) {
-            literal = literal(((Number) ((BasicScalarValue<?>) value).value).longValue());
+            var val = ((BasicScalarValue<?>) value).value;
+            if (val instanceof Boolean) {
+                literal = literal((Boolean) val ? 1 : 0);
+            } else {
+                literal = literal(((Number) val).longValue());
+            }
         } else if (value instanceof StringValue) {
             literal = literal(((StringValue) value).value);
         } else if (value instanceof ByteList) {
