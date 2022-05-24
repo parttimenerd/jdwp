@@ -4,6 +4,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 import tunnel.synth.program.AST.Statement;
+import tunnel.synth.program.Visitors.RecursiveStatementVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
 import java.util.List;
@@ -79,7 +80,19 @@ public class Program extends Statement {
         return cause != null;
     }
 
+    /** cause or first assignment in body (equivalent for non events) */
     public @Nullable AssignmentStatement getFirstCallAssignment() {
         return cause != null ? new AssignmentStatement(AST.ident(CAUSE_NAME), cause) : body.getFirstCallAssignment();
+    }
+
+    public double getNumberOfAssignments() {
+        int[] count = new int[]{ 0 };
+        body.accept(new RecursiveStatementVisitor() {
+            @Override
+            public void visit(AssignmentStatement assignment) {
+                count[0] += 1;
+            }
+        });
+        return count[0];
     }
 }

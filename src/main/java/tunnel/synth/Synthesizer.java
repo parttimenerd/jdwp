@@ -15,6 +15,7 @@ import tunnel.synth.program.Program;
 import tunnel.util.Either;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static jdwp.util.Pair.p;
@@ -23,8 +24,12 @@ import static tunnel.synth.program.AST.*;
 /**
  * Transforms a dependency graph into a program.
  */
-public class Synthesizer {
+public class Synthesizer extends Analyser<Synthesizer, Program> implements Consumer<Partition>  {
 
+    @Override
+    public void accept(Partition partition) {
+        submit(synthesizeProgram(partition));
+    }
 
     public static final String CAUSE_NAME = "cause";
     public static final String NAME_PREFIX = "var";
@@ -115,7 +120,7 @@ public class Synthesizer {
 
     private static Pair<Program, Set<Node>> processNodes(NodeNames variables, Layers layers, Set<Node> fullBody, int minSize) {
         var fullBodySorted = new ArrayList<>(fullBody);
-        fullBodySorted.sort(layers.getNodeComparator());
+        fullBodySorted.sort(layers.getNodeComparator()); // makes the statement order deterministic
         List<Statement> statements = new ArrayList<>();
         Set<Node> ignoredNodes = new HashSet<>();
         for (Node node : fullBodySorted) {

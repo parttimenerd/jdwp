@@ -40,9 +40,34 @@ Logger (print all packets):
   
   
   Program:
-  (
+  ((= cause (events Event Composite ("suspendPolicy")=(wrap "byte" 2) ("events" 0 "requestID")=(wrap "int" 0) ("events" 0 "thread")=(wrap "thread" 1)))
     (= var0 (request VirtualMachine IDSizes)))
+```
 
+... print all programs for which we already created a previous program with the same cause 
+and at least 70% matching statements:
+```sh
+  > java -javaagent:target/tunnel.jar=address=5015,verbose=debug,logger,mode=code,--overlaps \
+       -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 \
+       -cp target/tunnel.jar tunnel.EndlessLoop
+       
+  Overlap:
+  ----- first ----
+  ((= cause (events Event Composite ("suspendPolicy")=(wrap "byte" 2) ("events" 0 "requestID")=(wrap "int" 56) ("events" 0 "thread")=(wrap "thread" 1) ("events" 0 "location" "codeIndex")=(wrap "long" 2) ("events" 0 "location" "declaringType")=(wrap "class-type" 1055) ("events" 0 "location" "methodRef")=(wrap "method" 105553122640072)))
+    (= var0 (request ThreadReference FrameCount ("thread")=(get cause "events" 0 "thread")))
+    (= var1 (request ThreadReference Name ("thread")=(get cause "events" 0 "thread")))
+    (= var2 (request ThreadReference Status ("thread")=(get cause "events" 0 "thread")))
+    (= var3 (request ThreadReference Frames ("length")=(get var0 "frameCount") ("startFrame")=(wrap "int" 0) ("thread")=(get cause "events" 0 "thread")))
+    (= var4 (request StackFrame GetValues ("frame")=(get var3 "frames" 0 "frameID") ("thread")=(get cause "events" 0 "thread") ("slots" 0 "sigbyte")=(wrap "byte" 91) ("slots" 0 "slot")=(wrap "int" 0) ("slots" 1 "sigbyte")=(wrap "byte" 73) ("slots" 1 "slot")=(get var0 "frameCount"))))
+  ----- second ----
+  ((= cause (events Event Composite ("suspendPolicy")=(wrap "byte" 2) ("events" 0 "requestID")=(wrap "int" 56) ("events" 0 "thread")=(wrap "thread" 1) ("events" 0 "location" "codeIndex")=(wrap "long" 2) ("events" 0 "location" "declaringType")=(wrap "class-type" 1055) ("events" 0 "location" "methodRef")=(wrap "method" 105553122640072)))
+    (= var0 (request ThreadReference FrameCount ("thread")=(get cause "events" 0 "thread")))
+    (= var1 (request ThreadReference Name ("thread")=(get cause "events" 0 "thread")))
+    (= var2 (request ThreadReference Status ("thread")=(get cause "events" 0 "thread")))
+    (= var3 (request ThreadReference Frames ("length")=(get var0 "frameCount") ("startFrame")=(wrap "int" 0) ("thread")=(get cause "events" 0 "thread")))
+    (= var4 (request StackFrame GetValues ("frame")=(get var3 "frames" 0 "frameID") ("thread")=(get cause "events" 0 "thread") ("slots" 0 "sigbyte")=(wrap "byte" 91) ("slots" 0 "slot")=(wrap "int" 0) ("slots" 1 "sigbyte")=(wrap "byte" 73) ("slots" 1 "slot")=(get var0 "frameCount"))))
+  ----- overlap: 1,00 ----
+  ----- #programs =  2531  #(> 1 stmt)programs =  1054  #overlaps =  1039 (98,58%) 
 ```
 
 What is done
@@ -62,10 +87,14 @@ Ideas that did not work
 - running the JVM endpoint of the tunnel directly as a javaagent
   - it does not work because stopping the JVM stops the debugging threads too
   - solution: run the tunnel as a separate Java process
+- running the tunnel in two separate threads (one for the JVM and one for the client side)
+  - it introduces the need for synchronization between two threads which lead to bugs in the
+    which where hard to debug
+  - solution: use a single thread and poll the two input streams in sequence
 
 TODO
 ----
-- when trying to get a thread dump
+- when trying to get a thread dump with IntelliJ I get the following
 ```
 1653406615,339:      Reply[  61550]: new ReplyOrError<>(61550, new jdwp.ObjectReferenceCmds.GetValuesReply(61550, new ListValue<>(Type.LIST, List.of(PrimitiveValue.wrap(5)))))
 1653406615,340:    Request[  61551]: new jdwp.ObjectReferenceCmds.GetValuesRequest(61551, new ObjectReference(1L), new ListValue<>(Type.LIST, List.of(new ObjectReferenceCmds.GetValuesRequest.Field(new... (-13 more)
@@ -76,3 +105,7 @@ at jdwp.PacketInputStream.readValue(PacketInputStream.java:265)
 at jdwp.ObjectReferenceCmds$GetValuesReply.parse(ObjectReferenceCmds.java:690)
 at jdwp.ObjectReferenceCmds$GetValuesRequest.parseReply(ObjectReferenceCmds.java:486)
 ```
+- overlap and merge on programs should use hash trees to make it independent of variable names
+  - the program synthesizer guarantees that the order of the statements depends only on the structure 
+    of the dependency graph
+- implement caching...
