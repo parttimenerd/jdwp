@@ -43,8 +43,7 @@ public class BasicTunnel {
     }
 
     public void run() {
-        try {
-            var ownServer = new ServerSocket(ownAddress.getPort());
+        try (var ownServer = new ServerSocket(ownAddress.getPort())) {
             while (true) {
                 LOG.info("Try to accept");
                 Socket clientSocket = ownServer.accept();
@@ -52,12 +51,13 @@ public class BasicTunnel {
                 var clientInputStream = clientSocket.getInputStream();
                 var clientOutputStream = clientSocket.getOutputStream();
                 LOG.info("try to connect to JVM");
-                var jvmSocket = new Socket((String) null, jvmAddress.getPort());
-                LOG.info("connected jvm");
-                var jvmInputStream = jvmSocket.getInputStream();
-                var jvmOutputStream = jvmSocket.getOutputStream();
-                handshake(clientInputStream, clientOutputStream, jvmInputStream, jvmOutputStream);
-                readWriteLoop(clientInputStream, clientOutputStream, jvmInputStream, jvmOutputStream);
+                try (var jvmSocket = new Socket((String) null, jvmAddress.getPort())) {
+                    LOG.info("connected jvm");
+                    var jvmInputStream = jvmSocket.getInputStream();
+                    var jvmOutputStream = jvmSocket.getOutputStream();
+                    handshake(clientInputStream, clientOutputStream, jvmInputStream, jvmOutputStream);
+                    readWriteLoop(clientInputStream, clientOutputStream, jvmInputStream, jvmOutputStream);
+                }
             }
         } catch (IOException ex) {
             LOG.error("Problems with TCP streams", ex);
@@ -103,8 +103,9 @@ public class BasicTunnel {
             if (reply.isPresent()) {
                 writeClientReply(clientOutputStream, reply.get());
             }
-            if (!hasDataAvailable(clientInputStream) && !hasDataAvailable(jvmInputStream)) {
+            while (!hasDataAvailable(clientInputStream) && !hasDataAvailable(jvmInputStream)) {
                 Thread.yield(); // hint to the scheduler that other work could be done
+                state.tick();
             }
         }
     }

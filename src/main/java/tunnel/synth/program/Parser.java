@@ -76,7 +76,13 @@ public class Parser {
     Program parseProgram() {
         expect('(');
         skipWhitespace();
-        var program = new Program(parseBlock());
+        var block = parseBlock();
+        AssignmentStatement cause = null;
+        if (!block.isEmpty() && block.get(0) instanceof AssignmentStatement &&
+                ((AssignmentStatement) block.get(0)).isCause()) {
+            cause = (AssignmentStatement)block.remove(0);
+        }
+        var program = new Program(cause == null ? null : (PacketCall) cause.getExpression(), block);
         skipWhitespace();
         expect(')');
         return program;
@@ -146,8 +152,8 @@ public class Parser {
         expect('(');
         skipWhitespace();
         var functionName = parseIdentifier().getName();
-        if (functionName.equals("request")) {
-            return parseRequestCall();
+        if (functionName.equals("request") || functionName.equals("events")) {
+            return parsePacketCall(functionName);
         }
         skipWhitespace();
         List<Expression> arguments = new ArrayList<>();
@@ -159,27 +165,34 @@ public class Parser {
         return new FunctionCall(functionName, arguments);
     }
 
-    /** request commandSet command ("p1" p2)=(wrap type primitive) or ... (p1 p2)=(get obj p1 p2) */
-    RequestCall parseRequestCall() {
+    /** request/events commandSet command ("p1" p2)=(wrap type primitive) or ... (p1 p2)=(get obj p1 p2) */
+    PacketCall parsePacketCall(String name) {
         skipWhitespace();
         var commandSet = parseIdentifier().getName();
         skipWhitespace();
         var command = parseIdentifier().getName();
         skipWhitespace();
-        List<RequestCallProperty> arguments = new ArrayList<>();
+        List<CallProperty> arguments = new ArrayList<>();
         while (current != ')') {
-            arguments.add(parseRequestCallProperty());
+            arguments.add(parseCallProperty());
             skipWhitespace();
         }
         expect(')');
-        return new RequestCall(commandSet, command, arguments);
+        switch (name) {
+            case "request":
+                return new RequestCall(commandSet, command, arguments);
+            case "events":
+                return new EventsCall(commandSet, command, arguments);
+            default:
+                throw new AssertionError();
+        }
     }
 
-    RequestCallProperty parseRequestCallProperty() {
+    CallProperty parseCallProperty() {
         AccessPath path = parseAccessPath();
         expect('=');
         FunctionCall accessor = (FunctionCall) parseFunctionCall();
-        return new RequestCallProperty(path, accessor);
+        return new CallProperty(path, accessor);
     }
 
     public AccessPath parseAccessPath() {

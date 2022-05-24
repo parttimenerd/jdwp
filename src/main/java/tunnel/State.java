@@ -3,6 +3,9 @@ package tunnel;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.EventCommon;
 import jdwp.*;
+import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import tunnel.util.Either;
 
 import java.io.IOException;
@@ -15,14 +18,12 @@ import java.util.*;
  */
 public class State {
 
+    @Getter
+    @EqualsAndHashCode
+    @AllArgsConstructor
     public static class WrappedPacket<R> {
         final R packet;
         final long time;
-
-        public WrappedPacket(R packet, long time) {
-            this.packet = packet;
-            this.time = time;
-        }
     }
 
     private final VM vm;
@@ -122,5 +123,9 @@ public class State {
 
     public VM vm() {
         return vm;
+    }
+
+    public void tick() {
+        listeners.forEach(Listener::onTick);
     }
 }

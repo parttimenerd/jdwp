@@ -9,6 +9,7 @@ import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import org.jetbrains.annotations.Nullable;
 import tunnel.Listener;
+import tunnel.State.WrappedPacket;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.util.Either;
 import tunnel.util.ToCode;
@@ -17,6 +18,7 @@ import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static jdwp.util.Pair.p;
 
@@ -28,6 +30,43 @@ import static jdwp.util.Pair.p;
  * If the side effect is a request, then the request is part of partition
  */
 public class Partitioner extends Analyser<Partitioner, Partition> implements Listener {
+
+    static class Timings {
+
+        private final double breakAtTimeFactor;
+        private final List<Long> replyTimes = new ArrayList<>();
+        private long averageDifference = 0;
+
+        Timings(double breakAtTimeFactor) {
+            this.breakAtTimeFactor = breakAtTimeFactor;
+        }
+
+        /** returns true if should break the partition before the current packet */
+        boolean addReplyTimeAndCheckShouldBreak(long time) {
+            if (shouldBreak(time)) {
+                reset();
+                replyTimes.add(time);
+                return true;
+            }
+            replyTimes.add(time);
+            updateAverage();
+            return false;
+        }
+
+        void reset() {
+            replyTimes.clear();
+        }
+
+        boolean shouldBreak(long replyTime) {
+            return replyTimes.size() > 0 && averageDifference != 0 &&
+                    (replyTime - replyTimes.get(replyTimes.size() - 1)) / (averageDifference * 1d) >= breakAtTimeFactor;
+        }
+
+        void updateAverage() {
+            averageDifference = Math.round(IntStream.range(1, replyTimes.size())
+                    .mapToLong(i -> replyTimes.get(i) - replyTimes.get(i - 1)).average().orElse(averageDifference));
+        }
+    }
 
     @EqualsAndHashCode(callSuper = true)
     public static class Partition extends AbstractList<Pair<Request<?>, Reply>> implements ToCode {
@@ -92,6 +131,16 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             return !request.onlyReads();
         }
 
+        /**
+         * Does the passed request affect the value of any contained reply if the accompanied request would be
+         * resent
+         *
+         * Currently, only uses the onlyReads property. This should be extended later.
+         */
+        public boolean isAffectedBy(Events events) {
+            return !events.onlyReads();
+        }
+
         @Override
         public boolean add(Pair<Request<?>, Reply> requestReplyPair) {
             return items.add(requestReplyPair);
@@ -106,16 +155,12 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         }
     }
 
+    private final Integer DEFAULT_TIMINGS_FACTOR = 5;
+    private final Timings timings;
     private @Nullable Partition currentPartition;
 
     public Partitioner() {
-    }
-
-
-
-    @Override
-    public void onEvent(Events events) {
-        Listener.super.onEvent(events);
+        this.timings = new Timings(DEFAULT_TIMINGS_FACTOR);
     }
 
     private void startNewPartition(@Nullable Either<Request<?>, Events> cause) {
@@ -127,24 +172,41 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
 
     @Override
     public void onRequest(Request<?> request) {
-        if (currentPartition != null) {
-            if (currentPartition.isAffectedBy(request)) {
-                startNewPartition(Either.left(request));
-            }
+        if (currentPartition == null || currentPartition.isAffectedBy(request)) {
+            startNewPartition(Either.left(request));
         }
     }
 
     @Override
-    public void onReply(Request<?> request, ReplyOrError<?> reply) {
+    public void onEvent(Events events) {
+        if (currentPartition == null || currentPartition.isAffectedBy(events)) {
+            startNewPartition(Either.right(events));
+        }
+    }
+
+    @Override
+    public void onReply(WrappedPacket<Request<?>> requestPacket, WrappedPacket<ReplyOrError<?>> replyPacket) {
+        var request = requestPacket.getPacket();
+        var reply = replyPacket.getPacket();
         if (reply.isError()) {  // start a new partition on error
             startNewPartition(null);
         } else {
             if (currentPartition == null) {
                 startNewPartition(null);
-            } else if (!request.equals(currentPartition.getCausePacket()) && currentPartition.isAffectedBy(request)) {
+            } else if ((!request.equals(currentPartition.getCausePacket()) && currentPartition.isAffectedBy(request)) ||
+                    timings.addReplyTimeAndCheckShouldBreak(replyPacket.getTime())) {
                 startNewPartition(Either.left(request)); // but this should only happen in tests
             }
             currentPartition.add(p(request, reply.getReply()));
+        }
+    }
+
+    @Override
+    public void onTick() {
+        if (currentPartition != null && timings.shouldBreak(System.currentTimeMillis())) {
+            timings.reset();
+            submit(currentPartition);
+            currentPartition = null;
         }
     }
 

@@ -251,8 +251,10 @@ public class DependencyGraph {
         // look for requests that only depend on the cause or values not in the set
         for (int i = 0; i < partition.size(); i++) {
             var origin = partition.get(i);
+            boolean isCause = i == 0 && partition.getCause() != null && origin.first().equals(partition.getCause().get());
             ContainedValues requestValues = containedValues.get(origin).first; // use the request
-            Map<BasicValue, DoublyTaggedBasicValue<?>> usedCauseValues = requestValues.entrySet().stream()
+            Map<BasicValue, DoublyTaggedBasicValue<?>> usedCauseValues = isCause ? Map.of() :
+                    requestValues.entrySet().stream()
                     .filter(e -> causeValues.containsBasicValue(e.getKey()))
                     .collect(Collectors.toMap(Entry::getKey, e -> {
                         var first = causeValues.getFirstTaggedValue(e.getKey());
@@ -318,6 +320,10 @@ public class DependencyGraph {
         return allNodes;
     }
 
+    public Set<Node> getAllNodesWOCause() {
+        return new HashSet<>(nodes.values());
+    }
+
     /**
      * Layer 0 nodes only depend on the cause node (its request or event values),
      * layers above only depend on the layers below
@@ -325,7 +331,7 @@ public class DependencyGraph {
      * Layer 0 contains the cause node if present
      * <p>
      * Interestingly, I coded a similar code during my PhD:
-     * https://git.scc.kit.edu/IPDSnelting/summary_cpp/-/blob/master/src/graph.hpp#L873
+     * <a href="https://git.scc.kit.edu/IPDSnelting/summary_cpp/-/blob/master/src/graph.hpp#L873">...</a>
      */
     public Layers computeLayers() {
         List<Set<Node>> layers = new ArrayList<>();

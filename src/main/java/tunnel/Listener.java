@@ -8,7 +8,6 @@ import jdwp.Request;
 import jdwp.util.Pair;
 import lombok.Getter;
 import tunnel.State.WrappedPacket;
-import tunnel.util.Either;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +46,9 @@ public interface Listener {
 
     default void onEvent(Events events) {
     }
+
+    /** called between packets if no packet is coming */
+    default void onTick() {}
 
     /** prints all packages */
     class LoggingListener implements Listener {
@@ -125,10 +127,15 @@ public interface Listener {
      */
     class ThreadedListener<L extends Listener> implements Listener {
 
+        private static class Element {
+            boolean tick = false;
+            WrappedPacket<Request<?>> request = null;
+            Pair<WrappedPacket<Request<?>>, WrappedPacket<ReplyOrError<?>>> reply = null;
+            WrappedPacket<Events> events = null;
+        }
+
         private volatile boolean closed = false;
-        private final LinkedBlockingQueue<Either<WrappedPacket<Request<?>>,
-                Either<Pair<WrappedPacket<Request<?>>, WrappedPacket<ReplyOrError<?>>>,
-                        WrappedPacket<Events>>>> queue;
+        private final LinkedBlockingQueue<Element> queue;
 
         public ThreadedListener(L listener) {
             this.queue = new LinkedBlockingQueue<>();
@@ -136,13 +143,15 @@ public interface Listener {
                 while (!closed) {
                     try {
                         var elem = queue.take();
-                        if (elem.isLeft()) {
-                            listener.onRequest(elem.getLeft());
-                        } else if (elem.getRight().isLeft()) {
-                            var p = elem.getRight().getLeft();
-                            listener.onReply(p.first(), p.second);
+                        if (elem.tick) {
+                            listener.onTick();
+                        } else if (elem.request != null) {
+                            listener.onRequest(elem.request);
+                        } else if (elem.reply != null) {
+                            listener.onReply(elem.reply.first, elem.reply.second);
                         } else {
-                            listener.onEvent(elem.getRight().getRight());
+                            assert elem.events != null;
+                            listener.onEvent(elem.events);
                         }
                     } catch (InterruptedException e) {
                         e.printStackTrace();
@@ -151,16 +160,31 @@ public interface Listener {
             }).start();
         }
 
+        @Override
         public void onRequest(WrappedPacket<Request<?>> request) {
-            queue.add(Either.left(request));
+            var elem = new Element();
+            elem.request = request;
+            queue.add(elem);
         }
 
+        @Override
         public void onReply(WrappedPacket<Request<?>> request, WrappedPacket<ReplyOrError<?>> reply) {
-            queue.add(Either.right(Either.left(p(request, reply))));
+            var elem = new Element();
+            elem.reply = p(request, reply);
+            queue.add(elem);
         }
 
+        @Override
         public void onEvent(WrappedPacket<Events> event) {
-            queue.add(Either.right(Either.right(event)));
+            var elem = new Element();
+            elem.events = event;
+            queue.add(elem);
+        }
+
+        public void onTick() {
+            var elem = new Element();
+            elem.tick = true;
+            queue.add(elem);
         }
 
         public void close() {

@@ -1,6 +1,7 @@
 package tunnel.synth.program;
 
 import jdwp.AccessPath;
+import jdwp.EventCmds.Events;
 import jdwp.Request;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.util.Pair;
@@ -11,6 +12,7 @@ import lombok.Setter;
 import org.apache.commons.text.StringEscapeUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import tunnel.synth.Synthesizer;
 import tunnel.synth.program.Functions.Function;
 import tunnel.synth.program.Visitors.*;
 
@@ -231,6 +233,10 @@ public interface AST {
         public List<Expression> getSubExpressions() {
             return List.of(variable, expression);
         }
+
+        public boolean isCause() {
+            return variable.name.equals(Synthesizer.CAUSE_NAME);
+        }
     }
 
     @AllArgsConstructor
@@ -275,10 +281,11 @@ public interface AST {
     @Getter
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = false)
-    class RequestCall extends Expression {
+    class PacketCall extends Expression {
+        private final String name;
         private final String commandSet;
         private final String command;
-        private final List<RequestCallProperty> properties;
+        private final List<CallProperty> properties;
 
         @Override
         public <R> R accept(ReturningExpressionVisitor<R> visitor) {
@@ -299,22 +306,40 @@ public interface AST {
         @Override
         public String toString() {
             return String.format(
-                    "(request %s %s%s%s)",
+                    "(%s %s %s%s%s)",
+                    name,
                     commandSet,
                     command,
                     properties.isEmpty() ? "" : " ",
                     properties.stream().map(Object::toString).collect(Collectors.joining(" ")));
+        }
+    }
+
+    class RequestCall extends PacketCall {
+
+        public RequestCall(String commandSet, String command, List<CallProperty> properties) {
+            super("request", commandSet, command, properties);
+        }
+
+        @Override
+        public <R> R accept(ReturningExpressionVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        @Override
+        public void accept(ExpressionVisitor visitor) {
+            visitor.visit(this);
         }
 
         public static RequestCall create(
                 String commandSet,
                 String command,
                 Stream<TaggedBasicValue<?>> taggedValues,
-                List<RequestCallProperty> properties) {
+                List<CallProperty> properties) {
             return new RequestCall(
                     commandSet,
                     command,
-                    Stream.concat(taggedValues.map(RequestCallProperty::create), properties.stream())
+                    Stream.concat(taggedValues.map(CallProperty::create), properties.stream())
                             .collect(Collectors.toList()));
         }
 
@@ -327,10 +352,47 @@ public interface AST {
         }
     }
 
+    class EventsCall extends PacketCall {
+
+        public EventsCall(String commandSet, String command, List<CallProperty> properties) {
+            super("events", commandSet, command, properties);
+        }
+
+        @Override
+        public <R> R accept(ReturningExpressionVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        @Override
+        public void accept(ExpressionVisitor visitor) {
+            visitor.visit(this);
+        }
+
+        public static EventsCall create(
+                String commandSet,
+                String command,
+                Stream<TaggedBasicValue<?>> taggedValues,
+                List<CallProperty> properties) {
+            return new EventsCall(
+                    commandSet,
+                    command,
+                    Stream.concat(taggedValues.map(CallProperty::create), properties.stream())
+                            .collect(Collectors.toList()));
+        }
+
+        public static EventsCall create(Events events) {
+            return create(
+                    events.getCommandSetName(),
+                    events.getCommandName(),
+                    events.asCombined().getTaggedValues(),
+                    List.of());
+        }
+    }
+
     @Getter
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = false)
-    class RequestCallProperty extends Expression {
+    class CallProperty extends Expression {
         private final AccessPath path;
         private final FunctionCall accessor;
 
@@ -344,8 +406,8 @@ public interface AST {
                     accessor);
         }
 
-        public static RequestCallProperty create(TaggedBasicValue<?> taggedValue) {
-            return new RequestCallProperty(
+        public static CallProperty create(TaggedBasicValue<?> taggedValue) {
+            return new CallProperty(
                     taggedValue.path, Functions.createWrapperFunctionCall(taggedValue.getValue()));
         }
 
@@ -701,6 +763,12 @@ public interface AST {
         @Override
         public Statement get(int index) {
             return body.get(index);
+        }
+
+        /** returns the first statement if it is a packet call */
+        public @Nullable AssignmentStatement getFirstCallAssignment() {
+            return body.isEmpty() || !(body.get(0) instanceof AssignmentStatement) ?
+                    null : (AssignmentStatement) body.get(0);
         }
     }
 }

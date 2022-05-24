@@ -88,11 +88,19 @@ public abstract class Visitors {
             return visit((Expression) call);
         }
 
-        default R visit(RequestCall request) {
-            return visit((Expression) request);
+        default R visit(PacketCall packet) {
+            return visit((Expression) packet);
         }
 
-        default R visit(RequestCallProperty property) {
+        default R visit(RequestCall request) {
+            return visit((PacketCall) request);
+        }
+
+        default R visit(EventsCall events) {
+            return visit((PacketCall) events);
+        }
+
+        default R visit(CallProperty property) {
             return visit((Expression) property);
         }
     }
@@ -109,11 +117,19 @@ public abstract class Visitors {
             visit((Expression) call);
         }
 
-        default void visit(RequestCall request) {
-            visit((Expression) request);
+        default void visit(PacketCall packet) {
+            visit((Expression) packet);
         }
 
-        default void visit(RequestCallProperty property) {
+        default void visit(RequestCall request) {
+            visit((PacketCall) request);
+        }
+
+        default void visit(EventsCall events) {
+            visit((PacketCall) events);
+        }
+
+        default void visit(CallProperty property) {
             visit((Expression) property);
         }
     }

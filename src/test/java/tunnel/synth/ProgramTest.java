@@ -50,7 +50,7 @@ public class ProgramTest {
                                                 "a",
                                                 "b",
                                                 List.of(
-                                                        new RequestCallProperty(
+                                                        new CallProperty(
                                                                 new AccessPath(1, "a"),
                                                                 Functions.createWrapperFunctionCall(wrap(1))))))),
                         "(func (f 'a') (request a b (1 'a')=(wrap 'int' 1)))"
@@ -166,7 +166,7 @@ public class ProgramTest {
                                 "VirtualMachine",
                                 "ClassesBySignature",
                                 List.of(
-                                        new RequestCallProperty(
+                                        new CallProperty(
                                                 new AccessPath("signature"),
                                                 Functions.createWrapperFunctionCall(wrap("test"))))),
                         "(request VirtualMachine ClassesBySignature ('signature')=(wrap 'string' 'test'))"

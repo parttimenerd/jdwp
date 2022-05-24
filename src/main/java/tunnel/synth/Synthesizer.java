@@ -1,6 +1,8 @@
 package tunnel.synth;
 
 import jdwp.AccessPath;
+import jdwp.EventCmds.Events;
+import jdwp.Request;
 import jdwp.util.Pair;
 import lombok.Getter;
 import tunnel.synth.DependencyGraph.DoublyTaggedBasicValue;
@@ -10,6 +12,7 @@ import tunnel.synth.DependencyGraph.Node;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.program.Functions;
 import tunnel.synth.program.Program;
+import tunnel.util.Either;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,6 +25,11 @@ import static tunnel.synth.program.AST.*;
  */
 public class Synthesizer {
 
+
+    public static final String CAUSE_NAME = "cause";
+    public static final String NAME_PREFIX = "var";
+    public static final String ITER_NAME_PREFIX = "iter";
+
     public static Program synthesizeProgram(Partition partition) {
         return synthesizeProgram(DependencyGraph.calculate(partition));
     }
@@ -30,14 +38,14 @@ public class Synthesizer {
         // compute the layers: loop iteration headers have to reside in the layer directly
         // below the loop source
         Layers layers = graph.computeLayers();
-        return processNodes(new NodeNames(), layers, graph.getAllNodes(), 2).first;
+        var names = new NodeNames();
+        var program = processNodes(names, layers, graph.getAllNodes(), 2).first;
+        return new Program(graph.hasCauseNode() ?
+                names.createPacketCauseCall(graph.getCause()) : null, program.getBody());
     }
 
     @Getter
     static class NodeNames {
-        public final String CAUSE_NAME = "cause";
-        public final String NAME_PREFIX = "var";
-        public final String ITER_NAME_PREFIX = "iter";
         private final Map<Node, String> names;
         private int nameCount;
         private int iterNameCount;
@@ -85,7 +93,18 @@ public class Synthesizer {
             request.asCombined().getTaggedValues()
                     .filter(t -> !(usedPaths.containsKey(t.getPath())))
                     .forEach(t -> usedPaths.put(t.getPath(), Functions.createWrapperFunctionCall(t.getValue())));
-            return new RequestCall(request.getCommandSetName(), request.getCommandName(), usedPaths.keySet().stream().sorted().map(p -> new RequestCallProperty(p, usedPaths.get(p))).collect(Collectors.toList()));
+            return new RequestCall(request.getCommandSetName(), request.getCommandName(), usedPaths.keySet().stream().sorted().map(p -> new CallProperty(p, usedPaths.get(p))).collect(Collectors.toList()));
+        }
+
+        private PacketCall createPacketCauseCall(Either<Request<?>, Events> call) {
+            var request = call.isLeft() ? call.getLeft() : call.getRight();
+            Map<AccessPath, FunctionCall> usedPaths = new HashMap<>();
+            request.asCombined().getTaggedValues()
+                    .filter(t -> !(usedPaths.containsKey(t.getPath())))
+                    .forEach(t -> usedPaths.put(t.getPath(), Functions.createWrapperFunctionCall(t.getValue())));
+            var args = usedPaths.keySet().stream().sorted().map(p -> new CallProperty(p, usedPaths.get(p))).collect(Collectors.toList());
+            return call.isLeft() ? new RequestCall(request.getCommandSetName(), request.getCommandName(), args)
+                    : new EventsCall(request.getCommandSetName(), request.getCommandName(), args);
         }
 
         public AssignmentStatement createRequestCallStatement(Node node) {
