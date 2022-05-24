@@ -7,6 +7,7 @@ import tunnel.synth.DependencyGraph.DoublyTaggedBasicValue;
 import tunnel.synth.DependencyGraph.Edge;
 import tunnel.synth.DependencyGraph.Layers;
 import tunnel.synth.DependencyGraph.Node;
+import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.program.Functions;
 import tunnel.synth.program.Program;
 
@@ -20,6 +21,10 @@ import static tunnel.synth.program.AST.*;
  * Transforms a dependency graph into a program.
  */
 public class Synthesizer {
+
+    public static Program synthesizeProgram(Partition partition) {
+        return synthesizeProgram(DependencyGraph.calculate(partition));
+    }
 
     public static Program synthesizeProgram(DependencyGraph graph) {
         // compute the layers: loop iteration headers have to reside in the layer directly

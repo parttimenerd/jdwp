@@ -22,11 +22,18 @@ internal object CodeGeneration {
     private fun Node.findSelectNodes(): List<SelectNode> = components
         .flatMap { (if (it is SelectNode) listOf(it) else emptyList()) + it.findSelectNodes() }
 
-    private fun TypeSpec.Builder.genCommon(cmd: CommandNode, valType: String, defaultFlag: Int, fields: List<TypeNode.AbstractTypeNode>): TypeSpec.Builder {
+    private fun TypeSpec.Builder.genCommon(
+        cmd: CommandNode, valType: String, className: String, defaultFlag: Int,
+        fields: List<TypeNode.AbstractTypeNode>
+    ): TypeSpec.Builder {
 
-        addTypes(fields.flatMap {  it.findGroupNodes() } .map { genGroupClass(it) })
+        var commandClassName = (cmd.parent as CommandSetNode).name() + "." + className
 
-        addTypes(fields.flatMap {  it.findSelectNodes() } .flatMap { genSelectClass(it) })
+        addTypes(fields.flatMap { it.findGroupNodes() }.map { genGroupClass(it, commandClassName) })
+
+        addTypes(fields.flatMap { it.findSelectNodes() }.flatMap {
+            genSelectClass(it, commandClassName)
+        })
 
         `public static final field`(TypeName.INT, "COMMAND") { `=`(cmd.nameNode.value()) }
 
@@ -128,7 +135,7 @@ internal object CodeGeneration {
 
             addJavadoc(out.parent.commentList.joinToString("\n"))
 
-            genCommon(cmd, "Type.REQUEST", 0, fields)
+            genCommon(cmd, "Type.REQUEST", requestClassName, 0, fields)
 
             `public static`(
                 bg(requestClassName), "parse",
@@ -194,7 +201,7 @@ internal object CodeGeneration {
 
             addJavadoc("@see $requestClassName")
 
-            genCommon(cmd,"Type.REPLY", 0x80, fields)
+            genCommon(cmd,"Type.REPLY", replyClassName, 0x80, fields)
 
             `public static`(
                 pt("ReplyOrError", replyClassName), "parse",
@@ -238,7 +245,7 @@ internal object CodeGeneration {
 
             addJavadoc(evt.parent.commentList.joinToString("\n"))
 
-            genCommon(cmd, "Type.EVENTS", 0, fields)
+            genCommon(cmd, "Type.EVENTS", name, 0, fields)
 
             `public static`(
                 bg(name), "parse",
@@ -285,7 +292,7 @@ internal object CodeGeneration {
         }
     }
 
-    private fun genGroupClass(node: GroupNode): TypeSpec {
+    private fun genGroupClass(node: GroupNode, commandClassName: String): TypeSpec {
         val fields = node.components.map { it as TypeNode.AbstractTypeNode }
         return `public static class`(node.name()) {
             extends("Value.CombinedValue")
@@ -317,6 +324,7 @@ internal object CodeGeneration {
             genToString(node.name(), fields)
             genEquals(node.name(), fields)
             genHashCode(fields)
+            genToCode(commandClassName + "." + node.name(), fields)
 
             val parseParams = arrayOf(param("PacketInputStream", "ps")) +
                     (node.iterVariable()?.let { arrayOf(param("Value", it)) } ?: arrayOf())
@@ -333,15 +341,21 @@ internal object CodeGeneration {
         }
     }
 
-    private fun genSelectClass(node: SelectNode): List<TypeSpec> {
+    private fun genSelectClass(node: SelectNode, commandSetClassName: String): List<TypeSpec> {
         val alts = node.components.map { it as AltNode }
         val kindNode = node.typeNode as TypeNode.AbstractTypeNode
         val className = node.commonBaseClass()
         val instanceName = "${node.name()}Instance"
         val visitorName = "${node.name()}Visitor"
         val commonFields = listOf(kindNode) + alts.fold(alts.first().components.map { it as TypeNode.AbstractTypeNode })
-        {l, n -> l.filter { c -> n.components.any { val c2 = it as TypeNode.AbstractTypeNode
-            c2.name() == c.name() && c2.javaType() == c.javaType()} }}
+        { l, n ->
+            l.filter { c ->
+                n.components.any {
+                    val c2 = it as TypeNode.AbstractTypeNode
+                    c2.name() == c.name() && c2.javaType() == c.javaType()
+                }
+            }
+        }
         return listOf(`public static abstract class`(className) {
             extends(instanceName)
 
@@ -378,14 +392,23 @@ internal object CodeGeneration {
 
             `public abstract`(TypeName.VOID, "accept", param(bg(visitorName), "visitor"))
 
-        }) + alts.map { genAltClass(it, className, visitorName, kindNode, commonFields.filter { n -> n != kindNode }) } +
-                genVisitor(visitorName, alts.map {it.name()})
+        }) + alts.map {
+            genAltClass(
+                it,
+                className,
+                visitorName,
+                commandSetClassName,
+                kindNode,
+                commonFields.filter { n -> n != kindNode })
+        } +
+                genVisitor(visitorName, alts.map { it.name() })
     }
 
     private fun genAltClass(
         alt: AltNode,
         commonClassName: String,
         visitorClassName: String,
+        commandSetClassName: String,
         kindNode: TypeNode.AbstractTypeNode,
         commonFields: List<TypeNode.AbstractTypeNode>
     ): TypeSpec {
@@ -430,7 +453,7 @@ internal object CodeGeneration {
             genCombinedTypeGet( fields)
 
             genToString(alt.name(), fields)
-            genToCode(alt.name(), fields)
+            genToCode(commandSetClassName + "." + alt.name(), fields)
             genEquals(alt.name(), fields)
             genHashCode(fields)
             genWrite(listOf(kindNode) + fields)

@@ -8,6 +8,7 @@ import tunnel.BasicTunnel;
 import tunnel.Listener.LoggingListener;
 import tunnel.Listener.LoggingListener.Mode;
 import tunnel.synth.Partitioner;
+import tunnel.synth.Synthesizer;
 
 /**
  * This is the most basic endpoint that just logs a packets that go through it and
@@ -33,6 +34,9 @@ public class PacketLogger implements Runnable {
     @Option(names = "--partitions", description = "Print the found partitions")
     private boolean logPartitions = false;
 
+    @Option(names = "--programs", description = "Print the synthesized programs")
+    private boolean logPrograms = false;
+
     public static PacketLogger create(Main mainConfig) {
         var pl = new PacketLogger();
         pl.mainConfig = mainConfig;
@@ -44,11 +48,22 @@ public class PacketLogger implements Runnable {
         mainConfig.setDefaultLogLevel();
         LOG.info("Starting tunnel from {} to {}", mainConfig.getJvmAddress(), mainConfig.getOwnAddress());
         var tunnel = new BasicTunnel(mainConfig.getOwnAddress(), mainConfig.getJvmAddress());
-        if (logPartitions) {
+        if (logPartitions || logPrograms) {
             tunnel.addListener(new Partitioner()
                     .addListener(p -> {
                         System.out.println();
-                        System.out.println(mode == Mode.STRING ? p.toString() : p.toCode());
+                        if (logPartitions) {
+                            System.out.println("Partition:");
+                            System.out.println(mode == Mode.STRING ? p.toString() : p.toCode());
+                            System.out.println();
+                            System.out.println();
+                        }
+                        if (logPrograms) {
+                            System.out.println("Program:");
+                            System.out.println(Synthesizer.synthesizeProgram(p).toPrettyString());
+                            System.out.println();
+                            System.out.println();
+                        }
                         System.out.println();
                     }));
         }

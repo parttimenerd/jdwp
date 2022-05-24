@@ -10,6 +10,7 @@ import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import jdwp.VirtualMachineCmds.ClassesBySignatureRequest;
 import jdwp.VirtualMachineCmds.DisposeObjectsRequest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -151,6 +152,11 @@ public class ProgramTest {
                         .evaluate(
                                 Expression.parse(Functions.createWrapperFunctionCall(expectedValue).toString())),
                 expectedValue);
+    }
+
+    @Test
+    public void testGetFunctionCreation() {
+        assertEquals("(get x 1 \"a\" 2)", Functions.createGetFunctionCall("x", new AccessPath(1, "a", 2)).toString());
     }
 
     private static Object[][] requestParsingTestSource() {

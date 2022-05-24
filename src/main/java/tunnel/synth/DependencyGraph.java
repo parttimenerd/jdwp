@@ -233,6 +233,9 @@ public class DependencyGraph {
      */
     public static DependencyGraph calculate(Partition partition) {
         // collect the values
+        if (partition.isEmpty()) {
+            return new DependencyGraph(partition.getCause());
+        }
         ContainedValues causeValues = partition.hasCause() ? partition.getCausePacket().getContainedValues() : new ContainedValues();
         Map<Pair<Request<?>, Reply>, Pair<ContainedValues, ContainedValues>> containedValues = new HashMap<>();
         for (Pair<Request<?>, Reply> p : partition) {
@@ -264,7 +267,6 @@ public class DependencyGraph {
                     continue;
                 }
                 // cannot use replies of requests that were sent after receiving origin
-                System.out.println(value);
                 for (int j = 0; j < i; j++) {
                     var other = partition.get(j);
                     var otherContainedValues = containedValues.get(other).second; // use the reply
@@ -310,7 +312,9 @@ public class DependencyGraph {
 
     public Set<Node> getAllNodes() {
         var allNodes = new HashSet<>(nodes.values());
-        allNodes.add(causeNode);
+        if (causeNode != null) {
+            allNodes.add(causeNode);
+        }
         return allNodes;
     }
 
@@ -418,6 +422,7 @@ public class DependencyGraph {
                 Map<Node, Long> edgesValue = new HashMap<>();
                 Map<Node, Hashed<Node>> hashed = computeHashedNodes();
                 nodeComparator = (left, right) -> {
+                    assert left != null && right != null;
                     long leftHash = hashed.get(left).hash();
                     long rightHash = hashed.get(right).hash();
                     int comparison = Long.compare(leftHash, rightHash);

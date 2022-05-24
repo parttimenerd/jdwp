@@ -152,7 +152,7 @@ public abstract class Functions {
     public static FunctionCall createGetFunctionCall(String root, AccessPath path) {
         List<Expression> args = new ArrayList<>();
         args.add(ident(root));
-        path.stream().map(e -> e instanceof String ? literal((String)e) : literal((Long)e)).forEach(args::add);
+        path.stream().map(e -> e instanceof String ? literal((String)e) : literal((int)e)).forEach(args::add);
         return new FunctionCall(GET, args);
     }
 

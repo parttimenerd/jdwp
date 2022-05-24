@@ -1,12 +1,12 @@
 package jdwp;
 
 import jdwp.ArrayReferenceCmds.GetValuesReply;
-import jdwp.EventCmds.Events.VMStart;
 import jdwp.EventRequestCmds.SetRequest.ClassExclude;
 import jdwp.EventRequestCmds.SetRequest.LocationOnly;
 import jdwp.ObjectReferenceCmds.SetValuesRequest.FieldValue;
 import jdwp.PrimitiveValue.IntValue;
 import jdwp.Reference.ArrayReference;
+import jdwp.Reference.MethodReference;
 import jdwp.StackFrameCmds.SetValuesRequest;
 import jdwp.StackFrameCmds.SetValuesRequest.SlotInfo;
 import jdwp.Value.*;
@@ -81,14 +81,19 @@ public class ValueTest {
     }
 
     static Object[][] testToCodeMethodSource() {
-        return new Object[][] {
+        return new Object[][]{
                 {wrap(1), "PrimitiveValue.wrap(1)"},
                 {new Location(Reference.classType(1), Reference.method(2), wrap(1L)),
                         "new Location(new ClassTypeReference(1L), new MethodReference(2L), PrimitiveValue.wrap((long)1))"},
                 {new GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057), new IntValue(0)))),
                         "new jdwp.ArrayReferenceCmds.GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057L), PrimitiveValue.wrap(0))))"},
-                {new VMStart(wrap(1), Reference.thread(2)),
-                        "new VMStart(PrimitiveValue.wrap(1), new ThreadReference(2L))"}
+                {new EventCmds.Events.VMStart(wrap(1), Reference.thread(2)),
+                        "new EventCmds.Events.VMStart(PrimitiveValue.wrap(1), new ThreadReference(2L))"},
+                {wrap("test"), "PrimitiveValue.wrap(\"test\")"},
+                {new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("sun.instrument.InstrumentationImpl")),
+                        "new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap(\"sun.instrument.InstrumentationImpl\"))"},
+                {new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(new MethodReference(105553140349016L), PrimitiveValue.wrap("<init>"), PrimitiveValue.wrap("(JZZ)V"), PrimitiveValue.wrap(""), PrimitiveValue.wrap(2)),
+                        "new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(new MethodReference(105553140349016L), PrimitiveValue.wrap(\"<init>\"), PrimitiveValue.wrap(\"(JZZ)V\"), PrimitiveValue.wrap(\"\"), PrimitiveValue.wrap(2))"}
         };
     }
 

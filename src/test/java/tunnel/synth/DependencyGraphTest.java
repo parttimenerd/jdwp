@@ -1,6 +1,7 @@
 package tunnel.synth;
 
 import jdwp.AccessPath;
+import jdwp.PrimitiveValue;
 import jdwp.Reference;
 import jdwp.Value;
 import jdwp.Value.BasicValue;
@@ -11,9 +12,11 @@ import org.junit.jupiter.api.Test;
 import tunnel.synth.DependencyGraph.DoublyTaggedBasicValue;
 import tunnel.synth.DependencyGraph.Edge;
 import tunnel.synth.DependencyGraph.Node;
+import tunnel.synth.Partitioner.Partition;
 import tunnel.util.Either;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -165,6 +168,19 @@ public class DependencyGraphTest {
         assertEquals(Set.of(graph.getNode(end)), layers.computeDominatedNodes(Set.of(graph.getNode(left))));
         assertEquals(Set.of(2, 3, 4),
                 layers.computeDominatedNodes(Set.of(graph.getNode(start))).stream().map(Node::getId).collect(Collectors.toSet()));
+    }
+
+    @Test
+    public void testGetAllNodes() {
+        var partition = new Partition(null, List.of(
+                p(new jdwp.VirtualMachineCmds.IDSizesRequest(174),
+                        new jdwp.VirtualMachineCmds.IDSizesReply(174,
+                                PrimitiveValue.wrap(8), PrimitiveValue.wrap(8), PrimitiveValue.wrap(8),
+                                PrimitiveValue.wrap(8), PrimitiveValue.wrap(8)))));
+        var graph = DependencyGraph.calculate(partition);
+        assertTrue(graph.getAllNodes().stream().allMatch(Objects::nonNull),
+                "getAllNodes() should not return null values");
+        assertEquals(1, graph.getAllNodes().size());
     }
 
     static TestRequest request(int id, Value value) {

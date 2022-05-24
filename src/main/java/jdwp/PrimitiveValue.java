@@ -271,7 +271,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
 
         @Override
         public String toCode() {
-            return String.format("PrimitiveValue.wrap(%s)", value);
+            return String.format("PrimitiveValue.wrap(\"%s\")", value);
         }
     }
 

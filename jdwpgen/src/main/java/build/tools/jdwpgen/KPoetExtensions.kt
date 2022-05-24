@@ -103,6 +103,9 @@ fun MethodSpec.Builder._return(arg: String) = addStatement("return $arg")!!
 fun MethodSpec.Builder.`throw new2`(type: ClassName, arg: String)
         = addStatement("throw new \$T($arg)", type)!!
 
+fun MethodSpec.Builder.`throw new2`(klass: KClass<*>, arg: String)
+        = addStatement("throw new \$T($arg)", ClassName.get(klass.java))!!
+
 
 fun MethodSpec.Builder.`@Override`() = `@`(ClassName.bestGuess("Override"))
 
