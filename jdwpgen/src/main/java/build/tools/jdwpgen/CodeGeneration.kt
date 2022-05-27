@@ -27,7 +27,7 @@ internal object CodeGeneration {
         fields: List<TypeNode.AbstractTypeNode>
     ): TypeSpec.Builder {
 
-        var commandClassName = (cmd.parent as CommandSetNode).name() + "." + className
+        val commandClassName = (cmd.parent as CommandSetNode).name() + "." + className
 
         addTypes(fields.flatMap { it.findGroupNodes() }.map { genGroupClass(it, commandClassName) })
 
@@ -702,6 +702,31 @@ internal object CodeGeneration {
                     this
                 }
                 this
+            }
+
+            `private static final field`(pt("Map", "String", "Byte"), "commandSetNameToByte") {
+                `=`("Map.ofEntries(${nodes.joinToString(", ") { "Map.entry(\"${it.name}\", (byte)${it.nameNode.value()})" }})")
+            }
+
+            `private static final field`(
+                ParameterizedTypeName.get(bg("Map"), bg("String"), pt("Map", "String", "Byte")), "commandNameToByte") {
+                `=`("Map.ofEntries(${
+                    nodes.joinToString(", ") {
+                        "Map.entry(\"${it.name}\", Map.ofEntries(${
+                            it.components.filterIsInstance<CommandNode>()
+                                .joinToString(", ") { c -> "Map.entry(\"${c.name}\", (byte)${c.nameNode.value()})" }
+                        }))"
+                    }
+                })")
+            }
+
+            `public static`(TypeName.BYTE, "getCommandSetByte", param("String", "commandSetName")) {
+                _return("commandSetNameToByte.get(commandSetName)")
+            }
+
+            `public static`(TypeName.BYTE, "getCommandByte", param("String", "commandSetName"),
+                param("String", "commandName")) {
+                _return("commandNameToByte.get(commandSetName).get(commandName)")
             }
 
             for (node in root.constantSetNodes) {

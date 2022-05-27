@@ -4,6 +4,7 @@ import jdwp.JDWP.CommandVisitor;
 import jdwp.JDWP.RequestReplyVisitor;
 import jdwp.JDWP.RequestVisitor;
 import jdwp.*;
+import jdwp.VirtualMachineCmds.VersionRequest;
 
 public class TestRequest extends AbstractTestParsedPacket implements Request<jdwp.util.TestReply> {
 
@@ -14,12 +15,12 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
 
     @Override
     public int getCommandSet() {
-        return 0;
+        return VirtualMachineCmds.COMMAND_SET;
     }
 
     @Override
     public int getCommand() {
-        return 0;
+        return VersionRequest.COMMAND;
     }
 
     @Override

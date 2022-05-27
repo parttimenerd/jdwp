@@ -3,8 +3,10 @@ package tunnel.synth.program;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
+import tunnel.synth.ProgramHashes;
 import tunnel.synth.program.AST.Statement;
 import tunnel.synth.program.Visitors.RecursiveStatementVisitor;
+import tunnel.synth.program.Visitors.ReturningStatementVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
 import java.util.List;
@@ -23,10 +25,12 @@ public class Program extends Statement {
 
     private final @Nullable PacketCall cause;
     private final Body body;
+    private final ProgramHashes hashes;
 
     public Program(@Nullable PacketCall cause, Body body) {
         this.cause = cause;
         this.body = body;
+        this.hashes = ProgramHashes.create(this);
     }
 
     public Program(PacketCall cause, List<Statement> body) {
@@ -51,6 +55,11 @@ public class Program extends Statement {
     }
 
     @Override
+    public <R> R accept(ReturningStatementVisitor<R> visitor) {
+        throw new AssertionError();
+    }
+
+    @Override
     public String toPrettyString(String indent, String innerIndent) {
         return String.format(
                 "%s(%s\n%s)", indent, cause != null ? String.format("(= cause %s)", cause) : "",
@@ -69,18 +78,18 @@ public class Program extends Statement {
     }
 
     public Program merge(Program other) {
-        return new Program(body.merge(other.body));
+        return new Program(body.merge(hashes, other.hashes, other.body));
     }
 
     public Program overlap(Program other) {
-        return new Program(body.overlap(other.body));
+        return new Program(body.overlap(hashes, other.hashes, other.body));
     }
 
     public boolean hasCause() {
         return cause != null;
     }
 
-    /** cause or first assignment in body (equivalent for non events) */
+    /** cause or first assignment in body (equivalent for non-events) */
     public @Nullable AssignmentStatement getFirstCallAssignment() {
         return cause != null ? new AssignmentStatement(AST.ident(CAUSE_NAME), cause) : body.getFirstCallAssignment();
     }

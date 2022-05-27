@@ -88,7 +88,7 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         this.path = new Object[0];
     }
 
-  public AccessPath(Object... path) {
+    public AccessPath(Object... path) {
         this.path = path;
     }
 

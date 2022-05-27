@@ -429,6 +429,10 @@ public class DependencyGraph {
                 Map<Node, Hashed<Node>> hashed = computeHashedNodes();
                 nodeComparator = (left, right) -> {
                     assert left != null && right != null;
+                    int layerComp = Long.compare(getLayerIndex(left), getLayerIndex(right));
+                    if (layerComp != 0) {
+                        return layerComp;
+                    }
                     long leftHash = hashed.get(left).hash();
                     long rightHash = hashed.get(right).hash();
                     int comparison = Long.compare(leftHash, rightHash);
@@ -452,9 +456,9 @@ public class DependencyGraph {
                 short originCode = 389;
                 if (node.getOrigin() != null) {
                     var request = node.getOrigin().first;
-                    originCode = (short) ((request.getCommandSet() << 8) & request.getCommand());
+                    originCode = (short) ((request.getCommandSet() << 8) | request.getCommand());
                 }
-                return Hashed.hash(node, ((short) getLayerIndex(node) << 16) & originCode,
+                return Hashed.create(node, ((short) getLayerIndex(node) << 16) | originCode,
                         node.getDependsOn().stream()
                                 .flatMapToLong(e -> e.getUsedValues()
                                         .stream()

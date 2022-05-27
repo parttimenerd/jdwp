@@ -2,15 +2,18 @@ package tunnel.synth.program;
 
 import tunnel.synth.program.AST.*;
 
-public abstract class Visitors {
+public interface Visitors {
 
     interface ASTVisitor extends StatementVisitor, ExpressionVisitor {}
+
+    interface ReturningASTVisitor<R> extends ReturningStatementVisitor<R>, ReturningExpressionVisitor<R> {}
 
     interface RecursiveASTVisitor extends RecursiveStatementVisitor, RecursiveExpressionVisitor {}
 
     interface StatementVisitor {
 
-        default void visit(Statement statement) {}
+        default void visit(Statement statement) {
+        }
 
         default void visit(AssignmentStatement assignment) {
             visit((Statement) assignment);
@@ -18,6 +21,29 @@ public abstract class Visitors {
 
         default void visit(Loop loop) {
             visit((Statement) loop);
+        }
+
+        default void visit(Body body) {
+            visit((Statement) body);
+        }
+    }
+
+    interface ReturningStatementVisitor<R> {
+
+        default R visit(Statement statement) {
+            throw new AssertionError();
+        }
+
+        default R visit(AssignmentStatement assignment) {
+            return visit((Statement) assignment);
+        }
+
+        default R visit(Loop loop) {
+            return visit((Statement) loop);
+        }
+
+        default R visit(Body body) {
+            return visit((Statement) body);
         }
     }
 

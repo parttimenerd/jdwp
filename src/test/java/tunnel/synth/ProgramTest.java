@@ -21,6 +21,7 @@ import java.util.List;
 
 import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static tunnel.synth.program.AST.*;
 
 public class ProgramTest {
@@ -98,15 +99,17 @@ public class ProgramTest {
     @CsvSource({
             "((= ret (func))),((= ret (func))),((= ret (func)))",
             "((= ret (func2))),((= ret (func))),((= ret (func2)) (= ret (func)))",
+           // "((= ret2 func) (= r ret2)),((= ret func) (= r2 ret)),((= ret2 func) (= r ret2))",
+         //   "((= ret2 func) (= y (func2)) (= r ret2)),((= ret func) (= x (func)) (= r2 ret)),((= ret2 func) (= y (func2)) (= x (func)) (= r ret2))",
             "((= ret (func2)) (for iter iterable (= iter 1)))," +
                     "((= ret (func)))," +
                     "((= ret (func2)) (for iter iterable (= iter 1)) (= ret (func))))",
             "((for iter iterable (= iter 1)))," +
                     "((for iter iterable (= iter 2)))," +
                     "((for iter iterable (= iter 1) (= iter 2)))",
-            "((for iter iterable (= iter 1) (for iter2 iterable)))," +
-                    "((for iter2 iterable) (for iter iterable (= iter 2)))," +
-                    "((for iter2 iterable) (for iter iterable (= iter 1) (for iter2 iterable) (= iter 2)))"
+            "((for iter iterable (= iter 1) (for iter2 iterable2)))," +
+                    "((for iter2 iterable2) (for iter iterable (= iter 2)))," +
+                    "((for iter2 iterable2) (for iter iterable (= iter 1) (for iter2 iterable2) (= iter 2)))"
     })
     public void testMerge(String program1, String program2, String merge) {
         var p1 = Program.parse(merge);
@@ -119,6 +122,8 @@ public class ProgramTest {
     @CsvSource({
             "((= ret func)),((= ret func)),((= ret func))",
             "((= ret func2)),((= ret func)),()",
+            "((= ret2 func) (= y (func2)) (= r ret2)),((= ret func) (= x (func)) (= r2 ret)),((= ret2 func) (= r ret2))",
+            "((= ret2 func) (= r ret2)),((= ret func) (= r2 ret)),((= ret2 func) (= r ret2))",
             "((for iter iterable (= iter 1))),((for iter iterable (= iter 2))),()",
             "((for iter iterable (= iter 1))),((for iter iterable (= iter 1)))," +
                     "((for iter iterable (= iter 1)))"
@@ -244,5 +249,16 @@ public class ProgramTest {
     @MethodSource("parsePathTestSource")
     public void testParsePath(AccessPath expected, String str) {
         assertEquals(expected, new Parser(str).parseAccessPath());
+    }
+
+    @Test
+    public void testIdentifierWithAssignmentIsNotGlobal() {
+        assertFalse(((AssignmentStatement)Statement.parse("(= ret func)")).getVariable().isGlobalVariable());
+    }
+
+    @Test
+    public void testIdentifierWithAssignmentIsNotGlobal2() {
+        assertFalse(((Identifier)((AssignmentStatement)Program.parse("((= ret func) (= x ret))")
+                .getBody().getLastStatement()).getExpression()).isGlobalVariable());
     }
 }

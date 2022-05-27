@@ -12,6 +12,7 @@ import lombok.Setter;
 import org.apache.commons.text.StringEscapeUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import tunnel.synth.ProgramHashes;
 import tunnel.synth.Synthesizer;
 import tunnel.synth.program.Functions.Function;
 import tunnel.synth.program.Visitors.*;
@@ -135,7 +136,7 @@ public interface AST {
     class Identifier extends Primitive {
         private final String name;
 
-        @Nullable @Setter private Expression source;
+        @Nullable @Setter private Statement source;
 
         @Setter private boolean isLoopIterableRelated;
 
@@ -166,7 +167,7 @@ public interface AST {
             return source != null;
         }
 
-        public @Nullable Expression getSource() {
+        public @Nullable Statement getSource() {
             return source;
         }
 
@@ -183,6 +184,8 @@ public interface AST {
     abstract class Statement implements AST {
 
         public abstract void accept(StatementVisitor visitor);
+
+        public abstract <R> R accept(ReturningStatementVisitor<R> visitor);
 
         @Override
         public String toString() {
@@ -222,6 +225,11 @@ public interface AST {
         @Override
         public void accept(StatementVisitor visitor) {
             visitor.visit(this);
+        }
+
+        @Override
+        public <R> R accept(ReturningStatementVisitor<R> visitor) {
+            return visitor.visit(this);
         }
 
         @Override
@@ -449,6 +457,11 @@ public interface AST {
             visitor.visit(this);
         }
 
+        @Override
+        public <R> R accept(ReturningStatementVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
         public String toPrettyString(String indent, String innerIndent) {
             String subIndent = innerIndent + indent;
             return String.format(
@@ -460,20 +473,16 @@ public interface AST {
                     body.toPrettyString(subIndent, innerIndent));
         }
 
-        private boolean isHeaderEqual(Loop other) {
-            return other.iter.equals(iter) && other.iterable.equals(iterable);
-        }
-
-        public List<Loop> merge(Loop other) {
-            if (isHeaderEqual(other)) {
-                return List.of(new Loop(iter, iterable, body.merge(other.body)));
+        public List<Loop> merge(ProgramHashes hashes, ProgramHashes otherHashes, Loop other) {
+            if (hashes.get(this).equals(otherHashes.get(other))) {
+                return List.of(new Loop(iter, iterable, body.merge(hashes, otherHashes, other.body)));
             }
             return List.of(this, other);
         }
 
-        public List<Loop> overlap(Loop other) {
-            if (isHeaderEqual(other)) {
-                var newBody = body.overlap(other.body);
+        public List<Loop> overlap(ProgramHashes hashes, ProgramHashes otherHashes, Loop other) {
+            if (hashes.get(this).equals(otherHashes.get(other))) {
+                var newBody = body.overlap(hashes, otherHashes, other.body);
                 if (newBody.size() > 0) {
                     return List.of(new Loop(iter, iterable, newBody));
                 }
@@ -546,7 +555,11 @@ public interface AST {
 
         /** run on each sub statement */
         public void accept(StatementVisitor visitor) {
-            body.forEach(s -> s.accept(visitor));
+            visitor.visit(this);
+        }
+
+        public <R> R accept(ReturningStatementVisitor<R> visitor) {
+            return visitor.visit(this);
         }
 
         @Override
@@ -682,7 +695,7 @@ public interface AST {
          * Merge both programs using a simple algorithm that works if the program generation is highly
          * deterministic.
          */
-        public Body merge(Body other) {
+        public Body merge(ProgramHashes hashes, ProgramHashes otherHashes, Body other) {
             if (other.isEmpty()) {
                 return this;
             }
@@ -714,7 +727,7 @@ public interface AST {
                     }
                     prevIndex++;
                     if (loopInd.size() > 0) {
-                        newStatements.addAll(((Loop) statement).merge((Loop) other.body.get(sIndex)));
+                        newStatements.addAll(((Loop) statement).merge(hashes, otherHashes, (Loop) other.body.get(sIndex)));
                     } else {
                         newStatements.add(statement);
                     }
@@ -729,30 +742,26 @@ public interface AST {
             return new Body(newStatements);
         }
 
-        public Body overlap(Body other) {
+        public Body overlap(ProgramHashes hashes, ProgramHashes otherHashes, Body other) {
             if (isEmpty() || other.isEmpty()) {
                 return new Body(List.of());
             }
-            var statementIndexes = getIndexesOfStatements();
-            var loopIndexes = getLoopIndexes();
+            var startIndex = hashes.getIndex(body.get(0));
             List<Statement> newStatements = new ArrayList<>();
             int lastIndex = -1;
             for (Statement statement : other) {
+                var hashedStatement = otherHashes.get(statement);
                 if (statement instanceof Loop) {
                     var loop = (Loop) statement;
-                    var header = p(loop.getIter(), loop.getIterable());
-                    if (loopIndexes.containsKey(header)) {
-                        for (Integer index : loopIndexes.get(header)) {
-                            if (index > lastIndex) {
-                                newStatements.addAll(((Loop) get(index)).overlap(loop));
-                                lastIndex = index;
-                            }
-                        }
+                    if (hashes.contains(hashedStatement)) {
+                        var index = hashes.getIndex(hashedStatement);
+                        newStatements.addAll(((Loop) get(index - startIndex)).overlap(hashes, otherHashes, loop));
+                        lastIndex = index;
                     }
-                } else if (statementIndexes.containsKey(statement)) {
-                    var index = statementIndexes.get(statement);
+                } else if (hashes.contains(hashedStatement)) {
+                    var index = hashes.getIndex(hashedStatement);
                     if (index > lastIndex) {
-                        newStatements.add(statement);
+                        newStatements.add(get(index - startIndex));
                         lastIndex = index;
                     }
                 }
@@ -769,6 +778,10 @@ public interface AST {
         public @Nullable AssignmentStatement getFirstCallAssignment() {
             return body.isEmpty() || !(body.get(0) instanceof AssignmentStatement) ?
                     null : (AssignmentStatement) body.get(0);
+        }
+
+        public @Nullable Statement getLastStatement() {
+            return isEmpty() ? null : get(size() - 1);
         }
     }
 }

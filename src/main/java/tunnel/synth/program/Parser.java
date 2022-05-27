@@ -15,13 +15,13 @@ public class Parser {
     private int current;
     private int line = 1;
     private int column = 1;
-    private final Scopes<Identifier> sourceExpressions;
+    private final Scopes<Identifier> identifiers;
 
     @SneakyThrows
     private Parser(InputStream stream) {
         this.stream = stream;
         this.current = stream.read();
-        this.sourceExpressions = new Scopes<>();
+        this.identifiers = new Scopes<>();
     }
 
     public Parser(String input) {
@@ -89,13 +89,13 @@ public class Parser {
     }
 
     List<Statement> parseBlock() {
-        sourceExpressions.push();
+        identifiers.push();
         List<Statement> statements = new ArrayList<>();
         while (current != ')') {
             skipWhitespace();
             statements.add(parseStatement());
         }
-        sourceExpressions.pop();
+        identifiers.pop();
         return statements;
     }
 
@@ -122,23 +122,25 @@ public class Parser {
         var ret = parseIdentifier();
         skipWhitespace();
         var expression = parseExpression();
-        ret.setSource(expression);
-        return new AssignmentStatement(ret, expression);
+        var statement = new AssignmentStatement(ret, expression);
+        ret.setSource(statement);
+        return statement;
     }
 
     Loop parseLoop() {
-        sourceExpressions.push();
+        identifiers.push();
         expect("for ");
         skipWhitespace();
         var iter = parseIdentifier();
         skipWhitespace();
         var iterable = parseExpression();
-        iter.setSource(iterable);
         iter.setLoopIterableRelated(true);
         skipWhitespace();
         var body = parseBlock();
-        sourceExpressions.pop();
-        return new Loop(iter, iterable, body);
+        identifiers.pop();
+        var loop = new Loop(iter, iterable, body);
+        iter.setSource(loop);
+        return loop;
     }
 
     Expression parseExpression() {
@@ -220,10 +222,12 @@ public class Parser {
             throw new SyntaxError(line, column, "Empty identifier not supported");
         }
         var str = buf.toString();
-        if (sourceExpressions.contains(str)) {
-            return sourceExpressions.get(str);
+        if (identifiers.contains(str)) {
+            return identifiers.get(str);
         }
-        return new Identifier(buf.toString());
+        var ident = new Identifier(buf.toString());
+        identifiers.put(str, ident);
+        return ident;
     }
 
     IntegerLiteral parseInteger() {
