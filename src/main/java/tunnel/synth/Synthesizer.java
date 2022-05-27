@@ -44,7 +44,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         // below the loop source
         Layers layers = graph.computeLayers();
         var names = new NodeNames();
-        var program = processNodes(names, layers, graph.getAllNodes(), 2).first;
+        var program = processNodes(names, layers, layers.getAllNodesWithoutDuplicates(), 2).first;
         return new Program(graph.hasCauseNode() ?
                 names.createPacketCauseCall(graph.getCause()) : null, program.getBody());
     }
@@ -98,7 +98,9 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             request.asCombined().getTaggedValues()
                     .filter(t -> !(usedPaths.containsKey(t.getPath())))
                     .forEach(t -> usedPaths.put(t.getPath(), Functions.createWrapperFunctionCall(t.getValue())));
-            return new RequestCall(request.getCommandSetName(), request.getCommandName(), usedPaths.keySet().stream().sorted().map(p -> new CallProperty(p, usedPaths.get(p))).collect(Collectors.toList()));
+            return new RequestCall(request.getCommandSetName(), request.getCommandName(),
+                    usedPaths.keySet().stream().sorted().map(p -> new CallProperty(p, usedPaths.get(p)))
+                            .collect(Collectors.toList()));
         }
 
         private PacketCall createPacketCauseCall(Either<Request<?>, Events> call) {
@@ -107,7 +109,8 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             request.asCombined().getTaggedValues()
                     .filter(t -> !(usedPaths.containsKey(t.getPath())))
                     .forEach(t -> usedPaths.put(t.getPath(), Functions.createWrapperFunctionCall(t.getValue())));
-            var args = usedPaths.keySet().stream().sorted().map(p -> new CallProperty(p, usedPaths.get(p))).collect(Collectors.toList());
+            var args = usedPaths.keySet().stream().sorted()
+                    .map(p -> new CallProperty(p, usedPaths.get(p))).collect(Collectors.toList());
             return call.isLeft() ? new RequestCall(request.getCommandSetName(), request.getCommandName(), args)
                     : new EventsCall(request.getCommandSetName(), request.getCommandName(), args);
         }

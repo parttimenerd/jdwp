@@ -1,12 +1,12 @@
 package tunnel.synth;
 
-import jdwp.EventRequestCmds;
-import jdwp.PrimitiveValue;
+import jdwp.*;
 import jdwp.Reference.ClassReference;
 import jdwp.Reference.MethodReference;
-import jdwp.ReferenceTypeCmds;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
+import jdwp.util.Pair;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import tunnel.synth.Partitioner.Partition;
@@ -14,6 +14,7 @@ import tunnel.synth.program.Program;
 import tunnel.util.Either;
 
 import java.util.List;
+import java.util.function.Function;
 
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -63,5 +64,16 @@ public class SynthesizerTest {
     private static void assertSynthesizedProgram(String expectedProgram, Partition partition) {
         assertEquals(Program.parse(expectedProgram).toPrettyString(),
                 Synthesizer.synthesizeProgram(partition).toPrettyString());
+    }
+
+    @Test
+    public void testRemoveDuplicatesInPartition() {
+        Function<Integer, Pair<Request<?>, Reply>> func = id -> p(new jdwp.VirtualMachineCmds.IDSizesRequest(id),
+                new jdwp.VirtualMachineCmds.IDSizesReply(id, PrimitiveValue.wrap(8), PrimitiveValue.wrap(8),
+                        PrimitiveValue.wrap(8), PrimitiveValue.wrap(8), PrimitiveValue.wrap(8)));
+        var partition = new Partition(Either.left(func.apply(1).first),
+                List.of(func.apply(1), func.apply(3), func.apply(4)));
+        assertEquals("((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)))",
+                Synthesizer.synthesizeProgram(partition).toString());
     }
 }

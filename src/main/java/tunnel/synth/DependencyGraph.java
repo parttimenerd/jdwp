@@ -417,6 +417,7 @@ public class DependencyGraph {
             return dependentNodes;
         }
 
+        private Map<Node, Hashed<Node>> hashed;
         private Comparator<Node> nodeComparator;
 
         /**
@@ -425,8 +426,7 @@ public class DependencyGraph {
          */
         public Comparator<Node> getNodeComparator() {
             if (nodeComparator == null) {
-                Map<Node, Long> edgesValue = new HashMap<>();
-                Map<Node, Hashed<Node>> hashed = computeHashedNodes();
+                computeHashedNodesIfNeeded();
                 nodeComparator = (left, right) -> {
                     assert left != null && right != null;
                     int layerComp = Long.compare(getLayerIndex(left), getLayerIndex(right));
@@ -443,6 +443,27 @@ public class DependencyGraph {
                 };
             }
             return nodeComparator;
+        }
+
+        public Set<Node> getAllNodes() {
+            return layers.stream().flatMap(Collection::stream).collect(Collectors.toSet());
+        }
+
+        /** returns the set of nodes without duplicates (and the nodes they depend on), uses hash based heuristics */
+        public Set<Node> getAllNodesWithoutDuplicates() {
+            Set<Hashed<Node>> nonDuplicates = new HashSet<>();
+            computeHashedNodesIfNeeded();
+            Set<Node> considerForRemoval = new HashSet<>();
+            for (Node node : getAllNodes()) {
+                var hash = hashed.get(node);
+                if (nonDuplicates.contains(hash)) {
+                    considerForRemoval.add(node);
+                } else {
+                    nonDuplicates.add(hash);
+                }
+            }
+            considerForRemoval.addAll(computeDependedByTransitive(considerForRemoval));
+            return getAllNodes().stream().filter(n -> !considerForRemoval.contains(n)).collect(Collectors.toSet());
         }
 
         private class HashedNodeHelper {
@@ -477,10 +498,17 @@ public class DependencyGraph {
             helper.process(layers);
             return helper.hashed;
         }
+
+        public Map<Node, Hashed<Node>> computeHashedNodesIfNeeded() {
+            if (hashed == null) {
+                hashed = computeHashedNodes();
+            }
+            return hashed;
+        }
     }
 
     /**
-     * Returns all nodes that transitively depend on the passed node, does not include these
+     * Returns all nodes that transitively depend on the passed nodes, does not include these
      */
     public static Set<Node> computeDependedByTransitive(Set<Node> start) {
         Set<Node> nodes = new HashSet<>();

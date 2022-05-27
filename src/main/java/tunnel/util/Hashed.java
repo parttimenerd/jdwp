@@ -82,6 +82,8 @@ public class Hashed<T> implements Comparable<Hashed<T>> {
     }
 
     private static short hashToShort(long hash) {
+        return (short) ((short)hash ^ (short)(hash >> 16) ^ (short)(hash >> 32) ^ (short)(hash >> 48));
+    }
 
     private static long hashTo48Bit(long hash) {
         return 0x0000ffffffffffffL & (((long)hashToShort(hash) << 32) | ((long)hashToInt(hash)));
