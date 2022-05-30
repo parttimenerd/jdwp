@@ -10,7 +10,7 @@ import tunnel.synth.program.Program;
 import java.util.*;
 import java.util.function.Consumer;
 
-/** a collection of debugging programs */
+/** a collection of debugging programs with the ability to find overlapping programs */
 public class ProgramCollection extends Analyser<ProgramCollection, Overlap> implements Consumer<Program> {
 
     @Getter
