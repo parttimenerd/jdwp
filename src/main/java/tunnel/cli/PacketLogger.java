@@ -67,7 +67,8 @@ public class PacketLogger implements Runnable {
                         }
                     });
             if (logPrograms || logOverlap) {
-                int[] overlapCount = new int[]{0, 0, 0}; // (all programs, all programs > 1 assignment, overlapping programs)
+                int[] overlapCount = new int[]{0, 0, 0, 0, 0};
+                // (all programs, all programs > 1 assignment, overlapping programs, programs statement, overlapping statements)
                 ProgramCollection programCollection = new ProgramCollection(overlapFactor);
                 Synthesizer synth = new Synthesizer().addListener(p -> {
                     if (logPrograms) {
@@ -80,20 +81,25 @@ public class PacketLogger implements Runnable {
                     if (p.getNumberOfAssignments() > 1) {
                         overlapCount[1]++;
                     }
+                    overlapCount[3] += p.getNumberOfAssignments();
                     if (logOverlap) {
                         programCollection.accept(p);
                     }
                 });
                 programCollection.addListener(o -> {
                     overlapCount[2]++;
+                    overlapCount[4] += o.getOverlap().getNumberOfAssignments();
                     System.out.println("Overlap:");
                     System.out.println("----- first ----");
                     System.out.println(o.getFirst().toPrettyString());
                     System.out.println("----- second ----");
                     System.out.println(o.getSecond().toPrettyString());
-                    System.out.printf("----- overlap: %.2f ----%n", o.getOverlap());
-                    System.out.printf("----- #programs = %5d  #(> 1 stmt)programs = %5d  #overlaps = %5d (%2.2f%%) %n",
-                            overlapCount[0], overlapCount[1], overlapCount[2], overlapCount[2] / (overlapCount[1] / 100.0));
+                    System.out.printf("----- overlap: %.2f ----%n", o.getOverlapFactor());
+                    System.out.println(o.getOverlap().toPrettyString());
+                    System.out.printf("----- #programs = %5d  #(> 1 stmt)programs = %5d  #overlaps = %5d (%2.2f%%) " +
+                                    "#assignments = %7d  #overlapping = %7d (%2.2f%%) %n",
+                            overlapCount[0], overlapCount[1], overlapCount[2], overlapCount[2] / (overlapCount[1] / 100.0),
+                            overlapCount[3], overlapCount[4], overlapCount[4] / (overlapCount[3] / 100.0));
                 });
                 partitioner.addListener(synth);
             }

@@ -16,6 +16,7 @@ import tunnel.synth.Partitioner.Partition;
 import tunnel.util.Either;
 import tunnel.util.ToCode;
 
+import java.time.Clock;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,11 +39,20 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     static class Timings {
 
         private final double breakAtTimeFactor;
+        private final long minDifference; // HACK: automatically find min difference
+        private final Clock clock;
         private final List<Long> replyTimes = new ArrayList<>();
+        private long lastPacketTime = -1;
         private long averageDifference = 0;
 
-        Timings(double breakAtTimeFactor) {
+        Timings(double breakAtTimeFactor, long minDifference, Clock clock) {
             this.breakAtTimeFactor = breakAtTimeFactor;
+            this.clock = clock;
+            this.minDifference = minDifference;
+        }
+
+        Timings(double breakAtTimeFactor, long minDifference) {
+            this(breakAtTimeFactor, minDifference, Clock.systemDefaultZone());
         }
 
         /** returns true if it should break the partition before the current packet */
@@ -54,16 +64,48 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             }
             replyTimes.add(time);
             updateAverage();
+            lastPacketTime = time;
+            return false;
+        }
+
+        boolean addRequestTimeAndCheckShouldBreak(long time) {
+            if (shouldBreak(time)) {
+                reset();
+                return true;
+            }
+            lastPacketTime = time;
             return false;
         }
 
         void reset() {
             replyTimes.clear();
+            lastPacketTime = -1;
         }
 
+        long currentTimeMillis() {
+            return clock.millis();
+        }
+
+        boolean shouldBreak() {
+            return shouldBreak(currentTimeMillis());
+        }
         boolean shouldBreak(long replyTime) {
             return replyTimes.size() > 0 && averageDifference != 0 &&
-                    (replyTime - replyTimes.get(replyTimes.size() - 1)) / (averageDifference * 1d) >= breakAtTimeFactor;
+                    getReplyTimeFactor(replyTime) >= breakAtTimeFactor && getReplyTimeDifference(replyTime) >= minDifference;
+        }
+
+        double getReplyTimeFactor(long replyTime) {
+            if (replyTimes.size() > 0 && averageDifference != 0) {
+                return getReplyTimeDifference(replyTime) / (averageDifference * 1d);
+            }
+            return -1;
+        }
+
+        double getReplyTimeDifference(long replyTime) {
+            if (replyTimes.size() > 0 && averageDifference != 0) {
+                return replyTime - lastPacketTime;
+            }
+            return -1;
         }
 
         void updateAverage() {
@@ -159,32 +201,46 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         }
     }
 
-    private final Integer DEFAULT_TIMINGS_FACTOR = 5;
+    private static final Integer DEFAULT_TIMINGS_FACTOR = 10;
+    private static final Integer DEFAULT_MIN_DIFFERENCE = 200;
     private final Timings timings;
     private @Nullable Partition currentPartition;
 
-    public Partitioner() {
-        this.timings = new Timings(DEFAULT_TIMINGS_FACTOR);
+    public Partitioner(Timings timings) {
+        this.timings = timings;
     }
 
-    private void startNewPartition(@Nullable Either<Request<?>, Events> cause) {
+    public Partitioner() {
+        this(new Timings(DEFAULT_TIMINGS_FACTOR, DEFAULT_MIN_DIFFERENCE));
+    }
+
+    private void startNewPartition(String reason, @Nullable Either<Request<?>, Events> cause) {
         if (currentPartition != null) {
             submit(currentPartition);
         }
         currentPartition = new Partition(cause);
+        logSplitReason(reason);
     }
 
     @Override
-    public void onRequest(Request<?> request) {
-        if (currentPartition == null || currentPartition.isAffectedBy(request)) {
-            startNewPartition(Either.left(request));
+    public void onRequest(WrappedPacket<Request<?>> requestPacket) {
+        var request = requestPacket.getPacket();
+        boolean affected = false;
+        if (currentPartition == null || (affected = currentPartition.isAffectedBy(request))) {
+            startNewPartition(affected ? "current partition is affected by request" : "current partition is empty",
+                    Either.left(request));
+        }
+        if (timings.addRequestTimeAndCheckShouldBreak(requestPacket.getTime())) {
+            startNewPartition("???", Either.left(request)); // but this should only happen in tests
         }
     }
 
     @Override
     public void onEvent(Events events) {
-        if (currentPartition == null || currentPartition.isAffectedBy(events)) {
-            startNewPartition(Either.right(events));
+        boolean affected = false;
+        if (currentPartition == null || (affected = currentPartition.isAffectedBy(events))) {
+            startNewPartition(affected ? "current partition is affected by event" : "current partition is empty",
+                    Either.right(events));
         }
     }
 
@@ -193,27 +249,30 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         var request = requestPacket.getPacket();
         var reply = replyPacket.getPacket();
         if (reply.isError()) {  // start a new partition on error
-            startNewPartition(null);
+            startNewPartition("last reply was an error", null);
         } else {
             if (currentPartition == null) {
-                startNewPartition(null);
+                startNewPartition("current partition is empty", null);
             } else if ((!request.equals(currentPartition.getCausePacket()) && currentPartition.isAffectedBy(request)) ||
                     timings.addReplyTimeAndCheckShouldBreak(replyPacket.getTime())) {
-                startNewPartition(Either.left(request)); // but this should only happen in tests
+                startNewPartition("???", Either.left(request)); // but this should only happen in tests
             }
             try {
                 currentPartition.add(p(request, reply.getReply()));
             } catch (Exception e) {
                 LOG.error("Failed to add {} to partition {}", p(request, reply.getReply()), currentPartition);
                 LOG.error("Failed ", e);
-                startNewPartition(null);
+                startNewPartition("failed to add element to partition", null);
             }
         }
     }
 
     @Override
     public void onTick() {
-        if (currentPartition != null && timings.shouldBreak(System.currentTimeMillis())) {
+        long time = timings.currentTimeMillis();
+        if (currentPartition != null && timings.shouldBreak(time)) {
+            logSplitReason(String.format("timing, %.2f times longer than last difference (difference was %.2fms)",
+                    timings.getReplyTimeFactor(time), timings.getReplyTimeDifference(time)));
             timings.reset();
             submit(currentPartition);
             currentPartition = null;
@@ -233,5 +292,9 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         if (currentPartition != null) {
             submit(currentPartition);
         }
+    }
+
+    private void logSplitReason(String reason) {
+        LOG.info("Split reason: " + reason);
     }
 }

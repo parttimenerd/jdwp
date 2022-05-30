@@ -105,9 +105,7 @@ public class BasicTunnel {
                     jvmOutputStream.write(e.getContent());
                 }
             }
-            if (clientRequest.isPresent()) {
-                writeJvmRequest(jvmOutputStream, clientRequest.get());
-            }
+            clientRequest.ifPresent(request -> writeJvmRequest(jvmOutputStream, request));
             Optional<Either<Events, ReplyOrError<?>>> reply = Optional.empty();
             try {
                 reply = readJvmReply(jvmInputStream);
@@ -118,12 +116,10 @@ public class BasicTunnel {
                     clientOutputStream.write(e.getContent());
                 }
             }
-            if (reply.isPresent()) {
-                writeClientReply(clientOutputStream, reply.get());
-            }
+            reply.ifPresent(eventsReplyOrErrorEither -> writeClientReply(clientOutputStream, eventsReplyOrErrorEither));
             while (!hasDataAvailable(clientInputStream) && !hasDataAvailable(jvmInputStream)) {
-                Thread.yield(); // hint to the scheduler that other work could be done
                 state.tick();
+                Thread.yield(); // hint to the scheduler that other work could be done
             }
         }
     }

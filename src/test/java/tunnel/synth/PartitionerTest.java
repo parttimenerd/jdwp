@@ -12,14 +12,19 @@ import org.junit.jupiter.api.Test;
 import tunnel.State;
 import tunnel.State.WrappedPacket;
 import tunnel.synth.Partitioner.Partition;
+import tunnel.synth.Partitioner.Timings;
 import tunnel.util.Either;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PartitionerTest {
 
@@ -100,7 +105,7 @@ public class PartitionerTest {
     @Test
     public void testSplitPartitionAfterTime() {
         List<Partition> partitions = new ArrayList<>();
-        var partitioner = new Partitioner().addListener(partitions::add);
+        var partitioner = new Partitioner(new Timings(5, 1)).addListener(partitions::add);
         var state = new State().addListener(partitioner);
         addRequest(state, 10, 100);
         addRequest(state, 11, 110);
@@ -122,6 +127,36 @@ public class PartitionerTest {
         addRequest(state, 12, 102); // average time is 1
         partitioner.onTick();
         assertEquals(1, partitions.size());
+        assertEquals(3, partitions.get(0).size());
+    }
+
+    @Test
+    public void testSplitPartitionAfterIdleTime2() {
+        List<Partition> partitions = new ArrayList<>();
+        var partitioner = new Partitioner(new Timings(5, 1, new Clock() {
+            @Override
+            public ZoneId getZone() {
+                return null;
+            }
+
+            @Override
+            public Clock withZone(ZoneId zone) {
+                return null;
+            }
+
+            @Override
+            public Instant instant() {
+                return Instant.ofEpochMilli(110);
+            }
+        })).addListener(partitions::add);
+        var state = new State().addListener(partitioner);
+        addRequest(state, 10, 100);
+        addRequest(state, 11, 101);
+        addRequest(state, 12, 102); // average time is 1
+        partitioner.onTick();
+        addRequest(state, 13, 120);
+        partitioner.close();
+        assertEquals(2, partitions.size());
         assertEquals(3, partitions.get(0).size());
     }
 }

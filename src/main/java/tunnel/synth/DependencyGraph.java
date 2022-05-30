@@ -1,11 +1,8 @@
 package tunnel.synth;
 
 
-import jdwp.AccessPath;
-import jdwp.ContainedValues;
+import jdwp.*;
 import jdwp.EventCmds.Events;
-import jdwp.Reply;
-import jdwp.Request;
 import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.util.Pair;
@@ -349,7 +346,7 @@ public class DependencyGraph {
             deadNodes.addAll(layer);
             layers.add(layer);
         }
-        return new Layers(layers);
+        return new Layers(this, layers);
     }
 
     Set<Node> findNodesWithOnlyDeadDependsOn(Set<Node> nodes, Set<Node> assumeDead) {
@@ -364,10 +361,12 @@ public class DependencyGraph {
     @Getter
     public static class Layers extends AbstractList<Set<Node>> {
 
+        private final DependencyGraph graph;
         private final List<Set<Node>> layers; // higher depend on lower
         private final Map<Node, Integer> nodeToLayerIndex;
 
-        public Layers(List<Set<Node>> layers) {
+        public Layers(DependencyGraph graph, List<Set<Node>> layers) {
+            this.graph = graph;
             this.layers = layers;
             this.nodeToLayerIndex = IntStream.range(0, layers.size()).boxed()
                     .flatMap(i -> layers.get(i).stream().map(n -> p(i, n)))
@@ -430,6 +429,10 @@ public class DependencyGraph {
                 computeHashedNodesIfNeeded();
                 nodeComparator = (left, right) -> {
                     assert left != null && right != null;
+                    if ((left.isCauseNode() || (graph.hasCauseNode() &&
+                            left.id == graph.cause.<ParsedPacket>get().getId())) && left.id != right.id) {
+                        return -1;
+                    }
                     int layerComp = Long.compare(getLayerIndex(left), getLayerIndex(right));
                     if (layerComp != 0) {
                         return layerComp;

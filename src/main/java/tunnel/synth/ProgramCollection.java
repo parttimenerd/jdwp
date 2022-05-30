@@ -19,7 +19,8 @@ public class ProgramCollection extends Analyser<ProgramCollection, Overlap> impl
     public static class Overlap {
         private final Program first;
         private final Program second;
-        private final double overlap;
+        private final Program overlap;
+        private final double overlapFactor;
     }
 
     private final Map<AssignmentStatement, List<Program>> causeToPrograms = new HashMap<>();
@@ -50,8 +51,8 @@ public class ProgramCollection extends Analyser<ProgramCollection, Overlap> impl
     public Optional<Overlap> getOverlappingProgram(Program program) {
         if (causeToPrograms.containsKey(program.getFirstCallAssignment())) {
             var others = causeToPrograms.get(program.getFirstCallAssignment());
-            return others.stream().map(p -> calculateOverlap(p, program)).filter(o -> o.getOverlap() >= minOverlap)
-                    .max(Comparator.comparingDouble(Overlap::getOverlap));
+            return others.stream().map(p -> calculateOverlap(p, program)).filter(o -> o.getOverlapFactor() >= minOverlap)
+                    .max(Comparator.comparingDouble(Overlap::getOverlapFactor));
         }
         return Optional.empty();
     }
@@ -59,9 +60,10 @@ public class ProgramCollection extends Analyser<ProgramCollection, Overlap> impl
     public static Overlap calculateOverlap(Program first, Program second) {
         var maxStatements = Math.max(first.getNumberOfAssignments(), second.getNumberOfAssignments());
         if (maxStatements == 0) {
-            return new Overlap(first, second, Double.POSITIVE_INFINITY);
+            return new Overlap(first, second, new Program(), Double.POSITIVE_INFINITY);
         }
-        var overlap =  first.overlap(second).getNumberOfAssignments() / maxStatements;
-        return new Overlap(first, second, overlap);
+        var overlap = first.overlap(second);
+        var overlapFactor = overlap.getNumberOfAssignments() / maxStatements;
+        return new Overlap(first, second, overlap, overlapFactor);
     }
 }

@@ -94,18 +94,7 @@ Ideas that did not work
 
 TODO
 ----
-- when trying to get a thread dump with IntelliJ I get the following
-```
-1653406615,339:      Reply[  61550]: new ReplyOrError<>(61550, new jdwp.ObjectReferenceCmds.GetValuesReply(61550, new ListValue<>(Type.LIST, List.of(PrimitiveValue.wrap(5)))))
-1653406615,340:    Request[  61551]: new jdwp.ObjectReferenceCmds.GetValuesRequest(61551, new ObjectReference(1L), new ListValue<>(Type.LIST, List.of(new ObjectReferenceCmds.GetValuesRequest.Field(new... (-13 more)
-Exception in thread "main" java.lang.AssertionError: Unknown tag 74
-at jdwp.PrimitiveValue.readValue(PrimitiveValue.java:329)
-at jdwp.PacketInputStream.readUntaggedValue(PacketInputStream.java:272)
-at jdwp.PacketInputStream.readValue(PacketInputStream.java:265)
-at jdwp.ObjectReferenceCmds$GetValuesReply.parse(ObjectReferenceCmds.java:690)
-at jdwp.ObjectReferenceCmds$GetValuesRequest.parseReply(ObjectReferenceCmds.java:486)
-```
-- overlap and merge on programs should use hash trees to make it independent of variable names
+- merge on programs should use hash trees to make it independent of variable names
   - the program synthesizer guarantees that the order of the statements depends only on the structure 
     of the dependency graph
 - implement caching...

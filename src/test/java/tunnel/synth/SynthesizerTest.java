@@ -28,8 +28,9 @@ public class SynthesizerTest {
                                 PrimitiveValue.wrap(8), PrimitiveValue.wrap(8), PrimitiveValue.wrap(8)))))},
                 {"((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=(wrap " +
                         "\"byte\" 0))))",
-                        new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(12006, PrimitiveValue.wrap((byte) 8),
-                        PrimitiveValue.wrap((byte) 0), new ListValue<>(Type.LIST, List.of()))), List.of())},
+                        new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(12006,
+                                PrimitiveValue.wrap((byte) 8),
+                                PrimitiveValue.wrap((byte) 0), new ListValue<>(Type.LIST, List.of()))), List.of())},
                 {"((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=(wrap " +
                         "\"byte\" 1) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"sun.instrument" +
                         ".InstrumentationImpl\")))\n" +
@@ -37,17 +38,50 @@ public class SynthesizerTest {
                         "  (= var1 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=" +
                         "(wrap \"byte\" 1) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"sun.instrument" +
                         ".InstrumentationImpl\"))))",
-                        new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(12090, PrimitiveValue.wrap((byte) 8), PrimitiveValue.wrap((byte) 1), new ListValue<>(Type.LIST, List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("sun" + ".instrument.InstrumentationImpl")))))), List.of(p(new jdwp.EventRequestCmds.SetRequest(12090, PrimitiveValue.wrap((byte) 8), PrimitiveValue.wrap((byte) 1), new ListValue<>(Type.LIST, List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("sun" + ".instrument.InstrumentationImpl"))))), new jdwp.EventRequestCmds.SetReply(12090, PrimitiveValue.wrap(6))), p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(12094, new ClassReference(426L)), new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(12094, new ListValue<>(Type.LIST, List.of(new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(new MethodReference(105553140349016L), PrimitiveValue.wrap("<init>"), PrimitiveValue.wrap("(JZZ)V"), PrimitiveValue.wrap(""), PrimitiveValue.wrap(2))))))))
+                        new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(12090,
+                                PrimitiveValue.wrap((byte) 8), PrimitiveValue.wrap((byte) 1),
+                                new ListValue<>(Type.LIST,
+                                        List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("sun" + ".instrument.InstrumentationImpl")))))), List.of(p(new jdwp.EventRequestCmds.SetRequest(12090, PrimitiveValue.wrap((byte) 8), PrimitiveValue.wrap((byte) 1), new ListValue<>(Type.LIST, List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("sun" + ".instrument.InstrumentationImpl"))))), new jdwp.EventRequestCmds.SetReply(12090, PrimitiveValue.wrap(6))), p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(12094, new ClassReference(426L)), new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(12094, new ListValue<>(Type.LIST, List.of(new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(new MethodReference(105553140349016L), PrimitiveValue.wrap("<init>"), PrimitiveValue.wrap("(JZZ)V"), PrimitiveValue.wrap(""), PrimitiveValue.wrap(2))))))))
                 },
                 {
-                    "((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=(wrap " +
-                            "\"byte\" 1) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"build.tools.jdwpgen" +
-                            ".CodeGeneration$genToString$1$*\")))\n" +
-                            "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) " +
-                            "(\"suspendPolicy\")=(wrap \"byte\" 1) (\"modifiers\" 0 \"classPattern\")=(wrap " +
-                            "\"string\" \"build.tools.jdwpgen.CodeGeneration$genToString$1$*\"))))",
-                        new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(16165, PrimitiveValue.wrap((byte)8), PrimitiveValue.wrap((byte)1), new ListValue<>(Type.LIST, List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("build.tools.jdwpgen.CodeGeneration$genToString$1$*")))))), List.of(
-                                p(new jdwp.EventRequestCmds.SetRequest(16165, PrimitiveValue.wrap((byte)8), PrimitiveValue.wrap((byte)1), new ListValue<>(Type.LIST, List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("build.tools.jdwpgen.CodeGeneration$genToString$1$*"))))), new jdwp.EventRequestCmds.SetReply(16165, PrimitiveValue.wrap(45)))))
+                        "((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=" +
+                                "(wrap " +
+                                "\"byte\" 1) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"build.tools" +
+                                ".jdwpgen" +
+                                ".CodeGeneration$genToString$1$*\")))\n" +
+                                "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) " +
+                                "(\"suspendPolicy\")=(wrap \"byte\" 1) (\"modifiers\" 0 \"classPattern\")=(wrap " +
+                                "\"string\" \"build.tools.jdwpgen.CodeGeneration$genToString$1$*\"))))",
+                        new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(16165,
+                                PrimitiveValue.wrap((byte) 8), PrimitiveValue.wrap((byte) 1),
+                                new ListValue<>(Type.LIST,
+                                        List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("build" +
+                                                ".tools.jdwpgen.CodeGeneration$genToString$1$*")))))), List.of(
+                                p(new jdwp.EventRequestCmds.SetRequest(16165, PrimitiveValue.wrap((byte) 8),
+                                                PrimitiveValue.wrap((byte) 1), new ListValue<>(Type.LIST,
+                                                List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("build" +
+                                                        ".tools.jdwpgen.CodeGeneration$genToString$1$*"))))),
+                                        new jdwp.EventRequestCmds.SetReply(16165, PrimitiveValue.wrap(45)))))
+                },
+                {
+                        "((= cause (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) (\"requestID\")=" +
+                                "(wrap \"int\" 77)))\n" +
+                                "  (= var0 (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) " +
+                                "(\"requestID\")=(wrap \"int\" 77)))\n" +
+                                "  (= var1 (request Method LineTable (\"methodID\")=(wrap \"method\" 105553155251400)" +
+                                " (\"refType\")=(wrap \"klass\" 1055))))",
+                        new Partition(Either.left(new jdwp.EventRequestCmds.ClearRequest(37962,
+                                PrimitiveValue.wrap((byte) 1), PrimitiveValue.wrap(77))), List.of(
+                                p(new jdwp.EventRequestCmds.ClearRequest(37962, PrimitiveValue.wrap((byte) 1),
+                                        PrimitiveValue.wrap(77)), new jdwp.EventRequestCmds.ClearReply(37962)),
+                                p(new jdwp.MethodCmds.LineTableRequest(37963, new ClassReference(1055L),
+                                                new MethodReference(105553155251400L)),
+                                        new jdwp.MethodCmds.LineTableReply(37963, PrimitiveValue.wrap((long) 0),
+                                                PrimitiveValue.wrap((long) 7), new ListValue<>(Type.LIST,
+                                                List.of(new MethodCmds.LineTableReply.LineInfo(PrimitiveValue.wrap((long) 0),
+                                                                PrimitiveValue.wrap(6)),
+                                                        new MethodCmds.LineTableReply.LineInfo(PrimitiveValue.wrap((long) 2),
+                                                                PrimitiveValue.wrap(8))))))))
                 }
         };
     }
