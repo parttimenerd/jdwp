@@ -69,7 +69,8 @@ public abstract class AbstractParsedPacket extends CombinedValue implements Pars
             return klass.getConstructor(int.class, Map.class).newInstance(id, arguments);
         } catch (InstantiationException | IllegalAccessException |
                 InvocationTargetException | NoSuchMethodException e) {
-            throw new AssertionError(e);
+            throw new AssertionError(String.format("Cannot create packet (id=%d, class=%s, arguments=%s)",
+                    id, klass, arguments), e);
         }
     }
 

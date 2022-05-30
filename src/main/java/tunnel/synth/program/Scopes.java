@@ -35,7 +35,7 @@ public class Scopes<V> {
         public T get(String variable) {
             if (!variables.containsKey(variable)) {
                 if (parent == null) {
-                    throw new AssertionError();
+                    throw new AssertionError(String.format("Unknown variable %s", variable));
                 }
                 return parent.get(variable);
             }

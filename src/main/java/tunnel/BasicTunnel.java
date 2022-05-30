@@ -1,7 +1,9 @@
 package tunnel;
 
 import ch.qos.logback.classic.Logger;
+import jdwp.ClosedStreamException;
 import jdwp.EventCmds.Events;
+import jdwp.PacketError;
 import jdwp.ReplyOrError;
 import jdwp.Request;
 import tunnel.cli.Main;
@@ -93,11 +95,29 @@ public class BasicTunnel {
     private void readWriteLoop(InputStream clientInputStream, OutputStream clientOutputStream,
                                InputStream jvmInputStream, OutputStream jvmOutputStream) throws IOException {
         while (true) {
-            var clientRequest = readClientRequest(clientInputStream);
+            Optional<Request<?>> clientRequest = Optional.empty();
+            try {
+                clientRequest = readClientRequest(clientInputStream);
+            } catch (ClosedStreamException e) {
+              return;
+            } catch (PacketError e) {
+                if (e.hasContent()) {
+                    jvmOutputStream.write(e.getContent());
+                }
+            }
             if (clientRequest.isPresent()) {
                 writeJvmRequest(jvmOutputStream, clientRequest.get());
             }
-            var reply = readJvmReply(jvmInputStream);
+            Optional<Either<Events, ReplyOrError<?>>> reply = Optional.empty();
+            try {
+                reply = readJvmReply(jvmInputStream);
+            } catch (ClosedStreamException e) {
+                return;
+            } catch (PacketError e) {
+                if (e.hasContent()) {
+                    clientOutputStream.write(e.getContent());
+                }
+            }
             if (reply.isPresent()) {
                 writeClientReply(clientOutputStream, reply.get());
             }
@@ -126,11 +146,11 @@ public class BasicTunnel {
         return Optional.empty();
     }
 
-    private void writeClientReply(OutputStream clientOutputStream, Either<Events, ReplyOrError<?>> reply) throws IOException {
+    private void writeClientReply(OutputStream clientOutputStream, Either<Events, ReplyOrError<?>> reply) {
         state.writeReply(clientOutputStream, reply);
     }
 
-    private void writeJvmRequest(OutputStream jvmOutputStream, Request<?> request) throws IOException {
+    private void writeJvmRequest(OutputStream jvmOutputStream, Request<?> request) {
         state.writeRequest(jvmOutputStream, request);
     }
 

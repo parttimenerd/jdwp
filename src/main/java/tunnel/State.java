@@ -18,6 +18,13 @@ import java.util.*;
  */
 public class State {
 
+    public static class NoSuchRequestException extends PacketError {
+
+        public NoSuchRequestException(int id) {
+            super("No request with id " + id);
+        }
+    }
+
     @Getter
     @EqualsAndHashCode
     @AllArgsConstructor
@@ -49,7 +56,7 @@ public class State {
     public WrappedPacket<Request<?>> getUnfinishedRequest(int id) {
         var ret = unfinished.get(id);
         if (ret == null) {
-            throw new NoSuchElementException("No request with id " + id);
+            throw new NoSuchRequestException(id);
         }
         return ret;
     }
@@ -71,10 +78,14 @@ public class State {
     }
 
     public Request<?> readRequest(InputStream inputStream) throws IOException {
-        var ps = PacketInputStream.read(vm, inputStream);
-        var request = JDWP.parse(ps);
+        var ps = PacketInputStream.read(vm, inputStream); // already wrapped in PacketError
+        var request = PacketError.call(() -> JDWP.parse(ps), ps);
         addRequest(new WrappedPacket<>(request, System.currentTimeMillis()));
-        vm.captureInformation(request);
+        try {
+            vm.captureInformation(request);
+        } catch (Exception | AssertionError e) {
+            throw new PacketError(String.format("Failed to capture information from request %s", request), e);
+        }
         return request;
     }
 
@@ -82,16 +93,26 @@ public class State {
         var ps = PacketInputStream.read(vm, inputStream);
         if (ps.isReply()) {
             var request = getUnfinishedRequest(ps.id());
-            var reply = request.packet.parseReply(ps);
+
+            var reply = PacketError.call(() -> request.packet.parseReply(ps), ps);
             addReply(new WrappedPacket<>(reply, System.currentTimeMillis()));
             if (reply.isReply()) {
-                vm.captureInformation(request.packet, reply.getReply());
+                try {
+                    vm.captureInformation(request.packet, reply.getReply());
+                } catch (Exception | AssertionError e) {
+                    throw new PacketError(String.format("Failed to capture information from request %s and reply %s",
+                            request, reply), e);
+                }
             }
             return Either.right(reply);
         } else {
             var events = Events.parse(ps);
             for (EventCommon event : events.events) {
+                try {
                 vm.captureInformation(event);
+                } catch (Exception | AssertionError e) {
+                    throw new PacketError(String.format("Failed to capture information from event %s", event), e);
+                }
             }
             addEvent(new WrappedPacket<>(events, System.currentTimeMillis()));
             return Either.left(events);
@@ -101,24 +122,23 @@ public class State {
     /**
      * write reply without triggering listeners
      */
-    public void writeReply(OutputStream outputStream, Either<Events, ReplyOrError<?>> reply) throws IOException {
-        if (reply.isLeft()) {
-            reply.getLeft().toPacket(vm).write(outputStream);
-        } else {
-            reply.getRight().toPacket(vm).write(outputStream);
+    public void writeReply(OutputStream outputStream, Either<Events, ReplyOrError<?>> reply) {
+        try {
+            ((ParsedPacket)reply.get()).toPacket(vm).write(outputStream);
+        } catch (Exception | AssertionError e) {
+            throw new PacketError(String.format("Failed to write reply or events %s", reply.<ParsedPacket>get()), e);
         }
     }
 
     /**
      * write request without triggering listeners
      */
-    public void writeRequest(OutputStream outputStream, Request<?> request) throws IOException {
-        request.toPacket(vm).write(outputStream);
-    }
-
-    void submitRequest(OutputStream outputStream, Request<?> request) throws IOException {
-        addRequest(new WrappedPacket<>(request, System.currentTimeMillis()));
-        request.toPacket(vm).write(outputStream);
+    public void writeRequest(OutputStream outputStream, Request<?> request) {
+        try {
+            request.toPacket(vm).write(outputStream);
+        } catch (Exception | AssertionError e) {
+            throw new PacketError(String.format("Failed to write request %s", request));
+        }
     }
 
     public VM vm() {

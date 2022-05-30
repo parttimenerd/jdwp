@@ -37,7 +37,7 @@ public class Evaluator {
                     public void visit(Loop loop) {
                         Value iterable = evaluate(scope, loop.getIterable());
                         if (!(iterable instanceof WalkableValue)) {
-                            throw new AssertionError();
+                            throw new AssertionError(String.format("Iterable %s not walkable in loop %s", iterable, loop));
                         }
                         for (Pair<?, Value> pair : ((WalkableValue<?>) iterable).getValues()) {
                             scope.push();

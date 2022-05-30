@@ -7,14 +7,16 @@ import jdwp.ArrayReferenceCmds.LengthRequest;
 import jdwp.ClassLoaderReferenceCmds.VisibleClassesRequest;
 import jdwp.ClassTypeCmds.*;
 import jdwp.EventCmds.Events;
-import jdwp.EventCmds.Events.*;
 import jdwp.EventCmds.Events.Exception;
 import jdwp.EventCmds.Events.ThreadDeath;
+import jdwp.EventCmds.Events.*;
 import jdwp.EventRequestCmds.SetRequest;
 import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.JDWP.SuspendPolicy;
 import jdwp.MethodCmds.IsObsoleteReply;
 import jdwp.MethodCmds.LineTableReply;
+import jdwp.PrimitiveValue.IntValue;
+import jdwp.PrimitiveValue.StringValue;
 import jdwp.ReferenceTypeCmds.*;
 import jdwp.ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo;
 import jdwp.StackFrameCmds.ThisObjectRequest;
@@ -22,13 +24,12 @@ import jdwp.ThreadGroupReferenceCmds.ChildrenReply;
 import jdwp.ThreadReferenceCmds.NameReply;
 import jdwp.ThreadReferenceCmds.NameRequest;
 import jdwp.ThreadReferenceCmds.ThreadGroupReply;
-import jdwp.VirtualMachineCmds.*;
-import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
-import jdwp.PrimitiveValue.IntValue;
-import jdwp.PrimitiveValue.StringValue;
 import jdwp.VM.NoTagPresentException;
 import jdwp.Value.*;
+import jdwp.VirtualMachineCmds.*;
+import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
 import jdwp.oracle.JDWP;
+import jdwp.oracle.*;
 import jdwp.oracle.JDWP.ArrayReference.GetValues;
 import jdwp.oracle.JDWP.ArrayReference.Length;
 import jdwp.oracle.JDWP.ArrayType;
@@ -54,14 +55,15 @@ import jdwp.oracle.JDWP.ThreadGroupReference.Children;
 import jdwp.oracle.JDWP.ThreadReference.Name;
 import jdwp.oracle.JDWP.ThreadReference.ThreadGroup;
 import jdwp.oracle.JDWP.VirtualMachine.*;
-import jdwp.oracle.JDWP.VirtualMachine.RedefineClasses.ClassDef;
 import jdwp.oracle.Packet;
-import jdwp.oracle.*;
+import jdwp.oracle.JDWP.VirtualMachine.RedefineClasses.ClassDef;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -101,7 +103,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testVirtualMachine_VersionRequestParsing() throws IOException {
+    public void testVirtualMachine_VersionRequestParsing() {
         // can we generate the same package as the oracle
         var oraclePacket = JDWP.VirtualMachine.Version.enqueueCommand(ovm).finishedPacket;
         var packet = new VirtualMachineCmds.VersionRequest(0, (short) 0).toPacket(vm);
@@ -136,7 +138,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testVirtualMachine_ClassBySignatureRequestParsing() throws IOException {
+    public void testVirtualMachine_ClassBySignatureRequestParsing() {
         // can we generate the same package as the oracle
         var oraclePacket = JDWP.VirtualMachine.ClassesBySignature.enqueueCommand(ovm, "sig").finishedPacket;
         var packet = new VirtualMachineCmds.ClassesBySignatureRequest(0, wrap("sig")).toPacket(vm);
@@ -193,7 +195,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testVirtualMachine_AllClassesRequestParsing() throws IOException {
+    public void testVirtualMachine_AllClassesRequestParsing() {
         // can we generate the same package as the oracle
         var oraclePs = JDWP.VirtualMachine.AllClasses.enqueueCommand(ovm);
         oraclePs.pkt.id = 1;
@@ -565,7 +567,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testClassType_InvokeMethodRequestParsing() throws IOException {
+    public void testClassType_InvokeMethodRequestParsing() {
         // can we generate the same package as the oracle
         var oraclePacket = InvokeMethod.enqueueCommand(ovm,
                 new ClassTypeImpl(ovm, 1),
@@ -679,7 +681,7 @@ class JDWPTest {
     }
 
     @Test
-    public void testThreadReference_NameRequestParsing() throws IOException {
+    public void testThreadReference_NameRequestParsing() {
         // can we generate the same package as the oracle
         var t = new ThreadReferenceImpl();
         t.ref = 100;
@@ -1235,6 +1237,20 @@ class JDWPTest {
 
         // test JDWP.parse
         assertInstanceOf(request.getClass(), jdwp.JDWP.parse(vm, packet));
+    }
+
+    private static byte[][] packageErrorHandlingTestSource() {
+        return new byte[][] {
+                {},
+                {0},
+                {0, 3, 4,5, 4,5,6}
+        };
+    }
+
+    @ParameterizedTest
+    @MethodSource("packageErrorHandlingTestSource")
+    public void testPackageErrorHandling(byte[] b) {
+        assertThrows(PacketError.class, () -> jdwp.Packet.fromByteArray(b));
     }
 
     static PacketStream oraclePacketStream(jdwp.Packet packet) {

@@ -783,5 +783,10 @@ public interface AST {
         public @Nullable Statement getLastStatement() {
             return isEmpty() ? null : get(size() - 1);
         }
+
+        @Override
+        public List<Statement> getSubStatements() {
+            return body;
+        }
     }
 }

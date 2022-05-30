@@ -216,7 +216,7 @@ public class DependencyGraph {
         this.causeNode = causeNode;
         this.cause = cause;
         if ((causeNode == null) != (cause == null)) {
-            throw new AssertionError();
+            throw new AssertionError("(causeNode == null) != (cause == null)");
         }
     }
 
@@ -245,7 +245,8 @@ public class DependencyGraph {
 
         boolean hasRequestCause = partition.hasCause() && partition.getCause().isLeft();
         if (hasRequestCause && !(partition.get(0).first().equals(partition.getCause().getLeft()))) {
-            throw new AssertionError();
+            throw new AssertionError(String.format("Request cause but first element in partition is not this request:" +
+                    " %s", partition));
         }
 
         // look for requests that only depend on the cause or values not in the set
@@ -399,7 +400,7 @@ public class DependencyGraph {
          */
         public @Nullable Set<Node> computeDominatedNodes(Set<Node> headerNodes) {
             if (headerNodes.stream().mapToInt(this::getLayerIndex).distinct().count() != 1) {
-                throw new AssertionError(); // all header nodes have to be in the same layer
+                throw new AssertionError("all header nodes have to be in the same layer");
             }
             int headerLayer = getLayerIndex(headerNodes.iterator().next());
             Set<Node> dependentNodes = computeDependedByTransitive(headerNodes); // nodes "below" the header
@@ -407,7 +408,7 @@ public class DependencyGraph {
                 return Set.of();
             }
             if (dependentNodes.stream().mapToInt(this::getLayerIndex).min().getAsInt() <= headerLayer) {
-                throw new AssertionError(); // missing nodes from header
+                throw new AssertionError("missing nodes from header");
             }
             // check also that all nodes below only depend on nodes in the set or in the header set
             if (dependentNodes.stream().anyMatch(d -> d.dependsOn.stream()

@@ -1,17 +1,22 @@
 package tunnel;
 
-import jdwp.*;
 import jdwp.EventCmds.Events;
+import jdwp.Reply;
+import jdwp.ReplyOrError;
+import jdwp.Request;
 import jdwp.VirtualMachineCmds.VersionReply;
 import jdwp.VirtualMachineCmds.VersionRequest;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 import tunnel.Listener.CollectingListener;
+import tunnel.State.NoSuchRequestException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NoSuchElementException;
 
 import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,14 +26,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class StateTest {
 
     static abstract class CollectedPacketsTest {
-        State state = new State();
-        CollectingListener collectingListener = new CollectingListener();
+        final State state = new State();
+        final CollectingListener collectingListener = new CollectingListener();
         {
             state.addListener(collectingListener);
         }
-        List<Request<?>> requests = new ArrayList<>();
-        List<ReplyOrError<?>> replies = new ArrayList<>();
-        List<Events> events = new ArrayList<>();
+        final List<Request<?>> requests = new ArrayList<>();
+        final List<ReplyOrError<?>> replies = new ArrayList<>();
+        final List<Events> events = new ArrayList<>();
 
         @BeforeAll
         public abstract void init() throws IOException;
@@ -73,7 +78,7 @@ public class StateTest {
         @Test
         public void init() throws IOException {
             addRequest(new VersionRequest(1));
-            assertThrows(NoSuchElementException.class, () -> addReply(new VersionReply(10, wrap("a"), wrap(1), wrap(1), wrap("b"), wrap("c"))));
+            assertThrows(NoSuchRequestException.class, () -> addReply(new VersionReply(10, wrap("a"), wrap(1), wrap(1), wrap("b"), wrap("c"))));
         }
     }
 }

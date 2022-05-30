@@ -98,9 +98,13 @@ class PacketInputStream {
         System.arraycopy(lengthBytes, 0, data, 0, 4);
         int readBytes = input.read(data, 4, length - 4);
         if (readBytes != length - 4) {
-            throw new ClosedStreamException();
+            throw new PacketError(String.format("Read %d bytes, but expected to read %d bytes", readBytes, length - 4));
         }
-        return new PacketInputStream(vm, data);
+        try {
+            return new PacketInputStream(vm, data);
+        } catch (Exception | AssertionError e) {
+            throw new PacketError(String.format("Could not read package (length=%d)", length), data, e);
+        }
     }
 
     public static PacketInputStream read(VM vm, Packet packet) {

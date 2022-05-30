@@ -45,7 +45,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             case Tag.CLASS_OBJECT:
                 return ClassObjectReference.read(ps);
             default:
-                throw new AssertionError();
+                throw new AssertionError(String.format("Unknown reference tag %d", tag));
         }
     }
 

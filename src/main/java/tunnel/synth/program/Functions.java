@@ -70,7 +70,7 @@ public abstract class Functions {
             var refType = wrapper.split("-")[0];
             return Reference.object(Type.valueOf(refType.toUpperCase()), value);
         }
-        throw new AssertionError();
+        throw new AssertionError(String.format("No %s wrapper registered", wrapper));
     }
 
     private static String getIntegerWrapperName(BasicScalarValue<?> value) {
@@ -81,7 +81,7 @@ public abstract class Functions {
             return value.type.name().toLowerCase() + "-reference";
         }
         if (!classToWrapperName.containsKey(value.getClass())) {
-            throw new AssertionError();
+            throw new AssertionError(String.format("Cannot find wrapper for %s", value.toCode()));
         }
         return classToWrapperName.get(value.getClass());
     }
@@ -105,7 +105,7 @@ public abstract class Functions {
                 return new ByteList(((String)value).getBytes());
             default:
                 if (!(value instanceof Long)) {
-                    throw new AssertionError();
+                    throw new AssertionError(String.format("Integer value is not long: %s", value));
                 }
                 return applyIntegerWrapper(wrapper, (Long)value);
         }
@@ -125,7 +125,7 @@ public abstract class Functions {
         } else if (value instanceof ByteList) {
             literal = literal(new String(((ByteList) value).bytes));
         } else {
-            throw new AssertionError();
+            throw new AssertionError(String.format("Unknown basic type for wrapping: %s", value));
         }
         return new FunctionCall(WRAP, WRAP_FUNCTION, List.of(literal(getWrapperName(value)), literal));
     }
@@ -137,17 +137,17 @@ public abstract class Functions {
         @Override
         public Value evaluate(List<Value> arguments) {
             if (arguments.isEmpty()) {
-                throw new AssertionError();
+                throw new AssertionError("No arguments for get function");
             }
             if (arguments.size() == 1) {
                 return arguments.get(0);
             }
             if (!arguments.stream().allMatch(a -> a instanceof PrimitiveValue.IntValue || a instanceof StringValue)) {
-                throw new AssertionError();
+                throw new AssertionError(String.format("Invalid path %s", arguments));
             }
             var obj = arguments.get(0);
             if (!(obj instanceof WalkableValue<?>)) {
-                throw new AssertionError();
+                throw new AssertionError(String.format(String.format("Base object %s is not walkable", obj)));
             }
             var path = new AccessPath(arguments.stream().skip(1).map(s -> ((BasicScalarValue<?>)s).value).toArray());
             return path.access((WalkableValue<?>)obj);
@@ -165,7 +165,7 @@ public abstract class Functions {
         @Override
         public Value evaluate(List<Value> arguments) {
             if (arguments.size() != 1) {
-                throw new AssertionError();
+                throw new AssertionError(String.format("Const function expects one argument, got %s", arguments));
             }
             return arguments.get(0);
         }
@@ -177,13 +177,15 @@ public abstract class Functions {
         @Override
         public Value evaluate(List<Value> arguments) {
             if (arguments.size() != 2) {
-                throw new AssertionError();
+                throw new AssertionError(String.format("More than two arguments for wrap function: %s", arguments));
             }
             if (!(arguments.get(0) instanceof StringValue)) {
-                throw new AssertionError();
+                throw new AssertionError(String.format("First argument %s of wrap function is not a string",
+                        arguments.get(0)));
             }
             if (!(arguments.get(1) instanceof BasicScalarValue<?>)) {
-                throw new AssertionError();
+                throw new AssertionError(String.format("Second argument %s of wrap function is not a basic scalar " +
+                        "value", arguments.get(1)));
             }
             return applyWrapper(((StringValue) arguments.get(0)).value,
                     ((BasicScalarValue<?>) arguments.get(1)).value);
@@ -233,7 +235,7 @@ public abstract class Functions {
             case WRAP:
                 return WRAP_FUNCTION;
             default:
-                throw new AssertionError();
+                throw new AssertionError(String.format("Unknown function %s", name));
         }
     }
 }

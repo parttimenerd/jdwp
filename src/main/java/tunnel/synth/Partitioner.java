@@ -1,5 +1,6 @@
 package tunnel.synth;
 
+import ch.qos.logback.classic.Logger;
 import jdwp.AbstractParsedPacket;
 import jdwp.EventCmds.Events;
 import jdwp.Reply;
@@ -8,6 +9,7 @@ import jdwp.Request;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.LoggerFactory;
 import tunnel.Listener;
 import tunnel.State.WrappedPacket;
 import tunnel.synth.Partitioner.Partition;
@@ -31,6 +33,8 @@ import static jdwp.util.Pair.p;
  */
 public class Partitioner extends Analyser<Partitioner, Partition> implements Listener {
 
+    public final static Logger LOG = (Logger) LoggerFactory.getLogger("Partitioner");
+
     static class Timings {
 
         private final double breakAtTimeFactor;
@@ -41,7 +45,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             this.breakAtTimeFactor = breakAtTimeFactor;
         }
 
-        /** returns true if should break the partition before the current packet */
+        /** returns true if it should break the partition before the current packet */
         boolean addReplyTimeAndCheckShouldBreak(long time) {
             if (shouldBreak(time)) {
                 reset();
@@ -197,7 +201,13 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
                     timings.addReplyTimeAndCheckShouldBreak(replyPacket.getTime())) {
                 startNewPartition(Either.left(request)); // but this should only happen in tests
             }
-            currentPartition.add(p(request, reply.getReply()));
+            try {
+                currentPartition.add(p(request, reply.getReply()));
+            } catch (Exception e) {
+                LOG.error("Failed to add {} to partition {}", p(request, reply.getReply()), currentPartition);
+                LOG.error("Failed ", e);
+                startNewPartition(null);
+            }
         }
     }
 

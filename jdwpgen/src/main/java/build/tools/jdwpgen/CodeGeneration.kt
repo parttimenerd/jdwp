@@ -183,7 +183,7 @@ internal object CodeGeneration {
             ) {
                 `@Override`()
                 `if`("this.id != reply.getId()") {
-                    `throw new2`(bg("AssertionError"), "wrong id".S)
+                    `throw new2`(bg("Reply.IdMismatchException"), "id, reply.getId()")
                 }.end()
                 statement("visitor.visit(this, (${replyClassName})reply)")
             }
@@ -382,7 +382,7 @@ internal object CodeGeneration {
                     }
                     default {
                         `throw new2`(
-                            java.util.NoSuchElementException::class,
+                            bg("PacketError"),
                             "\"Unknown command \" + ${kindNode.name()}"
                         )
                     }

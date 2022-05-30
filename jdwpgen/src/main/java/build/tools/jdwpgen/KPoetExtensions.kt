@@ -100,8 +100,8 @@ fun param(type: String, name: String, paramMethod: ParamMethod = { this })
 
 fun MethodSpec.Builder._return(arg: String) = addStatement("return $arg")!!
 
-fun MethodSpec.Builder.`throw new2`(type: ClassName, arg: String)
-        = addStatement("throw new \$T($arg)", type)!!
+fun MethodSpec.Builder.`throw new2`(type: ClassName, vararg arg: String)
+        = addStatement("throw new \$T(${arg.joinToString(", ")})", type)!!
 
 fun MethodSpec.Builder.`throw new2`(klass: KClass<*>, arg: String)
         = addStatement("throw new \$T($arg)", ClassName.get(klass.java))!!

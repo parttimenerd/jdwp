@@ -186,7 +186,7 @@ public class Parser {
             case "events":
                 return new EventsCall(commandSet, command, arguments);
             default:
-                throw new AssertionError();
+                throw new AssertionError(String.format("Unknown packet call name %s", name));
         }
     }
 

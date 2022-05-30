@@ -1,5 +1,7 @@
 package tunnel.synth;
 
+import ch.qos.logback.classic.Logger;
+import org.slf4j.LoggerFactory;
 import tunnel.synth.Partitioner.Partition;
 
 import java.util.ArrayList;
@@ -7,6 +9,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class Analyser<S extends Analyser<S, T>, T> {
+
+    public final static Logger LOG = (Logger) LoggerFactory.getLogger("Analyser");
 
     /** wraps the DependencyGraph calculation */
     public static class DependencyAnalyser extends Analyser<DependencyAnalyser, DependencyGraph> implements Consumer<Partition> {
@@ -28,7 +32,13 @@ public class Analyser<S extends Analyser<S, T>, T> {
     }
 
     protected void submit(T result) {
-        listeners.forEach(l -> l.accept(result));
+        listeners.forEach(l -> {
+            try {
+                l.accept(result);
+            } catch (Exception e) {
+                LOG.error(String.format("Failed to handle %s with %s, ignoring this error", result, this.getClass()), e);
+            }
+        });
         if (recordResults) {
             results.add(result);
         }
