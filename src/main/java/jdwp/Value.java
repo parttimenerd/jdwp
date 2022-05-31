@@ -1,6 +1,7 @@
 package jdwp;
 
 import jdwp.EventCmds.Events.EventCommon;
+import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.PrimitiveValue.StringValue;
 import jdwp.Reference.ArrayReference;
 import jdwp.util.Pair;
@@ -518,7 +519,7 @@ public abstract class Value implements ToCode {
                                                     "elementType == null only works for scalar element values, "
                                                             + "probably missing an EntryType annotation");
                                         }
-                                        if (elementType.equals(EventCommon.class)) {
+                                        if (elementType.equals(EventCommon.class) || elementType.equals(ModifierCommon.class)) {
                                             // handle events differently
                                             String kindClass = "";
                                             List<TaggedBasicValue<?>> cleanedValues = new ArrayList<>();
@@ -531,7 +532,7 @@ public abstract class Value implements ToCode {
                                             }
                                             try {
                                                 return CombinedValue.createForTagged(
-                                                        (Class<CombinedValue>)Class.forName(elementType.getName().replace("$EventCommon", "") + "$" + kindClass),
+                                                        (Class<CombinedValue>)Class.forName(elementType.getName().replace("$EventCommon", "").replace("$ModifierCommon", "") + "$" + kindClass),
                                                             values.stream());
                                             } catch (ClassNotFoundException e) {
                                                 throw new AssertionError(e);
@@ -816,6 +817,10 @@ public abstract class Value implements ToCode {
         }
 
         public TaggedBasicValue<V> prependPath(Object... prefix) {
+            return new TaggedBasicValue<>(path.prepend(prefix), value);
+        }
+
+        public TaggedBasicValue<V> prependPath(AccessPath prefix) {
             return new TaggedBasicValue<>(path.prepend(prefix), value);
         }
     }

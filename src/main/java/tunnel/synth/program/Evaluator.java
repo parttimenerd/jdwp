@@ -131,6 +131,8 @@ public class Evaluator {
                     DEFAULT_ID, (Class<AbstractParsedPacket>) Class.forName(name), values);
         } catch (ClassNotFoundException e) {
             throw new PacketError("Unknown class", e);
+        } catch (AssertionError e) {
+            throw new AssertionError(String.format("Cannot evaluate packet call %s (name = %s)", packetCall, name), e);
         }
     }
 

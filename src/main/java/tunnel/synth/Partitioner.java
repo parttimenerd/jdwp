@@ -91,9 +91,6 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             return shouldBreak(currentTimeMillis());
         }
         boolean shouldBreak(long replyTime) {
-            /*if (replyTimes.size() > 0) {
-                System.out.printf("replytime %d, averageDifference %d factor %f >= %f getReplyTimeDifference(replyTime) %f >= %d%n", replyTime, averageDifference, getReplyTimeFactor(replyTime), breakAtTimeFactor, getReplyTimeDifference(replyTime), minDifference);
-            }*/
             return replyTimes.size() > 0 && averageDifference != 0 &&
                     getReplyTimeFactor(replyTime) >= breakAtTimeFactor && getReplyTimeDifference(replyTime) >= minDifference;
         }

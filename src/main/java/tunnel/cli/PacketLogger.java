@@ -41,6 +41,9 @@ public class PacketLogger implements Runnable {
     @Option(names = "--overlaps", description = "Print overlapping previous programs")
     private boolean logOverlap = false;
 
+    @Option(names = "--packets", description = "Print packets, might be confusing with info and debug log level")
+    private boolean logPackets = false;
+
     @Option(names = "--overlap-factor", description = "Factor to which two programs have to overlap " +
             "to be considered overlapping and logged")
     private double overlapFactor = 0.7;
@@ -108,7 +111,10 @@ public class PacketLogger implements Runnable {
             }
             tunnel.addListener(partitioner);
         }
-        tunnel.addListener(new LoggingListener(mode, maxLineLength)).run();
+        if (logPackets) {
+            tunnel.addListener(new LoggingListener(mode, maxLineLength));
+        }
+        tunnel.run();
     }
 
 }

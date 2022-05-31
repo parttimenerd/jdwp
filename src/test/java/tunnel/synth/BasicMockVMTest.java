@@ -28,8 +28,6 @@ import tunnel.State.Mode;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.time.Duration;
 import java.util.List;
 
@@ -38,6 +36,8 @@ import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static tunnel.State.Mode.*;
+import static tunnel.util.Util.findInetSocketAddress;
+import static tunnel.util.Util.setDefaultLogLevel;
 
 /**
  * Tests that combine {@link MockVM}, {@Link BasicTunnel} and {@link MockClient} to tests the
@@ -65,18 +65,6 @@ public class BasicMockVMTest {
         public void close() {
             this.interrupt();
         }
-    }
-
-    @SneakyThrows
-    static InetSocketAddress findInetSocketAddress() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return new InetSocketAddress(socket.getLocalPort());
-        }
-    }
-
-    static void setDefaultLogLevel(ch.qos.logback.classic.Level level) {
-        ((Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME))
-                .setLevel(level);
     }
 
     /**

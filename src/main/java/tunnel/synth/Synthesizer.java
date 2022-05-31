@@ -2,6 +2,8 @@ package tunnel.synth;
 
 import jdwp.AccessPath;
 import jdwp.EventCmds.Events;
+import jdwp.EventRequestCmds;
+import jdwp.EventRequestCmds.SetRequest;
 import jdwp.Request;
 import jdwp.util.Pair;
 import lombok.Getter;
@@ -18,8 +20,10 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
 import static tunnel.synth.program.AST.*;
+import static tunnel.synth.program.Functions.createWrapperFunctionCall;
 
 /**
  * Transforms a dependency graph into a program.
@@ -97,7 +101,15 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             }
             request.asCombined().getTaggedValues()
                     .filter(t -> !(usedPaths.containsKey(t.getPath())))
-                    .forEach(t -> usedPaths.put(t.getPath(), Functions.createWrapperFunctionCall(t.getValue())));
+                    .forEach(t -> usedPaths.put(t.getPath(), createWrapperFunctionCall(t.getValue())));
+            if (request instanceof EventRequestCmds.SetRequest) {
+                var setRequest = (SetRequest) request;
+                for (int i = 0; i < setRequest.modifiers.size(); i++) {
+                    var modifier = setRequest.modifiers.get(i);
+                    usedPaths.put(new AccessPath("modifiers", i, "kind"),
+                            createWrapperFunctionCall(wrap(modifier.getClass().getSimpleName())));
+                }
+            }
             return new RequestCall(request.getCommandSetName(), request.getCommandName(),
                     usedPaths.keySet().stream().sorted().map(p -> new CallProperty(p, usedPaths.get(p)))
                             .collect(Collectors.toList()));

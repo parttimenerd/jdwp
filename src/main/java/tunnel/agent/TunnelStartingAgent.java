@@ -1,7 +1,9 @@
 package tunnel.agent;
 
+import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
@@ -12,6 +14,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static jdwp.util.Pair.p;
+import static tunnel.util.Util.findInetSocketAddress;
 
 /**
  * The sole purpose of this agent is to call a JVM with its own JAR with the passed
@@ -48,7 +53,8 @@ public class TunnelStartingAgent {
     private static Path getAgentPath() {
         var path = Paths.get(ManagementFactory.getRuntimeMXBean().getInputArguments().stream()
                 .filter(s -> s.matches("-javaagent:.*tunnel\\.jar.*")).findFirst()
-                .orElseGet(() -> error(String.format("cannot find -javaagent in %s", ManagementFactory.getRuntimeMXBean().getInputArguments())))
+                .orElseGet(() -> error(String.format("cannot find -javaagent in %s",
+                        ManagementFactory.getRuntimeMXBean().getInputArguments())))
                 .substring("-javaagent:".length()).split("=", 2)[0]);
         if (!path.toFile().exists()) {
             error("-javaagent path " + path + " does not exist");
@@ -105,18 +111,54 @@ public class TunnelStartingAgent {
     }
 
     public static void premain(String args) {
+        var pair = prepareArguments(args, getJDWPAddress().orElse(null));
+        var finalAddress = pair.first;
+        var argumentLists = pair.second;
+        List<Process> processes = new ArrayList<>();
+        try {
+            for (List<String> argumentList : argumentLists) {
+                processes.add(startProcess(getJVMPath(), getAgentPath(), argumentList));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            error(String.format("error starting the jvm process (agent %s)", getAgentPath()));
+            processes.forEach(Process::destroyForcibly);
+        }
+        System.out.printf("------- tunnel is listening at %s --------%n", finalAddress);
+    }
+
+    static Pair<String, List<List<String>>> prepareArguments(String args, @Nullable String jdwpAddress) {
+        List<List<String>> argumentLists = new ArrayList<>();
+        String previousAddress = jdwpAddress;
+        for (String s : args.split(":")) {
+            var pair = prepareArguments(s, previousAddress, args.endsWith(";" + s));
+            previousAddress = pair.first;
+            argumentLists.add(pair.second);
+        }
+        return p(previousAddress, argumentLists);
+    }
+
+    private static Pair<String, List<String>> prepareArguments(String args, @Nullable String previousAddress,
+                                                               boolean isLast) {
         var arguments =
                 Arrays.stream(args.split(","))
                         .map(Argument::create).collect(Collectors.toCollection(ArrayList::new));
         var jvmArg = arguments.stream().filter(a -> a.name.equals("jvm")).findFirst();
-        var agentAddress = getJDWPAddress();
+        var addressArg = arguments.stream().filter(a -> a.name.equals("address")).findFirst();
+        if (addressArg.isEmpty()) {
+            if (isLast) {
+                error("missing address argument for last agent argument");
+            }
+            addressArg = Optional.of(new Argument("address", "" + findInetSocketAddress().getPort()));
+            arguments.add(0, addressArg.get());
+        }
         if (jvmArg.isPresent()) {
-            if (agentAddress.isPresent() && !agentAddress.get().equals(jvmArg.get().argument)) {
+            if (previousAddress != null && !previousAddress.equals(jvmArg.get().argument)) {
                 error("jvm argument does not match the jdwp agent address argument");
             }
         } else {
-            if (agentAddress.isPresent()) {
-                arguments.add(1, new Argument("jvm", agentAddress.get()));
+            if (previousAddress != null) {
+                arguments.add(1, new Argument("jvm", previousAddress));
             } else {
                 error("no jdwp agent present");
             }
@@ -124,19 +166,16 @@ public class TunnelStartingAgent {
         if (isJavaAgentBeforeJDWPAgent()) {
             error("Java agent did not come before JDWP agent");
         }
-        try {
-            startProcess(getJVMPath(), getAgentPath(), arguments.stream().flatMap(a -> a.toCLIArgument().stream()).collect(Collectors.toList()));
-        } catch (IOException e) {
-            e.printStackTrace();
-            error(String.format("error starting the jvm process (agent %s)", getAgentPath()));
-        }
+        var stringArguments = arguments.stream().flatMap(a -> a.toCLIArgument().stream()).collect(Collectors.toList());
+        return p(addressArg.get().argument, stringArguments);
     }
 
-    private static void startProcess(Path jvmPath, Path agentPath, List<String> arguments) throws IOException {
+    private static Process startProcess(Path jvmPath, Path agentPath, List<String> arguments) throws IOException {
         List<String> processParts = new ArrayList<>(List.of(jvmPath.toString(), "-jar", agentPath.toString()));
         processParts.addAll(arguments);
         System.out.println("Start " + String.join(" ", processParts));
         var process = new ProcessBuilder(processParts).inheritIO().start();
         Runtime.getRuntime().addShutdownHook(new Thread(process::destroyForcibly));
+        return process;
     }
 }

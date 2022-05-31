@@ -17,6 +17,7 @@ import tunnel.synth.program.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -336,5 +337,17 @@ public class ProgramTest {
         assertEquals("(events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" \"VMStart\") " +
                 "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
                 "\"thread\")=(wrap \"thread\" 0))", EventsCall.create(ev).toString());
+    }
+
+    @Test
+    public void testEventRequestSetEvaluation() {
+        var call = (PacketCall)PacketCall.parse("(request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8)" +
+                " (\"suspendPolicy\")=(wrap \"byte\" 1) (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"ClassMatch\") " +
+                "(\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"sun.instrument" +
+                ".InstrumentationImpl\"))");
+        Function<PacketCall, Request<?>> func =
+                (p) -> (Request<?>)new Evaluator(new RecordingFunctions()).evaluatePacketCall(new Scopes<>(), p);
+        var packet = func.apply(call);
+        assertEquals(packet, func.apply(RequestCall.create(packet)));
     }
 }

@@ -114,6 +114,10 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         return new AccessPath(newPath);
     }
 
+    public AccessPath prepend(AccessPath prefix) {
+        return prepend(prefix.path);
+    }
+
     @Override
     public Object get(int index) {
         return path[index];
@@ -174,7 +178,7 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         if (other.path.length > this.path.length) {
             return false;
         }
-        for (int i = 0; i < path.length; i++) {
+        for (int i = 0; i < other.path.length; i++) {
             if (!other.path[i].equals(this.path[i])) {
                 return false;
             }

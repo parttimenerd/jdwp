@@ -193,6 +193,7 @@ public class State {
                     for (var p : BasicTunnel.parseEvaluateProgramReply(vm, realReply)) {
                         captureInformation(p.first, p.second);
                         replyCache.put(p.first, p.second);
+                        LOG.debug("put into reply cache: {} -> {}", p.first, p.second);
                     }
                     // now go through all unfinished requests and check
                     for (WrappedPacket<Request<?>> value : unfinished.values()) {

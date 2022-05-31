@@ -2,6 +2,8 @@ package tunnel.synth.program;
 
 import jdwp.AccessPath;
 import jdwp.EventCmds.Events;
+import jdwp.EventRequestCmds;
+import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.Request;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.util.Pair;
@@ -25,6 +27,7 @@ import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
+import static tunnel.synth.program.Functions.createWrapperFunctionCall;
 
 public interface AST {
 
@@ -340,7 +343,7 @@ public interface AST {
             visitor.visit(this);
         }
 
-        public static RequestCall create(
+        private static RequestCall create(
                 String commandSet,
                 String command,
                 Stream<TaggedBasicValue<?>> taggedValues,
@@ -353,6 +356,21 @@ public interface AST {
         }
 
         public static RequestCall create(Request<?> request) {
+            if (request instanceof EventRequestCmds.SetRequest) {
+                var setRequest = (EventRequestCmds.SetRequest) request;
+                List<TaggedBasicValue<?>> tagged = new ArrayList<>();
+                tagged.add(new TaggedBasicValue<>(new AccessPath("eventKind"), setRequest.eventKind));
+                tagged.add(new TaggedBasicValue<>(new AccessPath("suspendPolicy"), setRequest.suspendPolicy));
+                int i = 0;
+                for (ModifierCommon modifier : setRequest.modifiers) {
+                    var prefix = new AccessPath("modifiers", i);
+                    tagged.add(new TaggedBasicValue<>(prefix.append("kind"), wrap(modifier.getClass().getSimpleName())));
+                    modifier.getTaggedValues().forEach(t -> tagged.add(t.prependPath(prefix)));
+                    i++;
+                }
+                var res = create(request.getCommandSetName(), request.getCommandName(), tagged.stream(), List.of());
+                return res;
+            }
             return create(
                     request.getCommandSetName(),
                     request.getCommandName(),
@@ -421,7 +439,7 @@ public interface AST {
 
         public static CallProperty create(TaggedBasicValue<?> taggedValue) {
             return new CallProperty(
-                    taggedValue.path, Functions.createWrapperFunctionCall(taggedValue.getValue()));
+                    taggedValue.path, createWrapperFunctionCall(taggedValue.getValue()));
         }
 
         @Override

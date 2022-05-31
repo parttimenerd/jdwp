@@ -10,7 +10,7 @@ Usage
 -----
 Logger (print all packets):
 ```sh
-  > java -javaagent:target/tunnel.jar=address=5015,verbose=debug,logger \
+  > java -javaagent:target/tunnel.jar=address=5015,verbose=warn,logger,--packets \
        -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 \
        -cp target/tunnel.jar tunnel.EndlessLoop
        
@@ -26,7 +26,7 @@ Logger (print all packets):
 
 ... print all packets with the resulting partitions and synthesized programs:
 ```sh
-  > java -javaagent:target/tunnel.jar=address=5015,verbose=debug,logger,mode=code,--partitions,--programs \
+  > java -javaagent:target/tunnel.jar=address=5015,verbose=warn,logger,mode=code,--packets,--partitions,--programs \
        -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 \
        -cp target/tunnel.jar tunnel.EndlessLoop
 
@@ -47,7 +47,7 @@ Logger (print all packets):
 ... print all programs for which we already created a previous program with the same cause 
 and at least 70% matching statements:
 ```sh
-  > java -javaagent:target/tunnel.jar=address=5015,verbose=debug,logger,mode=code,--overlaps \
+  > java -javaagent:target/tunnel.jar=address=5015,verbose=warn,logger,mode=code,--packets,--overlaps \
        -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 \
        -cp target/tunnel.jar tunnel.EndlessLoop
        
@@ -70,11 +70,18 @@ and at least 70% matching statements:
   ----- #programs =  2531  #(> 1 stmt)programs =  1054  #overlaps =  1039 (98,58%) 
 ```
 
+... run the two tunnel configuration (client tunnel and server tunnel):
+```sh
+  > mvn package > /dev/null && java -javaagent:target/tunnel.jar=verbose=debug,logger,tunnel=server:address=5015,verbose=debug,logger,tunnel=client\
+    -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 -cp target/tunnel.jar tunnel.EndlessLoop
+```
+
 What is done
 ------------
-- generation of basic JDWP command classes for all commands of the JDK 17 spec
+- Generation of basic JDWP command classes for all commands of the JDK 17 spec
   - tested using the JDI code as an oracle
 - PacketLogger tunnel that logs everything
+- Two tunnel configuration works (kind of)
 
 License
 -------
@@ -97,4 +104,4 @@ TODO
 - merge on programs should use hash trees to make it independent of variable names
   - the program synthesizer guarantees that the order of the statements depends only on the structure 
     of the dependency graph
-- implement caching...
+- test more
