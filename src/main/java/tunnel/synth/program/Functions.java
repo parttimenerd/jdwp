@@ -142,14 +142,14 @@ public abstract class Functions {
             if (arguments.size() == 1) {
                 return arguments.get(0);
             }
-            if (!arguments.stream().allMatch(a -> a instanceof PrimitiveValue.IntValue || a instanceof StringValue)) {
-                throw new AssertionError(String.format("Invalid path %s", arguments));
+            if (!arguments.stream().skip(1).allMatch(a -> a instanceof PrimitiveValue.IntValue || a instanceof StringValue || a instanceof LongValue)) {
+                throw new AssertionError(String.format("Invalid path %s", arguments.subList(1, arguments.size())));
             }
             var obj = arguments.get(0);
             if (!(obj instanceof WalkableValue<?>)) {
                 throw new AssertionError(String.format(String.format("Base object %s is not walkable", obj)));
             }
-            var path = new AccessPath(arguments.stream().skip(1).map(s -> ((BasicScalarValue<?>)s).value).toArray());
+            var path = new AccessPath(arguments.stream().skip(1).map(s -> ((BasicScalarValue<?>)s).value).map(s -> s instanceof Long ? (int)(long)s : s).toArray());
             return path.access((WalkableValue<?>)obj);
         }
     };

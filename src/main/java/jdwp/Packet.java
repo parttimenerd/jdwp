@@ -25,10 +25,13 @@
 
 package jdwp;
 
+import lombok.Getter;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+@Getter
 public class Packet {
     public static final short NO_FLAGS = 0x0;
     public static final short REPLY_FLAG = 0x80;

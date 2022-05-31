@@ -24,6 +24,8 @@ import jdwp.ThreadGroupReferenceCmds.ChildrenReply;
 import jdwp.ThreadReferenceCmds.NameReply;
 import jdwp.ThreadReferenceCmds.NameRequest;
 import jdwp.ThreadReferenceCmds.ThreadGroupReply;
+import jdwp.TunnelCmds.EvaluateProgramReply;
+import jdwp.TunnelCmds.EvaluateProgramReply.RequestReply;
 import jdwp.VM.NoTagPresentException;
 import jdwp.Value.*;
 import jdwp.VirtualMachineCmds.*;
@@ -76,7 +78,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static jdwp.PrimitiveValue.wrap;
+import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.*;
+import static tunnel.BasicTunnel.parseEvaluateProgramReply;
 
 /**
  * Tests for the JDWP classes, including many reply and request classes.
@@ -1251,6 +1255,21 @@ class JDWPTest {
     @MethodSource("packageErrorHandlingTestSource")
     public void testPackageErrorHandling(byte[] b) {
         assertThrows(PacketError.class, () -> jdwp.Packet.fromByteArray(b));
+    }
+
+    @Test
+    public void testEqualsIgnoresIds() {
+        assertEquals(new IDSizesRequest(1), new IDSizesRequest(10));
+    }
+
+    @Test
+    public void testProcessEvaluateProgramReply() {
+        var idSizesRequest = new IDSizesRequest(0);
+        var idSizesReply = new IDSizesReply(0, wrap(8), wrap(8), wrap(8), wrap(8), wrap(8));
+        var reply = new EvaluateProgramReply(0, new ListValue<>(
+                new RequestReply(new ByteList(idSizesRequest.toPacket(vm).toByteArray()),
+                        new ByteList(idSizesReply.toPacket(vm).toByteArray()))));
+        assertEquals(List.of(p(idSizesRequest, idSizesReply)), parseEvaluateProgramReply(vm, EvaluateProgramReply.parse(reply.toStream(vm)).getReply()));
     }
 
     static PacketStream oraclePacketStream(jdwp.Packet packet) {

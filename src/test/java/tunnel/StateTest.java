@@ -45,7 +45,7 @@ public class StateTest {
         }
 
         Reply addReply(Reply reply) throws IOException {
-            state.readReply(reply.toPacket(state.vm()).toInputStream(state.vm()));
+            state.readReply(reply.toPacket(state.vm()).toInputStream(state.vm()), null);
             replies.add(new ReplyOrError<>(reply));
             return reply;
         }

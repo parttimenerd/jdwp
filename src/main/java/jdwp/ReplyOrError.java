@@ -21,6 +21,7 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
     }
 
     public ReplyOrError(int id, short flags, short errorCode) {
+        assert errorCode != 0;
         this.reply = null;
         this.errorCode = errorCode;
         this.id = id;
@@ -130,5 +131,10 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
             return reply.asCombined();
         }
         return null;
+    }
+
+    @Override
+    public ParsedPacket withNewId(int id) {
+        return isReply() ? new ReplyOrError<>(id, flags, getReply()) : new ReplyOrError<>(id, flags, errorCode);
     }
 }

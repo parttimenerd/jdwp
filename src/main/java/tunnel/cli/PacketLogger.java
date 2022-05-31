@@ -7,6 +7,7 @@ import picocli.CommandLine.ParentCommand;
 import tunnel.BasicTunnel;
 import tunnel.Listener.LoggingListener;
 import tunnel.Listener.LoggingListener.Mode;
+import tunnel.State;
 import tunnel.synth.Partitioner;
 import tunnel.synth.ProgramCollection;
 import tunnel.synth.Synthesizer;
@@ -44,6 +45,9 @@ public class PacketLogger implements Runnable {
             "to be considered overlapping and logged")
     private double overlapFactor = 0.7;
 
+    @Option(names = "--tunnel", description = "Tunnel mode")
+    private State.Mode tunnelMode = State.Mode.NONE;
+
     public static PacketLogger create(Main mainConfig) {
         var pl = new PacketLogger();
         pl.mainConfig = mainConfig;
@@ -54,7 +58,7 @@ public class PacketLogger implements Runnable {
     public void run() {
         mainConfig.setDefaultLogLevel();
         LOG.info("Starting tunnel from {} to {}", mainConfig.getJvmAddress(), mainConfig.getOwnAddress());
-        var tunnel = new BasicTunnel(mainConfig.getOwnAddress(), mainConfig.getJvmAddress());
+        var tunnel = new BasicTunnel(mainConfig.getOwnAddress(), mainConfig.getJvmAddress(), tunnelMode);
         if (logPartitions || logPrograms || logOverlap) {
             var partitioner = new Partitioner()
                     .addListener(p -> {
@@ -96,8 +100,7 @@ public class PacketLogger implements Runnable {
                     System.out.println(o.getSecond().toPrettyString());
                     System.out.printf("----- overlap: %.2f ----%n", o.getOverlapFactor());
                     System.out.println(o.getOverlap().toPrettyString());
-                    System.out.printf("----- #programs = %5d  #(> 1 stmt)programs = %5d  #overlaps = %5d (%2.2f%%) " +
-                                    "#assignments = %7d  #overlapping = %7d (%2.2f%%) %n",
+                    System.out.printf("----- #programs = %5d  #(> 1 stmt)programs = %5d  #overlaps = %5d (%2.2f%%) #assignments = %7d  #overlapping = %7d (%2.2f%%) %n",
                             overlapCount[0], overlapCount[1], overlapCount[2], overlapCount[2] / (overlapCount[1] / 100.0),
                             overlapCount[3], overlapCount[4], overlapCount[4] / (overlapCount[3] / 100.0));
                 });

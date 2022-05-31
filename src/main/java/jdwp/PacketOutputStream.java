@@ -34,6 +34,7 @@ import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @SuppressWarnings("ALL")
+public
 class PacketOutputStream {
     private final VM vm;
     private int inCursor = 0;

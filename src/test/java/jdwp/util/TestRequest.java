@@ -62,4 +62,9 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
     public void accept(CommandVisitor visitor) {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public Request<TestReply> withNewId(int id) {
+        return new TestRequest(id);
+    }
 }

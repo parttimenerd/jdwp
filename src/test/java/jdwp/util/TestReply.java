@@ -1,11 +1,8 @@
 package jdwp.util;
 
+import jdwp.*;
 import jdwp.JDWP.CommandVisitor;
 import jdwp.JDWP.ReplyVisitor;
-import jdwp.Packet;
-import jdwp.Reply;
-import jdwp.VM;
-import jdwp.Value;
 
 public class TestReply extends AbstractTestParsedPacket implements Reply {
 
@@ -52,5 +49,10 @@ public class TestReply extends AbstractTestParsedPacket implements Reply {
     @Override
     public void accept(ReplyVisitor visitor) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ParsedPacket withNewId(int id) {
+        return new TestReply(id);
     }
 }

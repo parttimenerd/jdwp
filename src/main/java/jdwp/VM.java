@@ -27,6 +27,7 @@ package jdwp;
 
 import jdwp.ClassTypeCmds.NewInstanceReply;
 import jdwp.ClassTypeCmds.NewInstanceRequest;
+import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.*;
 import jdwp.JDWP.RequestReplyVisitor;
 import jdwp.JDWP.RequestVisitor;
@@ -42,6 +43,7 @@ import jdwp.VM.NoTagPresentException.Source;
 import jdwp.VirtualMachineCmds.*;
 import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
 import lombok.Getter;
+import tunnel.BasicTunnel;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -270,13 +272,25 @@ public class VM {
                 addFieldObjectTag(obj.object.value, obj.fieldID.value, (byte) obj.valueToBe.type.tag);
                 addClassSpecificTag(obj.typeID.value, (byte) obj.valueToBe.type.tag);
             }
+
+            @Override
+            public void visit(TunnelRequestReplies obj) {
+                var pair = BasicTunnel.parseTunnelRequestReplyEvent(VM.this, obj);
+                captureInformation(pair.first);
+                pair.second.stream().forEach(p -> captureInformation(p.first, p.second));
+            }
         });
     }
 
     public void captureInformation(Request<?> request) {
+        assert !(request instanceof Events);
         request.accept(new RequestVisitor() {
             // there seems to be no information that can be gathered
         });
+    }
+
+    public void captureInformation(Events events) {
+        events.events.stream().forEach(this::captureInformation);
     }
 
     /**

@@ -94,7 +94,7 @@ public class Program extends Statement {
         return cause != null ? new AssignmentStatement(AST.ident(CAUSE_NAME), cause) : body.getFirstCallAssignment();
     }
 
-    public double getNumberOfAssignments() {
+    public int getNumberOfAssignments() {
         int[] count = new int[]{ 0 };
         body.accept(new RecursiveStatementVisitor() {
             @Override
@@ -103,5 +103,9 @@ public class Program extends Statement {
             }
         });
         return count[0];
+    }
+
+    public @Nullable AssignmentStatement getCauseStatement() {
+        return hasCause() ? new AssignmentStatement(AST.ident(CAUSE_NAME), getCause()) : null;
     }
 }

@@ -1,5 +1,7 @@
 package jdwp;
 
+import jdwp.EventCmds.Events.EventCommon;
+import jdwp.PrimitiveValue.StringValue;
 import jdwp.Reference.ArrayReference;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
@@ -460,6 +462,10 @@ public abstract class Value implements ToCode {
             return size() > 0;
         }
 
+        public Stream<T> stream() {
+            return values.stream();
+        }
+
         /** inverse of {@link #getValues()} using reflection */
         public static <T extends ListValue<? extends Value>> T create(
                 Class<T> klass, Class<? extends Value> elementType, List<Pair<Integer, Value>> arguments) {
@@ -511,6 +517,25 @@ public abstract class Value implements ToCode {
                                             throw new AssertionError(
                                                     "elementType == null only works for scalar element values, "
                                                             + "probably missing an EntryType annotation");
+                                        }
+                                        if (elementType.equals(EventCommon.class)) {
+                                            // handle events differently
+                                            String kindClass = "";
+                                            List<TaggedBasicValue<?>> cleanedValues = new ArrayList<>();
+                                            for (TaggedBasicValue<?> value : values) {
+                                                if (value.getPath().get(0).equals("kind")) {
+                                                    kindClass = ((StringValue)value.value).value;
+                                                } else {
+                                                    cleanedValues.add(value);
+                                                }
+                                            }
+                                            try {
+                                                return CombinedValue.createForTagged(
+                                                        (Class<CombinedValue>)Class.forName(elementType.getName().replace("$EventCommon", "") + "$" + kindClass),
+                                                            values.stream());
+                                            } catch (ClassNotFoundException e) {
+                                                throw new AssertionError(e);
+                                            }
                                         }
                                         return CombinedValue.createForTagged(
                                                 (Class<CombinedValue>) elementType, values.stream());
@@ -788,6 +813,10 @@ public abstract class Value implements ToCode {
         public TaggedBasicValue<?> dropFirstPathElement() {
             assert path.size() >= 2;
             return new TaggedBasicValue<>(path.dropFirstPathElement(), value);
+        }
+
+        public TaggedBasicValue<V> prependPath(Object... prefix) {
+            return new TaggedBasicValue<>(path.prepend(prefix), value);
         }
     }
 }

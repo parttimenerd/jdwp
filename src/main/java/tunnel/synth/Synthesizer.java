@@ -104,15 +104,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         }
 
         private PacketCall createPacketCauseCall(Either<Request<?>, Events> call) {
-            var request = call.isLeft() ? call.getLeft() : call.getRight();
-            Map<AccessPath, FunctionCall> usedPaths = new HashMap<>();
-            request.asCombined().getTaggedValues()
-                    .filter(t -> !(usedPaths.containsKey(t.getPath())))
-                    .forEach(t -> usedPaths.put(t.getPath(), Functions.createWrapperFunctionCall(t.getValue())));
-            var args = usedPaths.keySet().stream().sorted()
-                    .map(p -> new CallProperty(p, usedPaths.get(p))).collect(Collectors.toList());
-            return call.isLeft() ? new RequestCall(request.getCommandSetName(), request.getCommandName(), args)
-                    : new EventsCall(request.getCommandSetName(), request.getCommandName(), args);
+            return call.isLeft() ? RequestCall.create(call.getLeft()) : EventsCall.create(call.getRight());
         }
 
         public AssignmentStatement createRequestCallStatement(Node node) {
@@ -120,6 +112,138 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             return new AssignmentStatement(ident(get(node)), call);
         }
     }
+
+    // draft of loop detection code
+    /*private static Optional<Pair<Program, Set<Node>>> isPossibleLoopSourceNode(NodeNames variables, Layers layers, Node node, int minSize) {
+        assert minSize >= 2;
+        var currentLayer = layers.get(layers.getLayerIndex(node));
+        var layerBelow = layers.getOrEmpty(layers.getLayerIndex(node) + 1);
+        if (node.getDependedBy().isEmpty()) { // no node depends on it
+            return Optional.empty();
+        }
+        Set<Edge> connectionsToBelow = node.getDependedBy().stream()
+                .filter(e -> layerBelow.contains(e.getTarget())).collect(Collectors.toSet());
+        if (connectionsToBelow.isEmpty()) { // no connections to the nodes below
+            return Optional.empty();
+        }
+        if (connectionsToBelow.stream().map(Edge::getTarget)
+                .anyMatch(n -> n.getDependsOn().stream().map(Edge::getTarget)
+                        .anyMatch(n2 -> n2 != node && currentLayer.contains(n2)))) {
+            return Optional.empty(); // dependent nodes depend on other nodes of the current layer, possibly mixing two loops
+        }
+
+        // now find all paths that only differ in an index
+
+        // first collect all paths (and the nodes that depend on them)
+        Map<AccessPath, Set<Node>> pathToNodes = new HashMap<>();
+        for (Edge edge : connectionsToBelow) {
+            for (TaggedBasicValue<?> usedValue : edge.getUsedValues()) {
+                var path = usedValue.path.removeTag();
+                pathToNodes.computeIfAbsent(path, p -> new HashSet<>()).add(edge.getTarget());
+            }
+        }
+
+        // keep in mind: nodes below might also depend on non list entries
+
+        // find paths that are similar if we ignore the list accesses in the path
+        // but only consider paths that contain list accesses
+        Map<AccessPath, List<AccessPath>> fieldOnlyToRegularPaths =
+                pathToNodes.keySet().stream().filter(AccessPath::containsListAccesses)
+                        .collect(Collectors.groupingBy(AccessPath::removeListAccesses));
+        if (fieldOnlyToRegularPaths.isEmpty()) {
+            return Optional.empty();
+        }
+        // now check that each group only differs in one location
+        // as lists in lists are harder and not supported
+        // the groups do not have duplicates by design
+        int differingIndex = -2; // differing index for all groups
+        for (var accessPathListEntry : fieldOnlyToRegularPaths.entrySet()) {
+            var group = accessPathListEntry.getValue();
+            if (group.size() < minSize) { // ignore if size is too small
+                return Optional.empty(); // simplification
+            }
+            if (differingIndex == -2) { // compute the differing index for the first time
+                differingIndex = group.get(0).onlyDifferingIndex(group.get(1));
+                if (differingIndex == -1) {
+                    return Optional.empty();
+                }
+            }
+            final int d = differingIndex;
+            // check that the differing index is valid for all groups
+            if (group.stream().anyMatch(p -> group.get(0).onlyDifferingIndex(p) != d)) {
+                return Optional.empty(); // simplification
+            }
+        }
+        final int finalDifferingIndex = differingIndex;
+        // we now know that all paths differ only at a given index in their group
+        // we now check all access paths are the same considering only path elements before the differing index
+        AccessPath prefix = fieldOnlyToRegularPaths.entrySet().iterator().next().getValue().get(0)
+                .subPath(0, differingIndex); // we made enough checks before, so this is ok
+        if (fieldOnlyToRegularPaths.keySet().stream().anyMatch(p -> !p.startsWith(prefix))) {
+            return Optional.empty(); // at least one path did not start with the prefix
+        }
+        // now we know that all paths have the structure "[prefix].[differing].[group appendix]"
+        // we have to find
+
+        // collect preliminary headers
+        Map<Integer, List<AccessPath>> headerPathsPerIndex = new HashMap<>();
+        for (Entry<AccessPath, List<AccessPath>> entry : fieldOnlyToRegularPaths.entrySet()) {
+            for (AccessPath path : entry.getValue()) {
+                var index = (Integer)path.get(differingIndex); // ok by construction
+                headerPathsPerIndex.computeIfAbsent(index, p -> new ArrayList<>()).add(path);
+            }
+        }
+        Map<Integer, Set<Node>> headersPerIndex = new HashMap<>();
+        Map<Integer, Set<Node>> fullBodyPerIndex = new HashMap<>();
+        for (Entry<Integer, List<AccessPath>> entry : headerPathsPerIndex.entrySet()) {
+            var headers = entry.getValue().stream().flatMap(p -> pathToNodes.get(p).stream()).collect(Collectors.toSet());
+            headersPerIndex.put(entry.getKey(), headers);
+            Set<Node> body = layers.computeDominatedNodes(headers);
+            if (body == null) { // dominated nodes might depend on nodes in upper layers
+                return Optional.empty();
+            }
+            // check that all body nodes do not depend on other list items
+            if (body.stream().anyMatch(n -> n.getDependsOn().stream().anyMatch(e -> {
+                if (e.getTarget().equals(node)) { // loop source node?
+                    return e.getUsedValues().stream().anyMatch(t -> t.path.startsWith(prefix)
+                            && finalDifferingIndex < t.path.size() && t.path.get(finalDifferingIndex) != entry.getKey());
+                }
+                return false;
+            }))) {
+                return Optional.empty();
+            }
+            Set<Node> fullBody;
+            if (body.isEmpty()) {
+                fullBody = headers;
+            } else {
+                fullBody = new HashSet<>(body);
+                fullBody.addAll(headers);
+            }
+            fullBodyPerIndex.put(entry.getKey(), fullBody);
+        }
+        List<Statement> finishedStatements = new ArrayList<>();
+        // mark node.prefix as the iteration variable
+        var iterableNameAndCall = variables.createGetCallIfNeeded(node, prefix);
+        iterableNameAndCall.second.ifPresent(finishedStatements::add);
+        var iterNameAndCall = variables.markIterPath(node, prefix);
+        iterNameAndCall.second.ifPresent(finishedStatements::add);
+        // we now have the full bodies, but they might contain loops too
+        Set<Node> processedNodes = new HashSet<>();
+        Program merged = null;
+        for (Entry<Integer, Set<Node>> fullBodyEntry : fullBodyPerIndex.entrySet()) {
+            var fullBody = fullBodyEntry.getValue();
+            var bodyProgram = processNodes(variables.child(), layers, fullBody, minSize).first;
+            if (merged == null) {
+                merged = bodyProgram;
+            } else {
+                merged = merged.merge(bodyProgram); // maybe include some heuristic here
+            }
+            processedNodes.addAll(fullBody);
+        }
+        finishedStatements.add(new Loop(AST.ident(iterNameAndCall.first), AST.ident(iterableNameAndCall.first), merged.getBody()));
+        variables.unmarkIterPath(node, prefix);
+        return Optional.of(p(new Program(finishedStatements), processedNodes));
+    }*/
 
     private static Pair<Program, Set<Node>> processNodes(NodeNames variables, Layers layers, Set<Node> fullBody, int minSize) {
         var fullBodySorted = new ArrayList<>(fullBody);
@@ -134,6 +258,11 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 continue;
             }
             statements.add(variables.createRequestCallStatement(node));
+            /*var loopRes = isPossibleLoopSourceNode(variables.child(), layers, node, minSize);
+            loopRes.ifPresent(programSetPair -> {
+                statements.addAll(programSetPair.first.getBody());
+                ignoredNodes.addAll(loopRes.get().second);
+            });*/
         }
         return p(new Program(statements), fullBody);
     }

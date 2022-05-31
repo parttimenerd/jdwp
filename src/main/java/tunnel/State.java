@@ -2,21 +2,44 @@ package tunnel;
 
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.EventCommon;
+import jdwp.EventCmds.Events.TunnelRequestReplies;
 import jdwp.*;
+import jdwp.TunnelCmds.EvaluateProgramReply;
+import jdwp.TunnelCmds.EvaluateProgramRequest;
+import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import tunnel.synth.Partitioner;
+import tunnel.synth.Synthesizer;
+import tunnel.synth.program.Program;
 import tunnel.util.Either;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import static tunnel.State.Mode.CLIENT;
+import static tunnel.State.Mode.NONE;
 
 /**
  * handles unfinished requests and supports listeners
  */
+@Getter
 public class State {
+
+    public enum Mode {
+        /** use programs on request and send them to the server */
+        CLIENT,
+        /** use programs on events and evaluate them directly */
+        SERVER,
+        NONE
+    }
 
     public static class NoSuchRequestException extends PacketError {
 
@@ -31,21 +54,77 @@ public class State {
     public static class WrappedPacket<R> {
         final R packet;
         final long time;
+
+        public WrappedPacket(R packet) {
+            this(packet, System.currentTimeMillis());
+        }
     }
 
     private final VM vm;
+    private final Mode mode;
     private int currentRequestId;
     private final Map<Integer, WrappedPacket<Request<?>>> unfinished;
+
+    private final Map<Integer, EvaluateProgramRequest> unfinishedEvaluateRequests;
     private final Set<Listener> listeners;
 
-    public State(VM vm) {
+    private final ReplyCache replyCache;
+    private final ProgramCache programCache;
+
+    public State(VM vm, Mode mode) {
         this.vm = vm;
         this.unfinished = new HashMap<>();
         this.listeners = new HashSet<>();
+        this.replyCache = new ReplyCache();
+        this.programCache = new ProgramCache();
+        this.unfinishedEvaluateRequests = new HashMap<>();
+        this.mode = mode;
+        if (mode != NONE) {
+            registerCacheListener();
+            registerProgramCacheListener();
+        }
     }
 
     public State() {
-        this(new VM(0));
+        this(NONE);
+    }
+
+    public State(Mode mode) {
+        this(new VM(0), mode);
+    }
+
+    private void registerCacheListener() {
+        listeners.add(new Listener() {
+            @Override
+            public void onRequest(Request<?> request) {
+                if (!request.onlyReads()) {
+                    replyCache.invalidate();
+                }
+            }
+
+            @Override
+            public void onReply(Request<?> request, Reply reply) {
+                if (request.onlyReads()) {
+                    replyCache.put(request, reply);
+                }
+            }
+
+            @Override
+            public void onEvent(Events events) {
+                replyCache.invalidate();
+            }
+        });
+    }
+
+    private void registerProgramCacheListener() {
+        listeners.add(new Partitioner().addListener(partition -> {
+            if (partition.hasCause()) {
+                var cause = partition.getCause();
+                if (cause.isLeft() == (State.this.mode == CLIENT)) {
+                    programCache.accept(Synthesizer.synthesizeProgram(partition));
+                }
+            }
+        }));
     }
 
     public void addRequest(WrappedPacket<Request<?>> request) {
@@ -80,7 +159,7 @@ public class State {
     public Request<?> readRequest(InputStream inputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream); // already wrapped in PacketError
         var request = PacketError.call(() -> JDWP.parse(ps), ps);
-        addRequest(new WrappedPacket<>(request, System.currentTimeMillis()));
+        addRequest(new WrappedPacket<>(request));
         try {
             vm.captureInformation(request);
         } catch (Exception | AssertionError e) {
@@ -89,33 +168,79 @@ public class State {
         return request;
     }
 
-    public Either<Events, ReplyOrError<?>> readReply(InputStream inputStream) throws IOException {
+    public @Nullable Either<Events, ReplyOrError<?>> readReply(InputStream inputStream,
+                                                               @Nullable OutputStream clientOutputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream);
         if (ps.isReply()) {
+            if (unfinishedEvaluateRequests.containsKey(ps.id())) {
+                var reply = PacketError.call(() -> EvaluateProgramReply.parse(ps), ps);
+                unfinishedEvaluateRequests.remove(ps.id());
+                if (reply.isError()) {
+                    addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), (short)1)));
+                } else {
+                    var realReply = reply.getReply();
+                    assert clientOutputStream != null;
+                    for (var p : BasicTunnel.parseEvaluateProgramReply(vm, realReply)) {
+                        captureInformation(p.first, p.second);
+                        replyCache.put(p.first, p.second);
+                    }
+                    // now go through all unfinished requests and check
+                    for (WrappedPacket<Request<?>> value : unfinished.values()) {
+                        var unfinishedRequest = value.packet;
+                        if (hasCachedReply(unfinishedRequest)) {
+                            var cachedReply = replyCache.get(unfinishedRequest);
+                            addReply(new WrappedPacket<>(new ReplyOrError<>(cachedReply),
+                                    System.currentTimeMillis()));
+                            writeReply(clientOutputStream, Either.right(new ReplyOrError<>(cachedReply)));
+                        }
+                    }
+                    var originalReply = new ReplyOrError<>(ps.id(), replyCache.get(getUnfinishedRequest(ps.id()).getPacket()));
+                    addReply(new WrappedPacket<>(originalReply));
+                    return Either.right(originalReply);
+                }
+            }
             var request = getUnfinishedRequest(ps.id());
 
             var reply = PacketError.call(() -> request.packet.parseReply(ps), ps);
-            addReply(new WrappedPacket<>(reply, System.currentTimeMillis()));
+            addReply(new WrappedPacket<>(reply));
             if (reply.isReply()) {
-                try {
-                    vm.captureInformation(request.packet, reply.getReply());
-                } catch (Exception | AssertionError e) {
-                    throw new PacketError(String.format("Failed to capture information from request %s and reply %s",
-                            request, reply), e);
-                }
+                var realReply = reply.getReply();
+                captureInformation(request.packet, realReply);
             }
             return Either.right(reply);
         } else {
             var events = Events.parse(ps);
+            captureInformation(events);
             for (EventCommon event : events.events) {
-                try {
-                vm.captureInformation(event);
-                } catch (Exception | AssertionError e) {
-                    throw new PacketError(String.format("Failed to capture information from event %s", event), e);
+                if (event instanceof TunnelRequestReplies) {
+                    assert events.events.size() == 1; // is the only event in the list
+                    var parsed = BasicTunnel.parseTunnelRequestReplyEvent(vm, (TunnelRequestReplies)event);
+                    addEvent(new WrappedPacket<>(parsed.first));
+                    for (Pair<Request<?>, Reply> p : parsed.second) {
+                        replyCache.put(p.first, p.second);
+                    }
+                    return Either.left(parsed.first);
                 }
             }
-            addEvent(new WrappedPacket<>(events, System.currentTimeMillis()));
+            addEvent(new WrappedPacket<>(events));
             return Either.left(events);
+        }
+    }
+
+    public void captureInformation(Request<?> request, Reply reply) {
+        try {
+            vm.captureInformation(request, reply);
+        } catch (Exception | AssertionError e) {
+            throw new PacketError(String.format("Failed to capture information from request %s and reply %s",
+                    request, reply), e);
+        }
+    }
+
+    public void captureInformation(Events events) {
+        try {
+            vm.captureInformation(events);
+        } catch (Exception | AssertionError e) {
+            throw new PacketError(String.format("Failed to capture information from events %s", events), e);
         }
     }
 
@@ -128,6 +253,20 @@ public class State {
         } catch (Exception | AssertionError e) {
             throw new PacketError(String.format("Failed to write reply or events %s", reply.<ParsedPacket>get()), e);
         }
+    }
+
+    public void addAndWriteReply(OutputStream outputStream, Either<Events, ReplyOrError<?>> reply) {
+        if (reply.isRight()) {
+            addReply(new WrappedPacket<>(reply.getRight()));
+        } else {
+            addEvent(new WrappedPacket<>(reply.getLeft()));
+        }
+        writeReply(outputStream, reply);
+    }
+
+    public void addAndWriteError(OutputStream outputStream, int id, int error) {
+        var replyOrError = new ReplyOrError<>(id, (short) error);
+        addAndWriteReply(outputStream, Either.right(replyOrError));
     }
 
     /**
@@ -147,5 +286,37 @@ public class State {
 
     public void tick() {
         listeners.forEach(Listener::onTick);
+    }
+
+    public boolean hasUnfinishedRequests() {
+        return unfinished.size() > 0;
+    }
+
+    public boolean hasUnfinishedRequests(int ignoreId) {
+        return unfinished.size() > 1 || (unfinished.size() == 1 && !unfinished.containsKey(ignoreId));
+    }
+
+    public boolean hasUnfinishedRequest(int id) {
+        return unfinished.containsKey(id);
+    }
+
+    public boolean hasCachedReply(Request<?> request) {
+        return replyCache.get(request) != null;
+    }
+
+    public Reply getCachedReply(Request<?> request) {
+        return replyCache.get(request);
+    }
+
+    public boolean hasCachedProgram(ParsedPacket packet) {
+        return programCache.get(packet).isPresent();
+    }
+
+    public Program getCachedProgram(ParsedPacket packet) {
+        return programCache.get(packet).get();
+    }
+
+    public void addUnfinishedEvaluateRequest(EvaluateProgramRequest evaluateRequest) {
+        unfinishedEvaluateRequests.put(evaluateRequest.getId(), evaluateRequest);
     }
 }

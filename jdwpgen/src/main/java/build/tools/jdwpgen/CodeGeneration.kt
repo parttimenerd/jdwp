@@ -105,6 +105,12 @@ internal object CodeGeneration {
             _return((cmd.parent as CommandSetNode).rawName().S)
         }
 
+        `public`(bg(className), "withNewId", param(TypeName.INT, "id")) {
+            `@Override`()
+            _return("new $className(id, flags${fields.joinToString("") { ", " + it.name() }})")
+            this
+        }
+
         genVisitorAccept(allVisitorName)
 
         return this
@@ -176,6 +182,7 @@ internal object CodeGeneration {
             }
 
             genVisitorAccept(requestVisitorName)
+            genReturningVisitorAccept(returningRequestVisitorName)
 
             `public`(
                 TypeName.VOID, "accept", param(requestReplyVisitorName, "visitor"),
@@ -450,7 +457,7 @@ internal object CodeGeneration {
                 _return("new ${alt.name()}(${(commonFields + uncommonFields).joinToString(", ") { it.name }})")
             }
 
-            genCombinedTypeGet( fields)
+            genCombinedTypeGet(fields)
 
             genToString(alt.name(), fields)
             genToCode(commandSetClassName + "." + alt.name(), fields)
@@ -589,21 +596,44 @@ internal object CodeGeneration {
 
     private const val allVisitorName = "CommandVisitor"
     private const val requestVisitorName = "RequestVisitor"
+    private const val returningRequestVisitorName = "ReturningRequestVisitor"
     private const val replyVisitorName = "ReplyVisitor"
     private const val requestReplyVisitorName = "RequestReplyVisitor"
 
     private fun genVisitor(name: String, typeNames: List<String>) = `public interface`(name) {
         for (typeName in typeNames) {
-            `public`(TypeName.VOID, "visit", param(bg(typeName), "obj")) {
+            `public`(TypeName.VOID, "visit", param(bg(typeName), typeNameToParameterName(typeName))) {
                 addModifiers(Modifier.DEFAULT)
             }
         }
         this
     }
 
+    private fun genReturningVisitor(name: String, typeNames: List<String>) = `public interface`(name) {
+        addTypeVariable(TypeVariableName.get("R"))
+        for (typeName in typeNames) {
+            `public`(bg("R"), "visit", param(bg(typeName), typeNameToParameterName(typeName))) {
+                addModifiers(Modifier.DEFAULT)
+                _return("null")
+            }
+        }
+        this
+    }
+
+    private fun typeNameToParameterName(typeName: String) = typeName.split(".").last().lowercaseFirstCharacter()
+
+    private fun String.lowercaseFirstCharacter() = this[0].lowercase() + substring(1, length)
+
     private fun TypeSpec.Builder.genVisitorAccept(visitorName: String) = `public`(TypeName.VOID, "accept", param(visitorName, "visitor")) {
         `@Override`()
         statement("visitor.visit(this)")
+    }
+
+    private fun TypeSpec.Builder.genReturningVisitorAccept(visitorName: String) = `public`(bg("R"), "accept",
+        param(pt(visitorName, "R"), "visitor")) {
+        `@Override`()
+        addTypeVariables(listOf(TypeVariableName.get("R")))
+        _return("visitor.visit(this)")
     }
 
     @JvmStatic
@@ -689,7 +719,7 @@ internal object CodeGeneration {
             ) {
                 switch("ps.commandSet()") {
                     for (cmdSet in nodes) {
-                        case("${cmdSet.name()}.COMMAND_SET") {
+                        case("(byte)${cmdSet.name()}.COMMAND_SET") {
                             _return("${cmdSet.name()}.parse(ps)")
                         }
                     }
@@ -735,6 +765,7 @@ internal object CodeGeneration {
 
             addType(genVisitor(allVisitorName, requestNames + replyNames))
             addType(genVisitor(requestVisitorName, requestNames))
+            addType(genReturningVisitor(returningRequestVisitorName, requestNames))
             addType(genVisitor(replyVisitorName, replyNames))
 
             addType(`public interface`(requestReplyVisitorName) {

@@ -1,18 +1,24 @@
 package tunnel.synth.program;
 
+import jdwp.AbstractParsedPacket;
+import jdwp.PacketError;
+import jdwp.Request;
 import jdwp.Value;
 import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.Value.WalkableValue;
 import jdwp.util.Pair;
+import org.jetbrains.annotations.NotNull;
 import tunnel.synth.program.AST.*;
 import tunnel.synth.program.Visitors.ReturningExpressionVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.wrap;
+import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
 public class Evaluator {
 
@@ -26,7 +32,11 @@ public class Evaluator {
     }
 
     public Scopes<Value> evaluate(Program program) {
-        return evaluate(new Scopes<>(), program.getBody());
+        var scope = new Scopes<Value>();
+        if (program.hasCause()) {
+            evaluate(scope, new Body(List.of(program.getCauseStatement())));
+        }
+        return evaluate(scope, program.getBody());
     }
 
     public Scopes<Value> evaluate(Scopes<Value> scope, Body body) {
@@ -45,6 +55,20 @@ public class Evaluator {
                             loop.getBody().forEach(s -> s.accept(this));
                             scope.pop();
                         }
+                    }
+
+                    @Override
+                    public void visit(AssignmentStatement assignment) {
+                        if (assignment.isCause()) {
+                            scope.put(CAUSE_NAME, evaluatePacketCall(scope, (PacketCall) assignment.getExpression()));
+                        } else {
+                            scope.put(assignment.getVariable().getName(), evaluate(scope, assignment.getExpression()));
+                        }
+                    }
+
+                    @Override
+                    public void visit(Body body){
+                        body.getSubStatements().forEach(s -> s.accept(this));
                     }
                 });
         return scope;
@@ -69,19 +93,12 @@ public class Evaluator {
 
                     @Override
                     public Value visit(RequestCall requestCall) {
-                        var commandSet = requestCall.getCommandSet();
-                        var command = requestCall.getCommand();
-                        Stream<TaggedBasicValue<?>> values =
-                                requestCall.getProperties().stream()
-                                        .map(
-                                                p -> {
-                                                    var value = p.getAccessor().accept(this);
-                                                    if (!(value instanceof BasicValue)) {
-                                                        throw new AssertionError();
-                                                    }
-                                                    return new TaggedBasicValue<>(p.getPath(), (BasicValue) value);
-                                                });
-                        return functions.processRequest(commandSet, command, values);
+                        return functions.processRequest((Request<?>) evaluatePacketCall(scope, requestCall));
+                    }
+
+                    @Override
+                    public Value visit(EventsCall eventsCall) {
+                        return evaluatePacketCall(scope, eventsCall);
                     }
 
                     @Override
@@ -99,5 +116,38 @@ public class Evaluator {
                         return scope.get(name.getName());
                     }
                 });
+    }
+
+    @SuppressWarnings("unchecked")
+    public AbstractParsedPacket evaluatePacketCall(Scopes<Value> scope, PacketCall packetCall) {
+        Stream<TaggedBasicValue<?>> values =
+                evaluateValues(scope, packetCall);
+        var name = packetCall instanceof RequestCall ?
+                String.format("jdwp.%sCmds$%sRequest", packetCall.getCommandSet(),
+                        packetCall.getCommand()) :
+                "jdwp.EventCmds$Events";
+        try {
+            return AbstractParsedPacket.createForTagged(
+                    DEFAULT_ID, (Class<AbstractParsedPacket>) Class.forName(name), values);
+        } catch (ClassNotFoundException e) {
+            throw new PacketError("Unknown class", e);
+        }
+    }
+
+    @NotNull
+    private Stream<TaggedBasicValue<?>> evaluateValues(Scopes<Value> scope, PacketCall packetCall) {
+        return packetCall.getProperties().stream()
+                .map(
+                        p -> {
+                            var value = evaluate(scope, p.getAccessor());
+                            if (!(value instanceof BasicValue)) {
+                                throw new AssertionError();
+                            }
+                            return new TaggedBasicValue<>(p.getPath(), (BasicValue) value);
+                        });
+    }
+
+    public AbstractParsedPacket evaluatePacketCall(PacketCall packetCall) {
+        return evaluatePacketCall(new Scopes<>(), packetCall);
     }
 }

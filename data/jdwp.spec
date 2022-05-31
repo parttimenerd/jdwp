@@ -243,7 +243,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet
             (Error VM_DEAD)
         )
-	(OnlyReads "true")
+	    (OnlyReads "true")
     )
     (Command Capabilities=12
         "Retrieve this VM's capabilities. The capabilities are returned "
@@ -3178,9 +3178,43 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (int requestID
                                 "Request that generated event")
                     )
+                    (Alt TunnelRequestReplies=JDWP.EventKind.TUNNEL_REQUEST_REPLIES
+                        "Wraps an event with a set of prefetched request reply pairs, "
+                        "created after the event has been received by the tunnel"
+                        (int requestID
+                                "Request that generated event")
+                        (bytes events "events packet")
+                        (Repeat replies "The number of replies."
+                            (Group RequestReply
+                                (bytes request "request packet")
+                                (bytes reply "reply packet")
+                            )
+                        )
+                    )
                 )
             )
         )
+    )
+)
+(CommandSet Tunnel=233
+    (Command EvaluateProgram=1
+        "Evaluate a debugging program and return a list of requests. "
+        "This is a custom extension only supported by the JDWP tunnel."
+        (Out
+            (string program "Debugging program to evaluate, the cause is ignored")
+        )
+        (Reply
+            (Repeat replies "The number of replies."
+                (Group RequestReply
+                    (bytes request "request packet")
+                    (bytes reply "reply packet")
+                )
+            )
+        )
+        (ErrorSet
+            (Error CANNOT_EVALUATE_PROGRAM)
+        )
+        (OnlyReads "true")
     )
 )
 (ConstantSet Error
@@ -3280,6 +3314,8 @@ JDWP "Java(tm) Debug Wire Protocol"
     (Constant TRANSPORT_INIT         =510 "Unable to initialize the transport.")
     (Constant NATIVE_METHOD          =511  )
     (Constant INVALID_COUNT          =512 "The count is invalid.")
+    (Constant CANNOT_EVALUATE_PROGRAM
+                                     =600 "The debugging program cannot be evaluated")
 )
 (ConstantSet EventKind
     (Constant SINGLE_STEP            =1   )
@@ -3306,6 +3342,7 @@ JDWP "Java(tm) Debug Wire Protocol"
     (Constant VM_START               =90  )
     (Constant VM_INIT                =90  "obsolete - was used in jvmdi")
     (Constant VM_DEATH               =99  )
+    (Constant TUNNEL_REQUEST_REPLIES =120 "only used for the JDWP tunnel to push prefetched packets")
     (Constant VM_DISCONNECTED        =100 "Never sent across JDWP")
 )
 

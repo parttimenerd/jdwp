@@ -34,10 +34,10 @@ public class SynthesizerTest {
                 {"((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=(wrap " +
                         "\"byte\" 1) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"sun.instrument" +
                         ".InstrumentationImpl\")))\n" +
-                        "  (= var0 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 426)))\n" +
-                        "  (= var1 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=" +
+                        "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=" +
                         "(wrap \"byte\" 1) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"sun.instrument" +
-                        ".InstrumentationImpl\"))))",
+                        ".InstrumentationImpl\")))\n" +
+                        "  (= var1 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 426))))",
                         new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(12090,
                                 PrimitiveValue.wrap((byte) 8), PrimitiveValue.wrap((byte) 1),
                                 new ListValue<>(Type.LIST,
@@ -82,6 +82,34 @@ public class SynthesizerTest {
                                                                 PrimitiveValue.wrap(6)),
                                                         new MethodCmds.LineTableReply.LineInfo(PrimitiveValue.wrap((long) 2),
                                                                 PrimitiveValue.wrap(8))))))))
+                },
+                {
+                        "((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)) " +
+                                "(= var1 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
+                                "\"test\"))))",
+                        new Partition(Either.left(new jdwp.VirtualMachineCmds.IDSizesRequest(0)), List.of(
+                                p(new jdwp.VirtualMachineCmds.IDSizesRequest(0),
+                                        new jdwp.VirtualMachineCmds.IDSizesReply(0, PrimitiveValue.wrap(8),
+                                                PrimitiveValue.wrap(8), PrimitiveValue.wrap(8),
+                                                PrimitiveValue.wrap(8), PrimitiveValue.wrap(8))),
+                                p(new jdwp.VirtualMachineCmds.ClassesBySignatureRequest(1,
+                                        PrimitiveValue.wrap("test")),
+                                        new jdwp.VirtualMachineCmds.ClassesBySignatureReply(1,
+                                                new ListValue<>(Type.LIST, List.of())))))
+                },
+                {
+                        "((= cause (events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" \"ClassUnload\") " +
+                                "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
+                                "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0" +
+                                " (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))",
+                        new Partition(Either.right(new jdwp.EventCmds.Events(0, PrimitiveValue.wrap((byte) 2),
+                                new ListValue<>(Type.LIST,
+                                        List.of(new EventCmds.Events.ClassUnload(PrimitiveValue.wrap(0),
+                                                PrimitiveValue.wrap("sig")))))), List.of(
+                                p(new jdwp.VirtualMachineCmds.ClassesBySignatureRequest(0,
+                                        PrimitiveValue.wrap("test")),
+                                        new jdwp.VirtualMachineCmds.ClassesBySignatureReply(0,
+                                                new ListValue<>(Type.LIST, List.of())))))
                 }
         };
     }

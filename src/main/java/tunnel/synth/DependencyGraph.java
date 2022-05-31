@@ -430,8 +430,12 @@ public class DependencyGraph {
                 nodeComparator = (left, right) -> {
                     assert left != null && right != null;
                     if ((left.isCauseNode() || (graph.hasCauseNode() &&
-                            left.id == graph.cause.<ParsedPacket>get().getId())) && left.id != right.id) {
+                            left.origin.first.getId() == graph.cause.<ParsedPacket>get().getId())) && left.id != right.id) {
                         return -1;
+                    }
+                    if ((right.isCauseNode() || (graph.hasCauseNode() &&
+                            right.origin.first.getId() == graph.cause.<ParsedPacket>get().getId())) && left.id != right.id) {
+                        return 1;
                     }
                     int layerComp = Long.compare(getLayerIndex(left), getLayerIndex(right));
                     if (layerComp != 0) {

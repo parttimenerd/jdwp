@@ -23,4 +23,6 @@ public interface ParsedPacket extends ToCode {
         var names = getClass().getCanonicalName().split("\\.");
         return String.format("%s.%s(%d)", names[names.length - 2], names[names.length - 1], getId());
     }
+
+    ParsedPacket withNewId(int id);
 }

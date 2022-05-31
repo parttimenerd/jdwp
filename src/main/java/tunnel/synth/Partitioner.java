@@ -6,6 +6,7 @@ import jdwp.EventCmds.Events;
 import jdwp.Reply;
 import jdwp.ReplyOrError;
 import jdwp.Request;
+import jdwp.TunnelCmds.EvaluateProgramRequest;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import org.jetbrains.annotations.Nullable;
@@ -226,6 +227,13 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     public void onRequest(WrappedPacket<Request<?>> requestPacket) {
         var request = requestPacket.getPacket();
         boolean affected = false;
+        if (request instanceof EvaluateProgramRequest) {
+            if (currentPartition != null) {
+                submit(currentPartition);
+            }
+            currentPartition = null;
+            return;
+        }
         if (currentPartition == null || (affected = currentPartition.isAffectedBy(request))) {
             startNewPartition(affected ? "current partition is affected by request" : "current partition is empty",
                     Either.left(request));
@@ -258,6 +266,10 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
                 startNewPartition("???", Either.left(request)); // but this should only happen in tests
             }
             try {
+                if (request instanceof EvaluateProgramRequest) {
+                    return;
+                    // don't add these requests to partitions, as they are the result of caching in a different tunnel
+                }
                 currentPartition.add(p(request, reply.getReply()));
             } catch (Exception e) {
                 LOG.error("Failed to add {} to partition {}", p(request, reply.getReply()), currentPartition);

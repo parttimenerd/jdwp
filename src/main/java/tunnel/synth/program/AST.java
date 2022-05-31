@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
 
 public interface AST {
@@ -376,6 +377,7 @@ public interface AST {
             visitor.visit(this);
         }
 
+        /** has to contain the kind property for each event (the kind property is the class name of the event) */
         public static EventsCall create(
                 String commandSet,
                 String command,
@@ -392,7 +394,10 @@ public interface AST {
             return create(
                     events.getCommandSetName(),
                     events.getCommandName(),
-                    events.asCombined().getTaggedValues(),
+                    Stream.concat(events.events.getValues().stream().map(p ->
+                                    new TaggedBasicValue<>(new AccessPath("events", p.first, "kind"),
+                                                wrap(p.second.getClass().getSimpleName()))),
+                            events.asCombined().getTaggedValues()),
                     List.of());
         }
     }

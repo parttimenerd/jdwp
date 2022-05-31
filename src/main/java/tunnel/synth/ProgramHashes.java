@@ -144,7 +144,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
         return statement.accept(new ReturningStatementVisitor<>() {
             @Override
             public Hashed<Statement> visit(AssignmentStatement assignment) {
-                return assignment.getExpression().accept(new ReturningExpressionVisitor<>() {
+                Hashed<Statement> hashed =  assignment.getExpression().accept(new ReturningExpressionVisitor<>() {
 
                     private long[] computeChildHashes(Expression expression) {
                         return expression.getSubExpressions().stream().mapToLong(ProgramHashes.this::hash).toArray();
@@ -172,6 +172,10 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
                         return Hashed.create(assignment, (byte)0, OTHER, hash(expression));
                     }
                 });
+                if (assignment.isCause()) {
+                    return new Hashed<>(Hashed.hash(0, hashed.hash()), statement);
+                }
+                return hashed;
             }
 
             @Override
@@ -183,6 +187,9 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
 
     public static ProgramHashes create(Program program) {
         ProgramHashes hashes = new ProgramHashes();
+        if (program.hasCause()) {
+            hashes.add(hashes.create(program.getCauseStatement()), hashes.size());
+        }
         program.getBody().forEach(s -> s.accept(new StatementVisitor() {
             @Override
             public void visit(Statement statement) {

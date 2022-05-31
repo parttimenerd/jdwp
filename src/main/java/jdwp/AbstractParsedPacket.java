@@ -14,6 +14,8 @@ import java.util.stream.Stream;
  *
  * Additions for AbstractParsedPacket:
  * - the required constructor is X(int id, Map<String, Value>)
+ *
+ * the packet id is ignored for equals and hashCode
  */
 public abstract class AbstractParsedPacket extends CombinedValue implements ParsedPacket {
 

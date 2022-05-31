@@ -3,13 +3,14 @@ package tunnel;
 import jdwp.EventCmds.Events;
 import jdwp.ParsedPacket;
 import jdwp.Request;
+import tunnel.synth.program.AST.EventsCall;
 import tunnel.synth.program.AST.PacketCall;
 import tunnel.synth.program.AST.RequestCall;
 import tunnel.synth.program.Program;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -18,7 +19,7 @@ import java.util.function.Consumer;
  */
 public class ProgramCache implements Consumer<Program> {
 
-    public static enum Mode {
+    public enum Mode {
         /** always use the last cached program */
         LAST  // we currently only support this mode, it is the simplest
         // a possible mode would be to merge the last 5 cached programs
@@ -28,23 +29,31 @@ public class ProgramCache implements Consumer<Program> {
     private final Mode mode;
     private final Map<PacketCall, Program> causeToProgram;
 
-    /** minimal number assignment in a program to be added */
-    private final int minSize = 2;
+    public static final int DEFAULT_MIN_SIZE = 2;
 
-    public ProgramCache(Mode mode) {
+    /** minimal number assignments in a program to be added, event causes are included */
+    private final int minSize;
+
+    public ProgramCache() {
+        this(Mode.LAST, DEFAULT_MIN_SIZE);
+    }
+
+    public ProgramCache(Mode mode, int minSize) {
         this.mode = mode;
-        this.causeToProgram = new HashMap<>();
+        this.minSize = minSize;
+        this.causeToProgram = new ConcurrentHashMap<>();
         assert mode == Mode.LAST;
     }
 
     @Override
     public void accept(Program program) {
-        if (program.getNumberOfAssignments() >= minSize) {
+        if (program.getNumberOfAssignments() +
+                (program.hasCause() && program.getCause() instanceof EventsCall ? 1 : 0) >= minSize) {
             add(program);
         }
     }
 
-    public void add(Program program) {
+    private void add(Program program) {
         assert program.getFirstCallAssignment() != null;
         var expression = program.getFirstCallAssignment().getExpression();
         assert expression instanceof PacketCall;
@@ -60,7 +69,7 @@ public class ProgramCache implements Consumer<Program> {
     }
 
     public Optional<Program> get(Events events) {
-        return get(RequestCall.create(events));
+        return get(EventsCall.create(events));
     }
 
     public Optional<Program> get(ParsedPacket packet) {
@@ -71,5 +80,9 @@ public class ProgramCache implements Consumer<Program> {
             return get((Request<?>) packet);
         }
         return Optional.empty();
+    }
+
+    public int size() {
+        return causeToProgram.size();
     }
 }

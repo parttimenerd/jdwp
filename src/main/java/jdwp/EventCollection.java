@@ -114,5 +114,10 @@ public interface EventCollection extends Request<NullReply>, Reply {
         public CombinedValue asCombined() {
             return this;
         }
+
+        @Override
+        public Reply withNewId(int id) {
+            throw new AssertionError();
+        }
     }
 }

@@ -1,9 +1,8 @@
 package tunnel.synth;
 
-import jdwp.AccessPath;
-import jdwp.Reference;
-import jdwp.Request;
-import jdwp.Value;
+import jdwp.*;
+import jdwp.EventCmds.Events;
+import jdwp.Reference.ThreadReference;
 import jdwp.Value.BasicValue;
 import jdwp.Value.ByteList;
 import jdwp.Value.ListValue;
@@ -270,5 +269,38 @@ public class ProgramTest {
                 "1))) (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 32505856) (\"thread\")=(wrap " +
                 "\"thread\" 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 91) (\"slots\" 0 \"slot\")=(wrap \"int\" 0) " +
                 "(\"slots\" 1 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 1 \"slot\")=(wrap \"int\" 1))))").getNumberOfAssignments());
+    }
+
+    @Test
+    public void testEvaluation() {
+        var functions = new RecordingFunctions();
+        assertEquals(new ClassesBySignatureRequest(0, wrap("test")), new Evaluator(functions).evaluatePacketCall(
+                (PacketCall) PacketCall.parse("(request VirtualMachine ClassesBySignature ('signature')=(wrap 'string' 'test'))")));
+        assertEquals(0, functions.requests.size());
+    }
+
+    @Test
+    public void testCauseEvaluation() {
+        var functions = new RecordingFunctions();
+        var eventString = "(events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" \"VMStart\") " +
+                "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+                "\"thread\")=(wrap \"thread\" 0))";
+        var scope = new Evaluator(functions).evaluate(Program.parse("((= cause " + eventString + ") (= var0 (request VirtualMachine ClassesBySignature ('signature')=(wrap 'string' 'bla'))))"));
+        assertEquals(eventString, EventsCall.create((Events)scope.get("cause")).toString());
+        assertEquals(1, functions.requests.size());
+    }
+
+    @Test
+    public void testParseEvents() {
+        var events = "(events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")=(wrap " +
+                "\"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"thread\")=" +
+                "(wrap \"thread\" 0))";
+        var functions = new RecordingFunctions();
+        var ev = (Events)new Evaluator(functions).evaluatePacketCall((PacketCall) PacketCall.parse(events));
+        assertEquals(ev, new jdwp.EventCmds.Events(0, PrimitiveValue.wrap((byte)2),
+                new ListValue<>(new EventCmds.Events.VMStart(PrimitiveValue.wrap(0), new ThreadReference(0L)))));
+        assertEquals("(events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" \"VMStart\") " +
+                "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+                "\"thread\")=(wrap \"thread\" 0))", EventsCall.create(ev).toString());
     }
 }
