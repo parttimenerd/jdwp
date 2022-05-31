@@ -108,4 +108,8 @@ public class Program extends Statement {
     public @Nullable AssignmentStatement getCauseStatement() {
         return hasCause() ? new AssignmentStatement(AST.ident(CAUSE_NAME), getCause()) : null;
     }
+
+    public int getNumberOfDistinctCalls() {
+        return getNumberOfAssignments() + (hasCause() && getCause() instanceof EventsCall ? 1 : 0);
+    }
 }

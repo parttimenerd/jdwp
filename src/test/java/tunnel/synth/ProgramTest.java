@@ -134,6 +134,40 @@ public class ProgramTest {
         assertEquals(overlapParse, program1Parse.overlap(program2Parse));
     }
 
+    @Test
+    public void testOverlap2() {
+        var program1 = Program.parse("((= cause (request VirtualMachine Suspend))\n" +
+                "  (= var0 (request VirtualMachine Suspend))\n" +
+                "  (= var1 (request VirtualMachine AllThreads))\n" +
+                "  (= var2 (request ObjectReference GetValues (\"object\")=(wrap \"object\" 1062) (\"fields\" 0 " +
+                "\"fieldID\")=(wrap \"field\" 162)))\n" +
+                "  (= var3 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 6)))\n" +
+                "  (= var4 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 5)))\n" +
+                "  (= var5 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 4)))\n" +
+                "  (= var6 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 3)))\n" +
+                "  (= var7 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 2)))\n" +
+                "  (= var8 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 1)))\n" +
+                "  (= var9 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 0))))");
+        var program2 = Program.parse("((= cause (request VirtualMachine Suspend))\n" +
+                "  (= var0 (request VirtualMachine Suspend))\n" +
+                "  (= var1 (request VirtualMachine AllThreads))\n" +
+                "  (= var2 (request ObjectReference GetValues (\"object\")=(wrap \"object\" 1061) (\"fields\" 0 " +
+                "\"fieldID\")=(wrap \"field\" 162)))\n" +
+                "  (= var3 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 6)))\n" +
+                "  (= var4 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 5)))\n" +
+                "  (= var5 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 4)))\n" +
+                "  (= var6 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 3)))\n" +
+                "  (= var7 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 2)))\n" +
+                "  (= var8 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 1)))\n" +
+                "  (= var9 (request ThreadReference Name (\"thread\")=(get var1 \"threads\" 0))))");
+        System.out.println(program1.overlap(program2).toPrettyString());
+        assertEquals(program1.getNumberOfAssignments() - 1, program1.overlap(program2).getNumberOfAssignments());
+        var cache = new ProgramCollection(0.7);
+        cache.accept(program1);
+        assertEquals(1, cache.size());
+        assertEquals(program1, cache.getOverlappingProgram(program2).get().getFirst());
+    }
+
     private static Object[][] wrapFunctionTestSource() {
         return new Object[][]{
                 {"(wrap 'bytes' '234')", new ByteList((byte) -37, (byte) 126)},

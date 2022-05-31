@@ -47,8 +47,7 @@ public class ProgramCache implements Consumer<Program> {
 
     @Override
     public void accept(Program program) {
-        if (program.getNumberOfAssignments() +
-                (program.hasCause() && program.getCause() instanceof EventsCall ? 1 : 0) >= minSize) {
+        if (program.getNumberOfDistinctCalls() >= minSize) {
             add(program);
         }
     }

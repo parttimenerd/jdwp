@@ -91,6 +91,9 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             return shouldBreak(currentTimeMillis());
         }
         boolean shouldBreak(long replyTime) {
+            /*if (replyTimes.size() > 0) {
+                System.out.printf("replytime %d, averageDifference %d factor %f >= %f getReplyTimeDifference(replyTime) %f >= %d%n", replyTime, averageDifference, getReplyTimeFactor(replyTime), breakAtTimeFactor, getReplyTimeDifference(replyTime), minDifference);
+            }*/
             return replyTimes.size() > 0 && averageDifference != 0 &&
                     getReplyTimeFactor(replyTime) >= breakAtTimeFactor && getReplyTimeDifference(replyTime) >= minDifference;
         }
@@ -202,8 +205,8 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         }
     }
 
-    private static final Integer DEFAULT_TIMINGS_FACTOR = 10;
-    private static final Integer DEFAULT_MIN_DIFFERENCE = 200;
+    private static final Integer DEFAULT_TIMINGS_FACTOR = 100;
+    private static final Integer DEFAULT_MIN_DIFFERENCE = 500;
     private final Timings timings;
     private @Nullable Partition currentPartition;
 

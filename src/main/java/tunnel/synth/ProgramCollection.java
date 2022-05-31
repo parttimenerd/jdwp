@@ -37,7 +37,7 @@ public class ProgramCollection extends Analyser<ProgramCollection, Overlap> impl
 
     @Override
     public void accept(Program program) {
-        if (program.getNumberOfAssignments() >= minSize) {
+        if (program.getNumberOfDistinctCalls()>= minSize) {
             add(program);
         }
     }
@@ -63,7 +63,11 @@ public class ProgramCollection extends Analyser<ProgramCollection, Overlap> impl
             return new Overlap(first, second, new Program(), Double.POSITIVE_INFINITY);
         }
         var overlap = first.overlap(second);
-        var overlapFactor = overlap.getNumberOfAssignments() / maxStatements;
+        var overlapFactor = overlap.getNumberOfAssignments() / (maxStatements * 1d);
         return new Overlap(first, second, overlap, overlapFactor);
+    }
+
+    public int size() {
+        return causeToPrograms.size();
     }
 }

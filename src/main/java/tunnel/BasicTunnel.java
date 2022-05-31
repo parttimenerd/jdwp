@@ -147,7 +147,7 @@ public class BasicTunnel {
                         state.addUnfinishedEvaluateRequest(evaluateRequest);
                         state.writeRequest(jvmOutputStream, evaluateRequest);
                     } else {
-                        writeJvmRequest(jvmOutputStream, request);
+                        state.writeRequest(jvmOutputStream, request);
                     }
                 }
             } catch (ClosedStreamException e) {
