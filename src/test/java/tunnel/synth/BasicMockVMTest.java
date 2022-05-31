@@ -18,6 +18,7 @@ import jdwp.util.MockClient;
 import jdwp.util.MockVM;
 import jdwp.util.MockVM.MockVMThreaded;
 import lombok.SneakyThrows;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import tunnel.BasicTunnel;
@@ -29,6 +30,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.time.Duration;
 import java.util.List;
 
 import static jdwp.PrimitiveValue.wrap;
@@ -352,6 +354,9 @@ public class BasicMockVMTest {
             var classUnloadEvent = new ClassUnload(wrap(1), wrap("bla"));
             tp.vm.sendEvent(0, classUnloadEvent); // invalidate the caches
             Thread.sleep(10);
+            Assertions.assertTimeout(Duration.ofMillis(100), () -> {
+                while (tp.clientTunnel.getState().getReplyCache().size() > 0) Thread.yield();
+            });
             assertEquals(new ReplyCache(), tp.clientTunnel.getState().getReplyCache());
             assertEquals(new Events(0, wrap((byte) 2), new ListValue<>(classUnloadEvent)), tp.client.readEvents());
         }

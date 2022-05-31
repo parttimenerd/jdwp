@@ -307,6 +307,6 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     }
 
     private void logSplitReason(String reason) {
-        LOG.info("Split reason: " + reason);
+        LOG.debug("Split reason: " + reason);
     }
 }

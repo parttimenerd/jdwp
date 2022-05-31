@@ -69,4 +69,8 @@ public class ReplyCache {
     public String toString() {
         return cache.asMap().toString();
     }
+
+    public int size() {
+        return (int)cache.size();
+    }
 }

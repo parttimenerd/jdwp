@@ -1,5 +1,6 @@
 package tunnel;
 
+import ch.qos.logback.classic.Logger;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.EventCommon;
 import jdwp.EventCmds.Events.TunnelRequestReplies;
@@ -10,10 +11,12 @@ import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import org.slf4j.LoggerFactory;
 import tunnel.synth.Partitioner;
 import tunnel.synth.Synthesizer;
 import tunnel.synth.program.Program;
 import tunnel.util.Either;
+import tunnel.util.ToCode;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -32,6 +35,8 @@ import static tunnel.State.Mode.NONE;
  */
 @Getter
 public class State {
+
+    private final Logger LOG;
 
     public enum Mode {
         /** use programs on request and send them to the server */
@@ -79,6 +84,7 @@ public class State {
         this.programCache = new ProgramCache();
         this.unfinishedEvaluateRequests = new HashMap<>();
         this.mode = mode;
+        LOG = (Logger) LoggerFactory.getLogger((mode == NONE ? "" : mode.name().toLowerCase() + "-") + "tunnel");
         if (mode != NONE) {
             registerCacheListener();
             registerProgramCacheListener();
@@ -121,7 +127,9 @@ public class State {
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isLeft() == (State.this.mode == CLIENT)) {
-                    programCache.accept(Synthesizer.synthesizeProgram(partition));
+                    var program = Synthesizer.synthesizeProgram(partition);
+                    LOG.info("Cache program {}", program.toPrettyString());
+                    programCache.accept(program);
                 }
             }
         }));
@@ -159,6 +167,7 @@ public class State {
     public Request<?> readRequest(InputStream inputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream); // already wrapped in PacketError
         var request = PacketError.call(() -> JDWP.parse(ps), ps);
+        LOG.debug(request.toCode());
         addRequest(new WrappedPacket<>(request));
         try {
             vm.captureInformation(request);
@@ -174,6 +183,7 @@ public class State {
         if (ps.isReply()) {
             if (unfinishedEvaluateRequests.containsKey(ps.id())) {
                 var reply = PacketError.call(() -> EvaluateProgramReply.parse(ps), ps);
+                LOG.debug(reply.toCode());
                 unfinishedEvaluateRequests.remove(ps.id());
                 if (reply.isError()) {
                     addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), (short)1)));
@@ -210,6 +220,7 @@ public class State {
             return Either.right(reply);
         } else {
             var events = Events.parse(ps);
+            LOG.debug(events.toCode());
             captureInformation(events);
             for (EventCommon event : events.events) {
                 if (event instanceof TunnelRequestReplies) {
@@ -248,6 +259,7 @@ public class State {
      * write reply without triggering listeners
      */
     public void writeReply(OutputStream outputStream, Either<Events, ReplyOrError<?>> reply) {
+        LOG.debug("Write {}", ((ToCode)reply.get()).toCode());
         try {
             ((ParsedPacket)reply.get()).toPacket(vm).write(outputStream);
         } catch (Exception | AssertionError e) {
@@ -274,6 +286,7 @@ public class State {
      */
     public void writeRequest(OutputStream outputStream, Request<?> request) {
         try {
+            LOG.debug("Write {}", request.toCode());
             request.toPacket(vm).write(outputStream);
         } catch (Exception | AssertionError e) {
             throw new PacketError(String.format("Failed to write request %s", request));

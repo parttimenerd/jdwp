@@ -15,9 +15,9 @@ import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.SneakyThrows;
+import org.slf4j.LoggerFactory;
 import tunnel.State.Mode;
 import tunnel.State.WrappedPacket;
-import tunnel.cli.Main;
 import tunnel.synth.program.Evaluator;
 import tunnel.synth.program.Functions;
 import tunnel.synth.program.Program;
@@ -47,7 +47,7 @@ import static tunnel.State.Mode.NONE;
 @Getter
 public class BasicTunnel {
 
-    private final static Logger LOG = Main.LOG;
+    public final Logger LOG;
 
     private final State state;
     private final InetSocketAddress ownAddress;
@@ -57,6 +57,8 @@ public class BasicTunnel {
         this.state = state;
         this.ownAddress = ownAddress;
         this.jvmAddress = jvmAddress;
+        LOG = (Logger) LoggerFactory.getLogger(
+                (state.getMode() == NONE ? "" : state.getMode().name().toLowerCase() + "-") + "tunnel");
     }
 
     public BasicTunnel(InetSocketAddress ownAddress, InetSocketAddress jvmAddress, Mode mode) {
@@ -133,12 +135,15 @@ public class BasicTunnel {
                                 clientOutputStream, (EvaluateProgramRequest) request);
                     } else if (state.hasCachedReply(request)) {
                         var reply = state.getCachedReply(request);
+                        LOG.info("Cached reply for  {}: {}", request.toCode(), reply.toCode());
                         state.addReply(new WrappedPacket<>(new ReplyOrError<>(reply)));
                         writeClientReply(clientOutputStream, Either.right(new ReplyOrError<>(reply)));
                         continue;
                     } else if (state.hasCachedProgram(request)) {
+                        var program = state.getCachedProgram(request).toPrettyString();
+                        LOG.info("Cached program for request  {}:\n {}", request.toCode(), program);
                         var evaluateRequest =  new EvaluateProgramRequest(request.getId(),
-                                wrap(state.getCachedProgram(request).toPrettyString()));
+                                wrap(program));
                         state.addUnfinishedEvaluateRequest(evaluateRequest);
                         state.writeRequest(jvmOutputStream, evaluateRequest);
                     } else {
@@ -175,6 +180,7 @@ public class BasicTunnel {
                     var events = reply.get().getLeft();
                     if (state.hasCachedProgram(events)) {
                         var program = state.getCachedProgram(events);
+                        LOG.info("Cached program for events  {}:\n {}", events.toCode(), program.toPrettyString());
                         handleEvaluateProgramEvent(jvmInputStream, jvmOutputStream,
                                 clientOutputStream, events, program);
                         reply = Optional.empty();

@@ -136,7 +136,7 @@ public class ProgramTest {
 
     private static Object[][] wrapFunctionTestSource() {
         return new Object[][]{
-                {"(wrap 'bytes' '234')", new ByteList((byte) '2', (byte) '3', (byte) '4')},
+                {"(wrap 'bytes' '234')", new ByteList((byte) -37, (byte) 126)},
                 {"(wrap 'string' '234')", wrap("234")},
                 {"(wrap 'array-reference' 32)", Reference.array(32)},
                 {"(wrap 'int' 10)", wrap(10)},

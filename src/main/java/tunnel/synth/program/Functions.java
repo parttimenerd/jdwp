@@ -12,10 +12,7 @@ import tunnel.synth.program.AST.FunctionCall;
 import tunnel.synth.program.AST.Literal;
 import tunnel.synth.program.AST.StringLiteral;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -102,7 +99,7 @@ public abstract class Functions {
             case "string":
                 return new StringValue((String)value);
             case "bytes":
-                return new ByteList(((String)value).getBytes());
+                return new ByteList(Base64.getDecoder().decode((String)value));
             default:
                 if (!(value instanceof Long)) {
                     throw new AssertionError(String.format("Integer value is not long: %s", value));
@@ -123,7 +120,7 @@ public abstract class Functions {
         } else if (value instanceof StringValue) {
             literal = literal(((StringValue) value).value);
         } else if (value instanceof ByteList) {
-            literal = literal(new String(((ByteList) value).bytes));
+            literal = literal(Base64.getEncoder().encodeToString(((ByteList) value).bytes));
         } else {
             throw new AssertionError(String.format("Unknown basic type for wrapping: %s", value));
         }
