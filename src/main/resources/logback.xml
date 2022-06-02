@@ -1,9 +1,9 @@
 <configuration>
-
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} | %5p | %-15.15logger{25} | %m%n</pattern>
-            <charset>utf8</charset>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="tunnel.util.MultiColumnLogbackLayout">
+                <pattern>%highlightex(%wrap(%8.8rs | %5p | %-15.15logger{25} | ##split##%m%n))</pattern>
+            </layout>
         </encoder>
     </appender>
 

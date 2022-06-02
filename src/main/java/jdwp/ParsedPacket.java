@@ -3,8 +3,9 @@ package jdwp;
 import jdwp.JDWP.CommandVisitor;
 import jdwp.Value.CombinedValue;
 import tunnel.util.ToCode;
+import tunnel.util.ToShortString;
 
-public interface ParsedPacket extends ToCode {
+public interface ParsedPacket extends ToCode, ToShortString {
     int getId();
     short getFlags();
     Packet toPacket(VM vm);

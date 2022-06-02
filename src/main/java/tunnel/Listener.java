@@ -8,6 +8,7 @@ import jdwp.Request;
 import jdwp.util.Pair;
 import lombok.Getter;
 import tunnel.State.WrappedPacket;
+import tunnel.util.ToStringMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,21 +54,16 @@ public interface Listener {
     /** prints all packages */
     class LoggingListener implements Listener {
 
-        public enum Mode {
-            STRING,
-            CODE
-        }
-
-        private final Mode mode;
+        private final ToStringMode mode;
         private final int maxLineLength;
 
-        public LoggingListener(Mode mode, int maxLineLength) {
+        public LoggingListener(ToStringMode mode, int maxLineLength) {
             this.mode = mode;
             this.maxLineLength = maxLineLength;
         }
 
         public LoggingListener() {
-            this(Mode.STRING, 200);
+            this(ToStringMode.STRING, 200);
         }
 
         @Override
@@ -87,7 +83,7 @@ public interface Listener {
 
         void print(String prefix, ParsedPacket packet) {
             String pre = String.format("%.3f: %10s[%7d]: ", System.currentTimeMillis() / 1000.0, prefix, packet.getId());
-            var ps = mode == Mode.STRING ? packet.toString() : packet.toCode();
+            var ps = mode.format(packet);
             int avLength = (maxLineLength == -1 ? Integer.MAX_VALUE : maxLineLength) - pre.length();
             if (ps.length() > avLength) {
                 ps = ps.substring(0, avLength) + String.format("... (%d more)", ps.length() - 200);

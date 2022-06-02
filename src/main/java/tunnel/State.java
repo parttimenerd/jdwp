@@ -18,7 +18,7 @@ import tunnel.synth.Partitioner;
 import tunnel.synth.Synthesizer;
 import tunnel.synth.program.Program;
 import tunnel.util.Either;
-import tunnel.util.ToCode;
+import tunnel.util.ToStringMode;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -77,8 +77,13 @@ public class State {
 
     private ReplyCache replyCache;
     private ProgramCache programCache;
+    private ToStringMode packetToStringMode;
 
     public State(VM vm, Mode mode) {
+        this(vm, mode, ToStringMode.CODE);
+    }
+
+    public State(VM vm, Mode mode, ToStringMode packetToStringMode) {
         this.vm = vm;
         this.unfinished = new HashMap<>();
         this.listeners = new HashSet<>();
@@ -86,6 +91,7 @@ public class State {
         this.programCache = new ProgramCache();
         this.unfinishedEvaluateRequests = new HashMap<>();
         this.mode = mode;
+        this.packetToStringMode = packetToStringMode;
         LOG = (Logger) LoggerFactory.getLogger((mode == NONE ? "" : mode.name().toLowerCase() + "-") + "tunnel");
         if (mode != NONE) {
             registerCacheListener();
@@ -179,7 +185,7 @@ public class State {
     public Request<?> readRequest(InputStream inputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream); // already wrapped in PacketError
         var request = PacketError.call(() -> JDWP.parse(ps), ps);
-        LOG.debug(request.toCode());
+        LOG.debug(packetToStringMode.format(request));
         addRequest(new WrappedPacket<>(request));
         try {
             vm.captureInformation(request);
@@ -195,7 +201,7 @@ public class State {
         if (ps.isReply()) {
             if (unfinishedEvaluateRequests.containsKey(ps.id())) {
                 var reply = PacketError.call(() -> EvaluateProgramReply.parse(ps), ps);
-                LOG.debug(reply.toCode());
+                LOG.debug(packetToStringMode.format(reply));
                 unfinishedEvaluateRequests.remove(ps.id());
                 if (reply.isError()) {
                     addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), (short)1)));
@@ -205,7 +211,8 @@ public class State {
                     for (var p : BasicTunnel.parseEvaluateProgramReply(vm, realReply)) {
                         captureInformation(p.first, p.second);
                         replyCache.put(p.first, p.second);
-                        LOG.debug("put into reply cache: {} -> {}", p.first, p.second);
+                        LOG.debug("put into reply cache: {} -> {}", packetToStringMode.format(p.first),
+                                packetToStringMode.format(p.second));
                     }
                     // now go through all unfinished requests and check
                     for (WrappedPacket<Request<?>> value : unfinished.values()) {
@@ -233,7 +240,7 @@ public class State {
             return Either.right(reply);
         } else {
             var events = Events.parse(ps);
-            LOG.debug(events.toCode());
+            LOG.debug(packetToStringMode.format(events.toCode()));
             captureInformation(events);
             for (EventCommon event : events.events) {
                 if (event instanceof TunnelRequestReplies) {
@@ -272,7 +279,7 @@ public class State {
      * write reply without triggering listeners
      */
     public void writeReply(OutputStream outputStream, Either<Events, ReplyOrError<?>> reply) {
-        LOG.debug("Write {}", ((ToCode)reply.get()).toCode());
+        LOG.debug("Write {}", packetToStringMode.format(reply.get()));
         try {
             ((ParsedPacket)reply.get()).toPacket(vm).write(outputStream);
         } catch (Exception | AssertionError e) {
@@ -299,7 +306,7 @@ public class State {
      */
     public void writeRequest(OutputStream outputStream, Request<?> request) {
         try {
-            LOG.debug("Write {}", request.toCode());
+            LOG.debug("Write {}", packetToStringMode.format(request));
             request.toPacket(vm).write(outputStream);
         } catch (Exception | AssertionError e) {
             throw new PacketError(String.format("Failed to write request %s", request));

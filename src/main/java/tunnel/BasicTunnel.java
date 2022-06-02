@@ -53,7 +53,7 @@ public class BasicTunnel {
     private final InetSocketAddress ownAddress;
     private final InetSocketAddress jvmAddress;
 
-    BasicTunnel(State state, InetSocketAddress ownAddress, InetSocketAddress jvmAddress) {
+    public BasicTunnel(State state, InetSocketAddress ownAddress, InetSocketAddress jvmAddress) {
         this.state = state;
         this.ownAddress = ownAddress;
         this.jvmAddress = jvmAddress;

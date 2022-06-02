@@ -3,10 +3,11 @@ package jdwp;
 import jdwp.JDWP.CommandVisitor;
 import jdwp.Value.CombinedValue;
 import org.jetbrains.annotations.Nullable;
+import tunnel.util.ToShortString;
 
 import java.util.Objects;
 
-public class ReplyOrError<R extends Reply> implements ParsedPacket {
+public class ReplyOrError<R extends Reply> implements ParsedPacket, ToShortString {
     private final int id;
     private final short flags;
     @Nullable
@@ -136,5 +137,10 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket {
     @Override
     public ParsedPacket withNewId(int id) {
         return isReply() ? new ReplyOrError<>(id, flags, getReply()) : new ReplyOrError<>(id, flags, errorCode);
+    }
+
+    @Override
+    public String toShortString() {
+        return isReply() ? getReply().toShortString() : String.format("Error(%d,%d)", getId(), getErrorCode());
     }
 }

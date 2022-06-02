@@ -1,16 +1,21 @@
 package tunnel.cli;
 
 import ch.qos.logback.classic.Logger;
+import jdwp.VM;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 import tunnel.BasicTunnel;
 import tunnel.Listener.LoggingListener;
-import tunnel.Listener.LoggingListener.Mode;
 import tunnel.State;
 import tunnel.synth.Partitioner;
 import tunnel.synth.ProgramCollection;
 import tunnel.synth.Synthesizer;
+import tunnel.util.MultiColumnLogbackLayout;
+import tunnel.util.ToStringMode;
+
+import static tunnel.State.Mode.CLIENT;
+import static tunnel.State.Mode.NONE;
 
 /**
  * This is the most basic endpoint that just logs a packets that go through it and
@@ -26,8 +31,14 @@ public class PacketLogger implements Runnable {
     @ParentCommand
     private Main mainConfig;
 
-    @Option(names = "--mode", description = "Output mode")
-    private Mode mode = Mode.STRING;
+    @Option(names = "--packet-mode", description = "Output mode")
+    private ToStringMode packetToStringMode = ToStringMode.CODE;
+
+    @Option(names = "--program-mode", description = "Output mode")
+    private ToStringMode debugProgramToStringMode = ToStringMode.STRING;
+
+    @Option(names = "--partition-mode", description = "Output mode")
+    private ToStringMode partitionToStringMode = ToStringMode.STRING;
 
     @SuppressWarnings("FieldCanBeLocal")
     @Option(names = "--max-length", description = "Max length of a line, -1 for no length limit")
@@ -49,7 +60,7 @@ public class PacketLogger implements Runnable {
     private double overlapFactor = 0.7;
 
     @Option(names = "--tunnel", description = "Tunnel mode")
-    private State.Mode tunnelMode = State.Mode.NONE;
+    private State.Mode tunnelMode = NONE;
 
     @Option(names = "--disable-pc", description = "Disable program cache")
     private boolean disableProgramCache = false;
@@ -57,17 +68,42 @@ public class PacketLogger implements Runnable {
     @Option(names = "--disable-rc", description = "Disable reply cache")
     private boolean disableReplyCache = false;
 
+    enum ColumnMode {
+        NONE,
+        TWO_COLUMN
+    }
+
+    @Option(names = "--log-columns", description = "Log in multiple columns")
+    private ColumnMode columnMode = ColumnMode.TWO_COLUMN;
+
+    @Option(names = "--line-width", description = "Line width in column mode")
+    private int lineWidth = 200;
+
     public static PacketLogger create(Main mainConfig) {
         var pl = new PacketLogger();
         pl.mainConfig = mainConfig;
         return pl;
     }
 
+    private void handleLoggingSetup() {
+        if (columnMode == ColumnMode.NONE) {
+            MultiColumnLogbackLayout.disable();
+        }
+        if (tunnelMode != NONE) {
+            MultiColumnLogbackLayout.setCurrentColumn(tunnelMode == CLIENT ? 0 : 1, 2);
+        } else {
+            MultiColumnLogbackLayout.setCurrentColumn(0, 1);
+        }
+        MultiColumnLogbackLayout.setLineWidth(lineWidth);
+        mainConfig.setDefaultLogLevel();
+    }
+
     @Override
     public void run() {
-        mainConfig.setDefaultLogLevel();
+        handleLoggingSetup();
         LOG.info("Starting tunnel from {} to {}", mainConfig.getJvmAddress(), mainConfig.getOwnAddress());
-        var tunnel = new BasicTunnel(mainConfig.getOwnAddress(), mainConfig.getJvmAddress(), tunnelMode);
+        var tunnel = new BasicTunnel(new State(new VM(0), tunnelMode, packetToStringMode),
+                mainConfig.getOwnAddress(), mainConfig.getJvmAddress());
         if (disableProgramCache) {
             tunnel.getState().disableProgramCache();
         }
@@ -80,7 +116,7 @@ public class PacketLogger implements Runnable {
                         System.out.println();
                         if (logPartitions) {
                             System.out.println("Partition:");
-                            System.out.println(mode == Mode.STRING ? p.toString() : p.toCode());
+                            System.out.println(partitionToStringMode.format(p));
                             System.out.println();
                             System.out.println();
                         }
@@ -124,7 +160,7 @@ public class PacketLogger implements Runnable {
             tunnel.addListener(partitioner);
         }
         if (logPackets) {
-            tunnel.addListener(new LoggingListener(mode, maxLineLength));
+            tunnel.addListener(new LoggingListener(packetToStringMode, maxLineLength));
         }
         tunnel.run();
     }
