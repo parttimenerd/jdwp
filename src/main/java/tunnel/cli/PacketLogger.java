@@ -51,6 +51,12 @@ public class PacketLogger implements Runnable {
     @Option(names = "--tunnel", description = "Tunnel mode")
     private State.Mode tunnelMode = State.Mode.NONE;
 
+    @Option(names = "--disable-pc", description = "Disable program cache")
+    private boolean disableProgramCache = false;
+
+    @Option(names = "--disable-rc", description = "Disable reply cache")
+    private boolean disableReplyCache = false;
+
     public static PacketLogger create(Main mainConfig) {
         var pl = new PacketLogger();
         pl.mainConfig = mainConfig;
@@ -62,6 +68,12 @@ public class PacketLogger implements Runnable {
         mainConfig.setDefaultLogLevel();
         LOG.info("Starting tunnel from {} to {}", mainConfig.getJvmAddress(), mainConfig.getOwnAddress());
         var tunnel = new BasicTunnel(mainConfig.getOwnAddress(), mainConfig.getJvmAddress(), tunnelMode);
+        if (disableProgramCache) {
+            tunnel.getState().disableProgramCache();
+        }
+        if (disableReplyCache) {
+            tunnel.getState().disableReplyCache();
+        }
         if (logPartitions || logPrograms || logOverlap) {
             var partitioner = new Partitioner()
                     .addListener(p -> {

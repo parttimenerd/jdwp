@@ -73,4 +73,10 @@ public class ReplyCache {
     public int size() {
         return (int)cache.size();
     }
+
+    public static class DisabledReplyCache extends ReplyCache {
+        @Override
+        public void put(Request<?> request, Reply reply) {
+        }
+    }
 }

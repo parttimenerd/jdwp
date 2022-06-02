@@ -84,4 +84,10 @@ public class ProgramCache implements Consumer<Program> {
     public int size() {
         return causeToProgram.size();
     }
+
+    public static class DisabledProgramCache extends ProgramCache {
+        @Override
+        public void accept(Program program) {
+        }
+    }
 }

@@ -85,7 +85,7 @@ What is done
 
 License
 -------
-GPLv3
+GPLv2
 
 Ideas that did not work
 -----------------------

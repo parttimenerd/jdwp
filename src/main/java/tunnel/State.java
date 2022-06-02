@@ -12,6 +12,8 @@ import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.slf4j.LoggerFactory;
+import tunnel.ProgramCache.DisabledProgramCache;
+import tunnel.ReplyCache.DisabledReplyCache;
 import tunnel.synth.Partitioner;
 import tunnel.synth.Synthesizer;
 import tunnel.synth.program.Program;
@@ -73,8 +75,8 @@ public class State {
     private final Map<Integer, EvaluateProgramRequest> unfinishedEvaluateRequests;
     private final Set<Listener> listeners;
 
-    private final ReplyCache replyCache;
-    private final ProgramCache programCache;
+    private ReplyCache replyCache;
+    private ProgramCache programCache;
 
     public State(VM vm, Mode mode) {
         this.vm = vm;
@@ -89,6 +91,16 @@ public class State {
             registerCacheListener();
             registerProgramCacheListener();
         }
+    }
+
+    public State disableReplyCache() {
+        this.replyCache = new DisabledReplyCache();
+        return this;
+    }
+
+    public State disableProgramCache() {
+        this.programCache = new DisabledProgramCache();
+        return this;
     }
 
     public State() {
