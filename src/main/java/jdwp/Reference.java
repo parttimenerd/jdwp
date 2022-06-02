@@ -4,6 +4,8 @@ import jdwp.JDWP.Tag;
 import jdwp.JDWP.TypeTag;
 import jdwp.Value.BasicScalarValue;
 
+import java.util.Objects;
+
 /**
  * reference to an object, thread, ...
  *
@@ -95,7 +97,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
     public static ClassObjectReference classObject(long ref) { return new ClassObjectReference(ref); }
 
-    public static class HeapReference extends Reference {
+    public static abstract class HeapReference extends Reference {
 
         public HeapReference(Type type, long ref) {
             super(type, ref);
@@ -103,7 +105,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
         @Override
         public BasicGroup getGroup() {
-            return BasicGroup.THREAD_GROUP_REF;
+            return BasicGroup.HEAP_REF;
         }
     }
 
@@ -206,7 +208,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
     public static class ClassTypeReference extends TypeReference {
 
-        ClassTypeReference(long ref) {
+        public ClassTypeReference(long ref) {
             super((byte)TypeTag.CLASS, ref);
         }
 
@@ -409,5 +411,17 @@ public abstract class Reference extends BasicScalarValue<Long> {
     @Override
     public boolean isPrimitive() {
         return false;
+    }
+
+    public <R extends Reference, S extends Reference> R checkInGroup(BasicGroup group) {
+        if (!getGroup().equals(group)) {
+            throw new AssertionError(String.format("%s not in group %s", this, group));
+        }
+        return (R)this;
+    }
+
+    public static boolean isNotReferenceOrSameClassArgument(Class<?> klass, Value value) {
+        Objects.requireNonNull(value);
+        return !(value instanceof Reference) || klass.isAssignableFrom(value.getClass());
     }
 }

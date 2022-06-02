@@ -15,6 +15,7 @@ import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.JDWP.SuspendPolicy;
 import jdwp.MethodCmds.IsObsoleteReply;
 import jdwp.MethodCmds.LineTableReply;
+import jdwp.MethodCmds.VariableTableWithGenericRequest;
 import jdwp.PrimitiveValue.IntValue;
 import jdwp.PrimitiveValue.StringValue;
 import jdwp.ReferenceTypeCmds.*;
@@ -72,6 +73,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -1270,6 +1272,16 @@ class JDWPTest {
                 new RequestReply(new ByteList(idSizesRequest.toPacket(vm).toByteArray()),
                         new ByteList(idSizesReply.toPacket(vm).toByteArray()))));
         assertEquals(List.of(p(idSizesRequest, idSizesReply)), parseEvaluateProgramReply(vm, EvaluateProgramReply.parse(reply.toStream(vm)).getReply()));
+    }
+
+    @Test
+    public void testCreateRequestWithMapWithDifferentReference() {
+        // with reference in same group
+        new VariableTableWithGenericRequest(0, Map.of("refType", Reference.classType(1),
+                "methodID", Reference.method(1)));
+        // with reference in different group
+        assertThrows(AssertionError.class, () -> new VariableTableWithGenericRequest(0,
+                Map.of("refType", Reference.frame(1), "methodID", Reference.method(1))));
     }
 
     static PacketStream oraclePacketStream(jdwp.Packet packet) {

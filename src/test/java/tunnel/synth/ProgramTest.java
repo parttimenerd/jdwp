@@ -2,6 +2,7 @@ package tunnel.synth;
 
 import jdwp.*;
 import jdwp.EventCmds.Events;
+import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ThreadReference;
 import jdwp.Value.BasicValue;
 import jdwp.Value.ByteList;
@@ -17,7 +18,6 @@ import tunnel.synth.program.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -176,7 +176,8 @@ public class ProgramTest {
                 {"(wrap 'array-reference' 32)", Reference.array(32)},
                 {"(wrap 'int' 10)", wrap(10)},
                 {"(wrap 'object' 10)", Reference.object(10)},
-                {"(wrap 'boolean' 1)", wrap(true)}
+                {"(wrap 'boolean' 1)", wrap(true)},
+                {"(wrap 'class-type' 1129)", new ClassTypeReference(1129L)}
         };
     }
 
@@ -339,15 +340,25 @@ public class ProgramTest {
                 "\"thread\")=(wrap \"thread\" 0))", EventsCall.create(ev).toString());
     }
 
+    private Request<?> evaluateRequestCall(RequestCall requestCall) {
+        return (Request<?>) new Evaluator(new RecordingFunctions()).evaluatePacketCall(new Scopes<>(), requestCall);
+    }
+
     @Test
     public void testEventRequestSetEvaluation() {
-        var call = (PacketCall)PacketCall.parse("(request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8)" +
+        var call = (RequestCall)PacketCall.parse("(request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8)" +
                 " (\"suspendPolicy\")=(wrap \"byte\" 1) (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"ClassMatch\") " +
                 "(\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"sun.instrument" +
                 ".InstrumentationImpl\"))");
-        Function<PacketCall, Request<?>> func =
-                (p) -> (Request<?>)new Evaluator(new RecordingFunctions()).evaluatePacketCall(new Scopes<>(), p);
-        var packet = func.apply(call);
-        assertEquals(packet, func.apply(RequestCall.create(packet)));
+        var packet = evaluateRequestCall(call);
+        assertEquals(packet, evaluateRequestCall(RequestCall.create(packet)));
+    }
+
+    @ParameterizedTest
+    @CsvSource("(request Method VariableTableWithGeneric (\"methodID\")=(wrap " +
+            "\"method\" 105553176478280) (\"refType\")=(wrap \"class-type\" 1129))")
+    public void testEvaluateClassTypeWithRefType(String packetCall) {
+        var call = (RequestCall)PacketCall.parse(packetCall);
+        RequestCall.create(evaluateRequestCall(call));
     }
 }

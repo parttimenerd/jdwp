@@ -62,7 +62,12 @@ internal object CodeGeneration {
         `public constructor`(listOf(param(TypeName.INT, "id"), param(pt("java.util.Map", "String", "Value"), "arguments"))) {
             `@SuppressWarnings`("unchecked")
             statement("this(\$N)",
-                (listOf("id", "(short)$defaultFlag") + fields.map { "(${it.javaType()}) Objects.requireNonNull(arguments.get(\"${it.name()}\"))" }).joinToString(", ")
+                (listOf("id", "(short)$defaultFlag") + fields.map {
+                    createArgumentsGet(
+                        it.javaType(),
+                        it.name()
+                    )
+                }).joinToString(", ")
             )
             this
         }
@@ -321,7 +326,7 @@ internal object CodeGeneration {
                 `@SuppressWarnings`("unchecked")
                 statement("super(Type.OBJECT)")
                 for (f in fields) {
-                    statement("this.\$N = (\$N) Objects.requireNonNull(arguments.get(\$S))", f.name(), f.javaType(), f.name())
+                    statement("this.\$N = \$N", f.name(), createArgumentsGet(f.javaType(), f.name()))
                 }
                 this
             }
@@ -442,10 +447,13 @@ internal object CodeGeneration {
 
             `public constructor`(listOf(param(pt("java.util.Map", "String", "Value"), "arguments"))) {
                 `@SuppressWarnings`("unchecked")
-                statement("super(${(listOf("PrimitiveValue.wrap(KIND)") + 
-                        commonFields.map { "(${it.javaType()}) Objects.requireNonNull(arguments.get(\"${it.name()}\"))" }).joinToString(", ")})")
+                statement("super(${
+                    (listOf("PrimitiveValue.wrap(KIND)") +
+                            commonFields.map { createArgumentsGet(it.javaType(), it.name()) }).joinToString(", ")
+                })"
+                )
                 for (f in uncommonFields) {
-                    statement("this.\$N = (\$N) Objects.requireNonNull(arguments.get(\$S))", f.name(), f.javaType(), f.name())
+                    statement("this.\$N = \$N", f.name(), createArgumentsGet(f.javaType(), f.name()))
                 }
                 this
             }
@@ -468,6 +476,34 @@ internal object CodeGeneration {
 
             this
         }
+    }
+
+    /** get the basic group, important for references */
+    private fun getBasicGroup(type: String) = when (type.split(".").last()) {
+        "ThreadGroupReference" -> "THREAD_GROUP_REF"
+        "ModuleReference" -> "MODULE_REF"
+        "FieldReference" -> "FIELD_REF"
+        "FrameReference" -> "FRAME_REF"
+        "HeapReference", "ArrayReference", "ObjectReference", "NullObjectReference",
+        "ClassObjectReference", "TypeReference", "InterfaceTypeReference", "ClassTypeReference",
+        "ArrayTypeReference", "TypeObjectReference", "InterfaceReference", "ClassReference" -> "HEAP_REF"
+        "MethodReference" -> "METHOD_REF"
+        "ClassLoaderReference" -> "CLASSLOADER_REF"
+        else -> type
+    }
+
+    private fun isReferenceType(type: String) = getBasicGroup(type).endsWith("_REF")
+
+    /** replacement for ($N) Objects.requireNonNull(arguments.get($S)) with reference conversion support */
+    private fun createArgumentsGet(type: String, field: String): String {
+        val fieldStr = "\"${field}\""
+        val argGet = "arguments.get($fieldStr)"
+        val inner = "Objects.requireNonNull($argGet)"
+        if (isReferenceType(type)) {
+            return "Reference.isNotReferenceOrSameClassArgument($type.class, $argGet) ? " +
+                    "($type)$argGet : new $type(((Reference)$argGet).value).checkInGroup(((Reference)$argGet).getGroup())"
+        }
+        return "($type) $inner"
     }
 
     private fun TypeSpec.Builder.genWrite(fields: List<TypeNode.AbstractTypeNode>) = `public`(
