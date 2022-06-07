@@ -30,3 +30,4 @@ target
 # IDE stuff
 *.iml
 .idea
+*.txt

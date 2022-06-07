@@ -20,8 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static jdwp.PrimitiveValue.wrap;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 import static tunnel.synth.program.AST.*;
 
 public class ProgramTest {
@@ -360,5 +359,27 @@ public class ProgramTest {
     public void testEvaluateClassTypeWithRefType(String packetCall) {
         var call = (RequestCall)PacketCall.parse(packetCall);
         RequestCall.create(evaluateRequestCall(call));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"(request Method VariableTableWithGeneric (\"methodID\")=(wrap " +
+            "\"method\" 105553176478280) (\"refType\")=(wrap \"class-type\" 1129)), true",
+            "(wrap 'string-reference' 'a'), false"
+    })
+    public void testIsDirectPointerRelated(String expression, boolean isDirectPointerRelated) {
+        var expr = Expression.parse(expression);
+        assertEquals(isDirectPointerRelated, expr.isDirectPointerRelated());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"((= var0 (request Method VariableTableWithGeneric (\"methodID\")=(wrap " +
+            "\"method\" 105553176478280) (\"refType\")=(wrap \"class-type\" 1129)))), ()",
+            "((= var0 (request Method VariableTableWithGeneric (\"methodID\")=(wrap " +
+                    "\"method\" 105553176478280) (\"refType\")=(wrap \"class-type\" 1129))) " +
+                    "(= var1 (const var0)) (= var2 (const 1))) (= var3 (const var0)), ((= var2 (const 1)))"
+    })
+    public void testRemoveDirectPointerRelated(String testProgram, String expectedResultingProgram) {
+        var prog = Program.parse(testProgram);
+        assertEquals(Program.parse(expectedResultingProgram), prog.removeDirectPointerRelatedStatementsTransitively());
     }
 }

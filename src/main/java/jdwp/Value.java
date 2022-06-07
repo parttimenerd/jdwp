@@ -648,6 +648,14 @@ public abstract class Value implements ToCode {
 
     public static abstract class BasicValue extends Value {
 
+        private static Set<Class<?>> DIRECT_POINTER_CLASSES = Set.of(
+                BasicValue.class, Reference.ObjectReference.class, Reference.MethodReference.class,
+                Reference.FieldReference.class, TaggedBasicValue.class
+        );
+
+        public static boolean isDirectPointer(Class<?> klass) {
+            return DIRECT_POINTER_CLASSES.contains(klass);
+        }
         protected BasicValue(Type type) {
             super(type);
         }
@@ -667,6 +675,16 @@ public abstract class Value implements ToCode {
         @Override
         public boolean equals(Object obj) {
             return obj instanceof BasicValue && ((BasicValue) obj).getGroup().equals(getGroup());
+        }
+
+        /**
+         * Checks whether it is a direct pointer into the Java heap (directly dereferenced in the JDWP agent)
+         *
+         * This is determined by examining the source the code of the JDWP agent for OpenJDK, might differ
+         * for other JVMs
+         */
+        public boolean isDirectPointer() {
+            return isDirectPointer(getClass());
         }
     }
 
@@ -822,6 +840,11 @@ public abstract class Value implements ToCode {
 
         public TaggedBasicValue<V> prependPath(AccessPath prefix) {
             return new TaggedBasicValue<>(path.prepend(prefix), value);
+        }
+
+        @Override
+        public boolean isDirectPointer() {
+            return value.isDirectPointer();
         }
     }
 }

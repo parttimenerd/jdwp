@@ -24,6 +24,8 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -78,6 +80,7 @@ public class State {
     private ReplyCache replyCache;
     private ProgramCache programCache;
     private ToStringMode packetToStringMode;
+    private @Nullable Path programCacheFile;
 
     public State(VM vm, Mode mode) {
         this(vm, mode, ToStringMode.CODE);
@@ -96,6 +99,38 @@ public class State {
         if (mode != NONE) {
             registerCacheListener();
             registerProgramCacheListener();
+        }
+    }
+
+    public void loadProgramCache(Path programCacheFile) {
+        this.programCacheFile = programCacheFile;
+        if (!programCacheFile.toFile().exists()) {
+            return;
+        }
+        try (var input = Files.newInputStream(programCacheFile)) {
+            int count = programCache.load(input);
+            LOG.info("Loaded {} debug programs from {}", count, programCacheFile);
+        } catch (IOException e) {
+            LOG.error("Cannot load program cache", e);
+        }
+    }
+
+    public void storeProgramCache() {
+        if (programCache == null) {
+            return;
+        }
+        if (!programCacheFile.toFile().exists()) {
+            try {
+                Files.createFile(programCacheFile);
+            } catch (IOException e) {
+                LOG.error("Cannot create program cache file {}", programCacheFile);
+                return;
+            }
+        }
+        try (var out = Files.newOutputStream(programCacheFile)) {
+            programCache.store(out);
+        } catch (IOException e) {
+            LOG.error("Cannot store program cache", e);
         }
     }
 
@@ -148,6 +183,7 @@ public class State {
                     var program = Synthesizer.synthesizeProgram(partition);
                     LOG.info("Cache program {}", program.toPrettyString());
                     programCache.accept(program);
+                    storeProgramCache();
                 }
             }
         }));
@@ -215,7 +251,8 @@ public class State {
                                 packetToStringMode.format(p.second));
                     }
                     // now go through all unfinished requests and check
-                    for (WrappedPacket<Request<?>> value : unfinished.values()) {
+                    for (WrappedPacket<Request<?>> value : new HashMap<>(unfinished).values()) { // TODO: writeReply
+                        // might cause a concurrent modification exception
                         var unfinishedRequest = value.packet;
                         if (hasCachedReply(unfinishedRequest)) {
                             var cachedReply = replyCache.get(unfinishedRequest);

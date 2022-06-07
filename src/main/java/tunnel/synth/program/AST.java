@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
+import static tunnel.synth.program.Functions.WRAP;
 import static tunnel.synth.program.Functions.createWrapperFunctionCall;
 
 public interface AST {
@@ -53,6 +54,17 @@ public interface AST {
         public abstract <R> R accept(ReturningExpressionVisitor<R> visitor);
 
         public abstract List<Expression> getSubExpressions();
+
+        public boolean doesDependOnStatement(Statement other) {
+            return getSubExpressions().stream().anyMatch(e -> e.doesDependOnStatement(other));
+        }
+
+        /**
+         * directly contains reference value
+         */
+        public boolean isDirectPointerRelated() {
+            return getSubExpressions().stream().anyMatch(Expression::isDirectPointerRelated);
+        }
     }
 
     abstract class Primitive extends Expression {
@@ -183,9 +195,14 @@ public interface AST {
         public List<Expression> getSubExpressions() {
             return List.of();
         }
+
+        @Override
+        public boolean doesDependOnStatement(Statement other) {
+            return source != null && source.equals(other);
+        }
     }
 
-    abstract class Statement implements AST {
+    static abstract class Statement implements AST {
 
         public abstract void accept(StatementVisitor visitor);
 
@@ -216,6 +233,91 @@ public interface AST {
 
         public List<Expression> getSubExpressions() {
             return List.of();
+        }
+
+        public boolean doesDependOn(Statement other) {
+            return getSubExpressions().stream().anyMatch(e -> e.doesDependOnStatement(other)) ||
+                    getSubStatements().stream().anyMatch(s -> s.doesDependOn(other));
+        }
+
+        public boolean isDirectPointerRelated() {
+            return getSubExpressions().stream().anyMatch(Expression::isDirectPointerRelated) ||
+                    getSubStatements().stream().anyMatch(Statement::isDirectPointerRelated);
+        }
+    }
+
+    interface CompoundStatement<T extends Statement> extends AST {
+        List<Statement> getSubStatements();
+
+        T removeStatements(Set<Statement> statements);
+
+        default T removeStatementsTransitively(Set<Statement> statements) {
+            return removeStatements(getDependentStatementsAndAnchors(statements));
+        }
+
+        default Set<Statement> getDependentStatements(Set<Statement> statements) {
+            Set<Statement> ret = new HashSet<>();
+            for (Statement subStatement : getSubStatements()) {
+                for (Statement other : statements) {
+                    if (subStatement.doesDependOn(other)) {
+                        ret.add(subStatement);
+                    }
+                    if (subStatement instanceof CompoundStatement<?>) {
+                        ret.addAll(((CompoundStatement<?>) subStatement).getDependentStatements(statements));
+                    }
+                }
+            }
+            return ret;
+        }
+
+        default Set<Statement> getDependentStatementsAndAnchors(Set<Statement> anchors) {
+            if (anchors.isEmpty()) {
+                return Set.of();
+            }
+            return Stream.concat(
+                    getDependentStatements(anchors).stream(),
+                    anchors.stream()
+            ).collect(Collectors.toSet());
+        }
+
+        default Set<Statement> getDirectPointerRelatedStatements() {
+            Set<Statement> ret = new HashSet<>();
+            ((Statement) this).getSubStatements().forEach(s -> s.accept(new StatementVisitor() {
+                @Override
+                public void visit(Loop loop) {
+                    if (loop.isDirectPointerRelated()) {
+                        ret.add(loop);
+                    } else {
+                        ret.addAll(loop.getDirectPointerRelatedStatements());
+                    }
+                }
+
+                @Override
+                public void visit(Statement statement) {
+                    if (statement.isDirectPointerRelated()) {
+                        ret.add(statement);
+                    } else if (statement instanceof CompoundStatement<?>) {
+                        ret.addAll(((CompoundStatement<?>) statement).getDirectPointerRelatedStatements());
+                    }
+                }
+            }));
+            return ret;
+        }
+
+        /**
+         * remove statements that directly contain a wrapped direct pointer
+         */
+        default T removeDirectPointerRelatedStatements() {
+            return removeStatements(getDependentStatementsAndAnchors(getDirectPointerRelatedStatements()));
+        }
+
+        @SuppressWarnings("unchecked")
+        default T removeDirectPointerRelatedStatementsTransitively() {
+            var statements = getDependentStatementsAndAnchors(getDirectPointerRelatedStatements());
+            if (statements.isEmpty()) {
+                return (T) this;
+            }
+            return removeStatementsTransitively(statements);
         }
     }
 
@@ -287,6 +389,16 @@ public interface AST {
         @Override
         public List<Expression> getSubExpressions() {
             return arguments;
+        }
+
+        @Override
+        public boolean isDirectPointerRelated() {
+            if (functionName.equals(WRAP) && arguments.get(1) instanceof IntegerLiteral) {
+                assert arguments.get(0) instanceof StringLiteral;
+                return Functions.applyWrapper(((StringLiteral) arguments.get(0)).get(),
+                        ((IntegerLiteral) arguments.get(1)).get()).isDirectPointer();
+            }
+            return arguments.stream().anyMatch(Expression::isDirectPointerRelated);
         }
     }
 
@@ -460,7 +572,7 @@ public interface AST {
 
     @Getter
     @EqualsAndHashCode(callSuper = false)
-    class Loop extends Statement {
+    class Loop extends Statement implements CompoundStatement<Loop> {
         private final Identifier iter;
         private final Expression iterable;
         private final Body body;
@@ -523,6 +635,11 @@ public interface AST {
         }
 
         @Override
+        public Loop removeStatements(Set<Statement> statements) {
+            return new Loop(iter, iterable, body.removeStatements(statements));
+        }
+
+        @Override
         public List<Expression> getSubExpressions() {
             return List.of(iter, iterable);
         }
@@ -534,7 +651,7 @@ public interface AST {
         }
     }
 
-    class Body extends Statement implements List<Statement> {
+    class Body extends Statement implements List<Statement>, CompoundStatement<Body> {
         private final List<Statement> body;
 
         @Override
@@ -810,6 +927,13 @@ public interface AST {
         @Override
         public List<Statement> getSubStatements() {
             return body;
+        }
+
+        public Body removeStatements(Set<Statement> statements) {
+            return new Body(body.stream().filter(s -> !statements.contains(s))
+                    .map(s -> s instanceof CompoundStatement<?> ?
+                            ((CompoundStatement<?>) s).removeStatements(statements) : s)
+                    .collect(Collectors.toList()));
         }
     }
 }

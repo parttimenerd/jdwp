@@ -8,6 +8,7 @@ import tunnel.synth.program.AST.PacketCall;
 import tunnel.synth.program.AST.RequestCall;
 import tunnel.synth.program.Program;
 
+import java.io.*;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -89,5 +90,48 @@ public class ProgramCache implements Consumer<Program> {
         @Override
         public void accept(Program program) {
         }
+    }
+
+    public int load(InputStream stream) throws IOException {
+        var reader = new BufferedReader(new InputStreamReader(stream));
+        String line = null;
+        int count = 0;
+        while ((line = reader.readLine()) != null) {
+            StringBuffer program = new StringBuffer(line);
+            while ((line = reader.readLine()) != null && !line.isBlank()) {
+                program.append(line);
+            }
+            accept(Program.parse(program.toString()));
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * Write the whole map into a stream, but only include statements
+     * that do not depend on direct pointers written directly in the program.
+     * Skip programs that only consist of such statements or whose cause is such a statement
+     */
+    public void store(OutputStream stream) throws IOException {
+        var writer = new OutputStreamWriter(stream);
+        for (Program program : causeToProgram.values()) {
+            var filtered = program.removeDirectPointerRelatedStatementsTransitively();
+            if (!filtered.hasCause() || filtered.getNumberOfDistinctCalls() == 0) {
+                continue;
+            }
+            writer.write(filtered.toPrettyString());
+            writer.write("\n\n");
+        }
+        writer.flush();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof ProgramCache && causeToProgram.equals(((ProgramCache) obj).causeToProgram);
+    }
+
+    @Override
+    public String toString() {
+        return causeToProgram.toString();
     }
 }

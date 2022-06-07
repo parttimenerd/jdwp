@@ -14,6 +14,8 @@ import tunnel.synth.Synthesizer;
 import tunnel.util.MultiColumnLogbackLayout;
 import tunnel.util.ToStringMode;
 
+import java.nio.file.Paths;
+
 import static tunnel.State.Mode.CLIENT;
 import static tunnel.State.Mode.NONE;
 
@@ -68,6 +70,9 @@ public class PacketLogger implements Runnable {
     @Option(names = "--disable-rc", description = "Disable reply cache")
     private boolean disableReplyCache = false;
 
+    @Option(names = "--cache-file")
+    String programCacheFile = "";
+
     enum ColumnMode {
         NONE,
         TWO_COLUMN
@@ -106,6 +111,10 @@ public class PacketLogger implements Runnable {
                 mainConfig.getOwnAddress(), mainConfig.getJvmAddress());
         if (disableProgramCache) {
             tunnel.getState().disableProgramCache();
+        } else {
+            if (programCacheFile.length() > 0) {
+                tunnel.getState().loadProgramCache(Paths.get(programCacheFile));
+            }
         }
         if (disableReplyCache) {
             tunnel.getState().disableReplyCache();

@@ -4,12 +4,14 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 import tunnel.synth.ProgramHashes;
+import tunnel.synth.program.AST.CompoundStatement;
 import tunnel.synth.program.AST.Statement;
 import tunnel.synth.program.Visitors.RecursiveStatementVisitor;
 import tunnel.synth.program.Visitors.ReturningStatementVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
 import java.util.List;
+import java.util.Set;
 
 import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
@@ -19,7 +21,7 @@ import static tunnel.synth.Synthesizer.CAUSE_NAME;
  */
 @EqualsAndHashCode(callSuper = false)
 @Getter
-public class Program extends Statement {
+public class Program extends Statement implements CompoundStatement<Program> {
 
     public static final String INDENT = "  ";
 
@@ -111,5 +113,24 @@ public class Program extends Statement {
 
     public int getNumberOfDistinctCalls() {
         return getNumberOfAssignments() + (hasCause() && getCause() instanceof EventsCall ? 1 : 0);
+    }
+
+    public Program removeStatements(Set<Statement> statements) {
+        // check whether the cause has to be removed
+        if (cause != null && statements.stream().anyMatch(s -> s instanceof AssignmentStatement &&
+                ((AssignmentStatement) s).getExpression() instanceof PacketCall &&
+                ((AssignmentStatement)s).getExpression().equals(cause))) {
+            return new Program(null, body.removeStatements(statements));
+        }
+        return new Program(cause, body.removeStatements(statements));
+    }
+
+    public Set<Statement> getDependentStatements(Set<Statement> statements) {
+        return body.getDependentStatements(statements);
+    }
+
+    @Override
+    public List<Statement> getSubStatements() {
+        return body.getSubStatements();
     }
 }
