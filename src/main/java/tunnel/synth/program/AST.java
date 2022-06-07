@@ -405,7 +405,7 @@ public interface AST {
     @Getter
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = false)
-    class PacketCall extends Expression {
+    abstract class PacketCall extends Expression {
         private final String name;
         private final String commandSet;
         private final String command;
@@ -436,6 +436,26 @@ public interface AST {
                     command,
                     properties.isEmpty() ? "" : " ",
                     properties.stream().map(Object::toString).collect(Collectors.joining(" ")));
+        }
+
+
+        /**
+         * returns 0 if both are incompatible (e.g. one is a request and the other an event) and > 0 if there is some
+         * similarity (and programs with one as a cause are useful for programs with the other as a cause)
+         */
+        public float computeSimilarity(PacketCall other) {
+            if (!getCommandSet().equals(other.getCommandSet()) ||
+                    !getCommand().equals(other.getCommand())) { // request vs events
+                return 0;
+            }
+            return compareProperties(getProperties(), other.getProperties());
+        }
+
+        /** returns a value >= 0 which is larger for more similar property lists */
+        static float compareProperties(List<CallProperty> props1, List<CallProperty> props2) {
+            // compute the percentage of equal props
+            Set<CallProperty> props2Set = new HashSet<>(props2);
+            return (float)props1.stream().mapToDouble(p -> props2Set.contains(p) ? 1 : 0).sum();
         }
     }
 
@@ -529,6 +549,19 @@ public interface AST {
                                                 wrap(p.second.getClass().getSimpleName()))),
                             events.asCombined().getTaggedValues()),
                     List.of());
+        }
+        public float computeSimilarity(PacketCall other) {
+            if (!getCommandSet().equals(other.getCommandSet()) ||
+                    !getCommand().equals(other.getCommand()) ||
+                    !getKinds().equals(((EventsCall)other).getKinds())) { // request vs events
+                return 0;
+            }
+            return compareProperties(getProperties(), other.getProperties());
+        }
+
+        private Set<String> getKinds() {
+            return getProperties().stream().filter(p -> p.getPath().endsWith("kind"))
+                    .map(p -> ((StringLiteral) p.getAccessor().arguments.get(1)).value).collect(Collectors.toSet());
         }
     }
 

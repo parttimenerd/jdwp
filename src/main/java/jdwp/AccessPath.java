@@ -186,6 +186,10 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         return true;
     }
 
+    public boolean endsWith(Object end) {
+        return path[path.length - 1].equals(end);
+    }
+
     public AccessPath removeListAccesses() {
         return new AccessPath(Arrays.stream(path).filter(e -> e instanceof String).toArray());
     }

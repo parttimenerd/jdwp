@@ -26,10 +26,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static tunnel.State.Mode.CLIENT;
 import static tunnel.State.Mode.NONE;
@@ -116,7 +113,7 @@ public class State {
     }
 
     public void storeProgramCache() {
-        if (programCache == null) {
+        if (programCache == null || programCacheFile == null) {
             return;
         }
         if (!programCacheFile.toFile().exists()) {
@@ -378,12 +375,8 @@ public class State {
         return replyCache.get(request);
     }
 
-    public boolean hasCachedProgram(ParsedPacket packet) {
-        return programCache.get(packet).isPresent();
-    }
-
-    public Program getCachedProgram(ParsedPacket packet) {
-        return programCache.get(packet).get();
+    public Optional<Program> getCachedProgram(ParsedPacket packet) {
+        return programCache.get(packet).or(() -> programCache.getSimilar(packet));
     }
 
     public void addUnfinishedEvaluateRequest(EvaluateProgramRequest evaluateRequest) {

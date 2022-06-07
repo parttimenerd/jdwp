@@ -4,7 +4,9 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.ClassUnload;
+import jdwp.EventCmds.Events.ThreadDeath;
 import jdwp.JDWP.ReturningRequestVisitor;
+import jdwp.Reference;
 import jdwp.Reply;
 import jdwp.Request;
 import jdwp.TunnelCmds.EvaluateProgramReply;
@@ -331,7 +333,7 @@ public class BasicMockVMTest {
                             "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\")))" +
                             " (= var0" +
                             " (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))",
-                    tp.serverTunnel.getState().getCachedProgram(events).toString());
+                    tp.serverTunnel.getState().getCachedProgram(events).get().toString());
             // the event should have caused the usage of this program, resulting in another Classes request to the vm
             assertEquals(List.of(classesRequest, classesRequest), tp.vm.getReceivedRequests());
             assertEquals(new ReplyCache(), tp.serverTunnel.getState().getReplyCache());
@@ -339,7 +341,7 @@ public class BasicMockVMTest {
                     tp.clientTunnel.getState().getReplyCache());
             assertEquals(classesReply, tp.client.query(classesRequest));
             assertEquals(List.of(classesRequest, classesRequest), tp.vm.getReceivedRequests());
-            var classUnloadEvent = new ClassUnload(wrap(1), wrap("bla"));
+            var classUnloadEvent = new ThreadDeath(wrap(1), Reference.thread(1));
             tp.vm.sendEvent(0, classUnloadEvent); // invalidate the caches
             Thread.sleep(10);
             Assertions.assertTimeout(Duration.ofMillis(100), () -> {

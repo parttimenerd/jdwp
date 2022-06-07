@@ -1,5 +1,7 @@
 package tunnel;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import jdwp.EventCmds.Events;
 import jdwp.ParsedPacket;
 import jdwp.Request;
@@ -9,10 +11,10 @@ import tunnel.synth.program.AST.RequestCall;
 import tunnel.synth.program.Program;
 
 import java.io.*;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+
+import static jdwp.util.Pair.p;
 
 /**
  * Similar to {@link tunnel.synth.ProgramCollection} with the aim to cache the most recent program for a given
@@ -28,21 +30,29 @@ public class ProgramCache implements Consumer<Program> {
     }
 
     private final Mode mode;
-    private final Map<PacketCall, Program> causeToProgram;
+    private final Cache<PacketCall, Program> causeToProgram;
 
     public static final int DEFAULT_MIN_SIZE = 2;
 
+    public static final int DEFAULT_MAX_CACHE_SIZE = 200;
+
     /** minimal number assignments in a program to be added, event causes are included */
     private final int minSize;
+
+    private final int maxCacheSize;
 
     public ProgramCache() {
         this(Mode.LAST, DEFAULT_MIN_SIZE);
     }
 
     public ProgramCache(Mode mode, int minSize) {
+        this(mode, minSize, DEFAULT_MAX_CACHE_SIZE);
+    }
+    public ProgramCache(Mode mode, int minSize, int maxCacheSize) {
+        this.maxCacheSize = maxCacheSize;
         this.mode = mode;
         this.minSize = minSize;
-        this.causeToProgram = new ConcurrentHashMap<>();
+        this.causeToProgram = CacheBuilder.newBuilder().maximumSize(maxCacheSize).build();
         assert mode == Mode.LAST;
     }
 
@@ -61,7 +71,7 @@ public class ProgramCache implements Consumer<Program> {
     }
 
     private Optional<Program> get(PacketCall packetCall) {
-        return Optional.ofNullable(causeToProgram.get(packetCall));
+        return Optional.ofNullable(causeToProgram.getIfPresent(packetCall));
     }
 
     public Optional<Program> get(Request<?> request) {
@@ -82,8 +92,28 @@ public class ProgramCache implements Consumer<Program> {
         return Optional.empty();
     }
 
+    /**
+     * returns the program with the most similar cause
+     *
+     * @see PacketCall#computeSimilarity(PacketCall)
+     */
+    public Optional<Program> getSimilar(PacketCall packet) {
+        var best = causeToProgram.asMap().entrySet().stream()
+                .map(e -> p(e, e.getKey().computeSimilarity(packet)))
+                .max((p1, p2) -> Float.compare(p1.second, p2.second));
+        if (best.isPresent() && best.get().second > 0) {
+            return Optional.of(best.get().first.getValue());
+        }
+        return Optional.empty();
+    }
+
+    public Optional<Program> getSimilar(ParsedPacket packet) {
+        return getSimilar(packet instanceof Events ?
+                EventsCall.create((Events) packet) : RequestCall.create((Request<?>) packet));
+    }
+
     public int size() {
-        return causeToProgram.size();
+        return (int)causeToProgram.size();
     }
 
     public static class DisabledProgramCache extends ProgramCache {
@@ -114,7 +144,7 @@ public class ProgramCache implements Consumer<Program> {
      */
     public void store(OutputStream stream) throws IOException {
         var writer = new OutputStreamWriter(stream);
-        for (Program program : causeToProgram.values()) {
+        for (Program program : causeToProgram.asMap().values()) {
             var filtered = program.removeDirectPointerRelatedStatementsTransitively();
             if (!filtered.hasCause() || filtered.getNumberOfDistinctCalls() == 0) {
                 continue;
@@ -127,11 +157,17 @@ public class ProgramCache implements Consumer<Program> {
 
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof ProgramCache && causeToProgram.equals(((ProgramCache) obj).causeToProgram);
+        return obj instanceof ProgramCache &&
+                causeToProgram.asMap().equals(((ProgramCache)obj).causeToProgram.asMap());
     }
 
     @Override
     public String toString() {
-        return causeToProgram.toString();
+        return causeToProgram.asMap().toString();
+    }
+
+    @Override
+    public int hashCode() {
+        return causeToProgram.asMap().hashCode();
     }
 }

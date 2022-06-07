@@ -139,15 +139,18 @@ public class BasicTunnel {
                         state.addReply(new WrappedPacket<>(new ReplyOrError<>(reply)));
                         writeClientReply(clientOutputStream, Either.right(new ReplyOrError<>(reply)));
                         continue;
-                    } else if (state.hasCachedProgram(request)) {
-                        var program = state.getCachedProgram(request).toPrettyString();
-                        LOG.info("Cached program for request  {}:\n {}", request.toCode(), program);
-                        var evaluateRequest =  new EvaluateProgramRequest(request.getId(),
-                                wrap(program));
-                        state.addUnfinishedEvaluateRequest(evaluateRequest);
-                        state.writeRequest(jvmOutputStream, evaluateRequest);
                     } else {
-                        state.writeRequest(jvmOutputStream, request);
+                        var programOpt = state.getCachedProgram(request);
+                        if (programOpt.isPresent()) {
+                            var program = programOpt.get().toPrettyString();
+                            LOG.info("Cached program for request  {}:\n {}", request.toCode(), program);
+                            var evaluateRequest = new EvaluateProgramRequest(request.getId(),
+                                    wrap(program));
+                            state.addUnfinishedEvaluateRequest(evaluateRequest);
+                            state.writeRequest(jvmOutputStream, evaluateRequest);
+                        } else {
+                            state.writeRequest(jvmOutputStream, request);
+                        }
                     }
                 }
             } catch (ClosedStreamException e) {
@@ -178,8 +181,9 @@ public class BasicTunnel {
                 reply = readJvmReply(jvmInputStream, clientOutputStream);
                 if (reply.isPresent() && reply.get().isLeft()) {
                     var events = reply.get().getLeft();
-                    if (state.hasCachedProgram(events)) {
-                        var program = state.getCachedProgram(events);
+                    var programOpt = state.getCachedProgram(events);
+                    if (programOpt.isPresent()) {
+                        var program = programOpt.get();
                         LOG.info("Cached program for events  {}:\n {}", events.toCode(), program.toPrettyString());
                         handleEvaluateProgramEvent(jvmInputStream, jvmOutputStream,
                                 clientOutputStream, events, program);
