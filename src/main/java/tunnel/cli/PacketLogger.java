@@ -8,6 +8,7 @@ import picocli.CommandLine.ParentCommand;
 import tunnel.BasicTunnel;
 import tunnel.Listener.LoggingListener;
 import tunnel.State;
+import tunnel.State.Formatter;
 import tunnel.synth.Partitioner;
 import tunnel.synth.ProgramCollection;
 import tunnel.synth.Synthesizer;
@@ -107,8 +108,10 @@ public class PacketLogger implements Runnable {
     public void run() {
         handleLoggingSetup();
         LOG.info("Starting tunnel from {} to {}", mainConfig.getJvmAddress(), mainConfig.getOwnAddress());
-        var tunnel = new BasicTunnel(new State(new VM(0), tunnelMode, packetToStringMode),
+        Formatter formatter = new Formatter(packetToStringMode, partitionToStringMode);
+        var tunnel = new BasicTunnel(new State(new VM(0), tunnelMode, formatter),
                 mainConfig.getOwnAddress(), mainConfig.getJvmAddress());
+        tunnel.setFormatter(formatter);
         if (disableProgramCache) {
             tunnel.getState().disableProgramCache();
         } else {
@@ -125,7 +128,7 @@ public class PacketLogger implements Runnable {
                         System.out.println();
                         if (logPartitions) {
                             System.out.println("Partition:");
-                            System.out.println(partitionToStringMode.format(p));
+                            System.out.println(formatter.format(p));
                             System.out.println();
                             System.out.println();
                         }

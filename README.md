@@ -106,7 +106,6 @@ TODO
     of the dependency graph
 - test more
 - handle Tunnel requests and events properly in synthesizer
-- user formatter of State in BasicTunnel (create specific formatter class)
 - look into generated programs and add sanity checks
   - i.e. ResumeRequests can never be the cause for something
 - implement tester for OpenJDK to find bugs in JDWP error handling

@@ -11,10 +11,12 @@ import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.LoggerFactory;
 import tunnel.ProgramCache.DisabledProgramCache;
 import tunnel.ReplyCache.DisabledReplyCache;
 import tunnel.synth.Partitioner;
+import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.Synthesizer;
 import tunnel.synth.program.Program;
 import tunnel.util.Either;
@@ -66,6 +68,30 @@ public class State {
         }
     }
 
+    @AllArgsConstructor
+    @Getter
+    @Setter
+    public static class Formatter {
+        private ToStringMode packetToStringMode;
+        private ToStringMode partitionToStringMode;
+
+        public String format(Packet packet) {
+            return packetToStringMode.format(packet);
+        }
+
+        public String format(ParsedPacket packet) {
+            return packetToStringMode.format(packet);
+        }
+
+        public String format(ReplyOrError<?> packet) {
+            return packetToStringMode.format(packet);
+        }
+
+        public String format(Partition partition) {
+            return packetToStringMode.format(partition);
+        }
+    }
+
     private final VM vm;
     private final Mode mode;
     private int currentRequestId;
@@ -76,14 +102,14 @@ public class State {
 
     private ReplyCache replyCache;
     private ProgramCache programCache;
-    private ToStringMode packetToStringMode;
+    private Formatter formatter;
     private @Nullable Path programCacheFile;
 
     public State(VM vm, Mode mode) {
-        this(vm, mode, ToStringMode.CODE);
+        this(vm, mode, new Formatter(ToStringMode.CODE, ToStringMode.CODE));
     }
 
-    public State(VM vm, Mode mode, ToStringMode packetToStringMode) {
+    public State(VM vm, Mode mode, Formatter formatter) {
         this.vm = vm;
         this.unfinished = new HashMap<>();
         this.listeners = new HashSet<>();
@@ -91,7 +117,7 @@ public class State {
         this.programCache = new ProgramCache();
         this.unfinishedEvaluateRequests = new HashMap<>();
         this.mode = mode;
-        this.packetToStringMode = packetToStringMode;
+        this.formatter = formatter;
         LOG = (Logger) LoggerFactory.getLogger((mode == NONE ? "" : mode.name().toLowerCase() + "-") + "tunnel");
         if (mode != NONE) {
             registerCacheListener();
@@ -218,7 +244,7 @@ public class State {
     public Request<?> readRequest(InputStream inputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream); // already wrapped in PacketError
         var request = PacketError.call(() -> JDWP.parse(ps), ps);
-        LOG.debug(packetToStringMode.format(request));
+        LOG.debug(formatter.format(request));
         addRequest(new WrappedPacket<>(request));
         try {
             vm.captureInformation(request);
@@ -234,7 +260,7 @@ public class State {
         if (ps.isReply()) {
             if (unfinishedEvaluateRequests.containsKey(ps.id())) {
                 var reply = PacketError.call(() -> EvaluateProgramReply.parse(ps), ps);
-                LOG.debug(packetToStringMode.format(reply));
+                LOG.debug(formatter.format(reply));
                 unfinishedEvaluateRequests.remove(ps.id());
                 if (reply.isError()) {
                     addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), (short)1)));
@@ -244,8 +270,8 @@ public class State {
                     for (var p : BasicTunnel.parseEvaluateProgramReply(vm, realReply)) {
                         captureInformation(p.first, p.second);
                         replyCache.put(p.first, p.second);
-                        LOG.debug("put into reply cache: {} -> {}", packetToStringMode.format(p.first),
-                                packetToStringMode.format(p.second));
+                        LOG.debug("put into reply cache: {} -> {}", formatter.format(p.first),
+                                formatter.format(p.second));
                     }
                     // now go through all unfinished requests and check
                     for (WrappedPacket<Request<?>> value : new HashMap<>(unfinished).values()) { // TODO: writeReply
@@ -274,7 +300,7 @@ public class State {
             return Either.right(reply);
         } else {
             var events = Events.parse(ps);
-            LOG.debug(packetToStringMode.format(events.toCode()));
+            LOG.debug(formatter.format(events));
             captureInformation(events);
             for (EventCommon event : events.events) {
                 if (event instanceof TunnelRequestReplies) {
@@ -313,7 +339,7 @@ public class State {
      * write reply without triggering listeners
      */
     public void writeReply(OutputStream outputStream, Either<Events, ReplyOrError<?>> reply) {
-        LOG.debug("Write {}", packetToStringMode.format(reply.get()));
+        LOG.debug("Write {}", formatter.format((ParsedPacket)reply.get()));
         try {
             ((ParsedPacket)reply.get()).toPacket(vm).write(outputStream);
         } catch (Exception | AssertionError e) {
@@ -340,7 +366,7 @@ public class State {
      */
     public void writeRequest(OutputStream outputStream, Request<?> request) {
         try {
-            LOG.debug("Write {}", packetToStringMode.format(request));
+            LOG.debug("Write {}", formatter.format(request));
             request.toPacket(vm).write(outputStream);
         } catch (Exception | AssertionError e) {
             throw new PacketError(String.format("Failed to write request %s", request));

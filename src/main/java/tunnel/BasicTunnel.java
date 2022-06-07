@@ -14,8 +14,10 @@ import jdwp.Value.Type;
 import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.SneakyThrows;
 import org.slf4j.LoggerFactory;
+import tunnel.State.Formatter;
 import tunnel.State.Mode;
 import tunnel.State.WrappedPacket;
 import tunnel.synth.program.Evaluator;
@@ -39,6 +41,7 @@ import static jdwp.JDWP.Error.CANNOT_EVALUATE_PROGRAM;
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
 import static tunnel.State.Mode.NONE;
+import static tunnel.util.ToStringMode.CODE;
 
 /**
  * Basic tunnel that works without threads.
@@ -52,6 +55,8 @@ public class BasicTunnel {
     private final State state;
     private final InetSocketAddress ownAddress;
     private final InetSocketAddress jvmAddress;
+    @Setter
+    private Formatter formatter = new Formatter(CODE, CODE);
 
     public BasicTunnel(State state, InetSocketAddress ownAddress, InetSocketAddress jvmAddress) {
         this.state = state;
@@ -135,7 +140,7 @@ public class BasicTunnel {
                                 clientOutputStream, (EvaluateProgramRequest) request);
                     } else if (state.hasCachedReply(request)) {
                         var reply = state.getCachedReply(request);
-                        LOG.info("Cached reply for  {}: {}", request.toCode(), reply.toCode());
+                        LOG.info("Cached reply for  {}: {}", formatter.format(request), formatter.format(reply));
                         state.addReply(new WrappedPacket<>(new ReplyOrError<>(reply)));
                         writeClientReply(clientOutputStream, Either.right(new ReplyOrError<>(reply)));
                         continue;
@@ -143,7 +148,7 @@ public class BasicTunnel {
                         var programOpt = state.getCachedProgram(request);
                         if (programOpt.isPresent()) {
                             var program = programOpt.get().toPrettyString();
-                            LOG.info("Cached program for request  {}:\n {}", request.toCode(), program);
+                            LOG.info("Cached program for request  {}:\n {}", formatter.format(request), program);
                             var evaluateRequest = new EvaluateProgramRequest(request.getId(),
                                     wrap(program));
                             state.addUnfinishedEvaluateRequest(evaluateRequest);
@@ -184,7 +189,8 @@ public class BasicTunnel {
                     var programOpt = state.getCachedProgram(events);
                     if (programOpt.isPresent()) {
                         var program = programOpt.get();
-                        LOG.info("Cached program for events  {}:\n {}", events.toCode(), program.toPrettyString());
+                        LOG.info("Cached program for events  {}:\n {}", formatter.format(events),
+                                program.toPrettyString());
                         handleEvaluateProgramEvent(jvmInputStream, jvmOutputStream,
                                 clientOutputStream, events, program);
                         reply = Optional.empty();
