@@ -29,6 +29,7 @@ import jdwp.Reference.ArrayReference;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ObjectReference;
 import jdwp.Value.BasicScalarValue;
+import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -96,7 +97,7 @@ class PacketInputStream {
         int length = readInt(lengthBytes);
         byte[] data = new byte[length];
         System.arraycopy(lengthBytes, 0, data, 0, 4);
-        int readBytes = input.read(data, 4, length - 4);
+        int readBytes = readBytes(input, data, 4, length - 4, 100);
         if (readBytes != length - 4) {
             throw new PacketError(String.format("Read %d bytes, but expected to read %d bytes", readBytes, length - 4));
         }
@@ -105,6 +106,22 @@ class PacketInputStream {
         } catch (Exception | AssertionError e) {
             throw new PacketError(String.format("Could not read package (length=%d)", length), data, e);
         }
+    }
+
+    @SneakyThrows
+    private static int readBytes(InputStream input, byte[] dest, int off, int length, int maxTime) {
+        long start = System.currentTimeMillis();
+        int ovRead = 0;
+        while (length > 0 && start + maxTime > System.currentTimeMillis()) {
+            int read = input.read(dest, off, length);
+            if (read == -1) {
+                return -1;
+            }
+            off += read;
+            length -= read;
+            ovRead += read;
+        }
+        return ovRead;
     }
 
     public static PacketInputStream read(VM vm, Packet packet) {
