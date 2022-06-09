@@ -555,11 +555,8 @@ internal object CodeGeneration {
 
     private fun TypeSpec.Builder.genHashCode(fields: List<TypeNode.AbstractTypeNode>) = `public`(TypeName.INT, "hashCode") {
         `@Override`()
-        if (fields.isEmpty()) {
-            _return(0.L)
-        } else {
-            _return("Objects.hash(${fields.joinToString(", ") { it.name() }})")
-        }
+        val vars = listOf<String>("COMMAND", "COMMAND_SET") + fields.map { it.name() }
+        _return("Objects.hash(${vars.joinToString(", ")})")
     }
 
     private fun TypeSpec.Builder.genCombinedTypeGet(fields: List<TypeNode.AbstractTypeNode>) {

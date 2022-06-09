@@ -12,7 +12,6 @@ import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.util.Either;
-import tunnel.util.Hashed;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -243,7 +242,7 @@ public class DependencyGraph {
         boolean hasRequestCause = partition.hasCause() && partition.getCause().isLeft();
         if (hasRequestCause && !(partition.get(0).first().equals(partition.getCause().getLeft()))) {
             throw new AssertionError(String.format("Request cause but first element in partition is not this request:" +
-                    " %s", partition));
+                    " %s", partition.toCode()));
         }
 
         // look for requests that only depend on the cause or values not in the set
@@ -417,7 +416,6 @@ public class DependencyGraph {
             return dependentNodes;
         }
 
-        private Map<Node, Hashed<Node>> hashed;
         private Comparator<Node> nodeComparator;
 
         /**
@@ -426,7 +424,6 @@ public class DependencyGraph {
          */
         public Comparator<Node> getNodeComparator() {
             if (nodeComparator == null) {
-                computeHashedNodesIfNeeded();
                 nodeComparator = (left, right) -> {
                     assert left != null && right != null;
                     if ((left.isCauseNode() || (graph.hasCauseNode() &&
@@ -441,9 +438,7 @@ public class DependencyGraph {
                     if (layerComp != 0) {
                         return layerComp;
                     }
-                    long leftHash = hashed.get(left).hash();
-                    long rightHash = hashed.get(right).hash();
-                    int comparison = Long.compare(leftHash, rightHash);
+                    int comparison = Integer.compare(hash(left), hash(right));
                     if (comparison == 0) {
                         return Integer.compare(left.getId(), right.getId()); // use the ids only as a measure of last resort
                     }
@@ -459,59 +454,46 @@ public class DependencyGraph {
 
         /** returns the set of nodes without duplicates (and the nodes they depend on), uses hash based heuristics */
         public Set<Node> getAllNodesWithoutDuplicates() {
-            Set<Hashed<Node>> nonDuplicates = new HashSet<>();
-            computeHashedNodesIfNeeded();
+            Set<HashedNode> nonDuplicates = new HashSet<>();
             Set<Node> considerForRemoval = new HashSet<>();
             for (Node node : getAllNodes()) {
-                var hash = hashed.get(node);
-                if (nonDuplicates.contains(hash)) {
+                var hashed = new HashedNode(node);
+                if (nonDuplicates.contains(hashed)) {
                     considerForRemoval.add(node);
                 } else {
-                    nonDuplicates.add(hash);
+                    nonDuplicates.add(hashed);
                 }
             }
             considerForRemoval.addAll(computeDependedByTransitive(considerForRemoval));
             return getAllNodes().stream().filter(n -> !considerForRemoval.contains(n)).collect(Collectors.toSet());
         }
 
-        private class HashedNodeHelper {
-            final Map<Node, Hashed<Node>> hashed = new HashMap<>();
-
-            Hashed<Node> get(Node node) {
-                return hashed.computeIfAbsent(node, this::compute);
-            }
-
-            Hashed<Node> compute(Node node) {
-                short originCode = 389;
-                if (node.getOrigin() != null) {
-                    var request = node.getOrigin().first;
-                    originCode = (short) ((request.getCommandSet() << 8) | request.getCommand());
-                }
-                return Hashed.create(node, ((short) getLayerIndex(node) << 16) | originCode,
-                        node.getDependsOn().stream()
-                                .flatMapToLong(e -> e.getUsedValues()
-                                        .stream()
-                                        .flatMapToLong(t -> t.getAtSetTargets().stream()
-                                                .mapToLong(p -> ((p.hashCode() * 769L) + t.getAtValueOrigin().hashCode())
-                                                        * 769L + get(e.target).hash()))).sorted().toArray());
-            }
-
-            void process(List<Set<Node>> nodes) {
-                nodes.forEach(ns -> ns.forEach(this::get));
-            }
+        private static int hash(Node node) {
+            return node.origin != null ? node.origin.first.hashCode() : 0;
         }
 
-        public Map<Node, Hashed<Node>> computeHashedNodes() {
-            HashedNodeHelper helper = new HashedNodeHelper();
-            helper.process(layers);
-            return helper.hashed;
-        }
+        private static class HashedNode {
+            private final Node node;
+            private final int hashCode;
 
-        public Map<Node, Hashed<Node>> computeHashedNodesIfNeeded() {
-            if (hashed == null) {
-                hashed = computeHashedNodes();
+            public HashedNode(Node node) {
+                this.node = node;
+                this.hashCode = hash(node);
             }
-            return hashed;
+
+            @Override
+            public int hashCode() {
+                return hashCode;
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                return obj instanceof HashedNode && node.equals(((HashedNode) obj).node);
+            }
+
+            public Node get() {
+                return node;
+            }
         }
     }
 

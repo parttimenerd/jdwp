@@ -1,10 +1,10 @@
 package tunnel.synth;
 
-import jdwp.AccessPath;
-import jdwp.PrimitiveValue;
-import jdwp.Reference;
-import jdwp.Value;
+import jdwp.*;
+import jdwp.Reference.*;
 import jdwp.Value.BasicValue;
+import jdwp.Value.ListValue;
+import jdwp.Value.Type;
 import jdwp.util.Pair;
 import jdwp.util.TestReply;
 import jdwp.util.TestRequest;
@@ -189,6 +189,34 @@ public class DependencyGraphTest {
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start));
         var graph = DependencyGraph.calculate(partition);
         assertEquals(1, graph.getAllNodesWOCause().size());
+    }
+
+    @Test
+    public void getAllNodesWithoutDuplicates() {
+        var partition = new Partition(Either.left(new jdwp.ThreadReferenceCmds.NameRequest(425824,
+                new ThreadReference(1136L))), List.of(
+                p(new jdwp.ThreadReferenceCmds.NameRequest(425824, new ThreadReference(1136L)),
+                        new jdwp.ThreadReferenceCmds.NameReply(425824, PrimitiveValue.wrap("process reaper"))),
+                p(new jdwp.ThreadReferenceCmds.ThreadGroupRequest(425825, new ThreadReference(1136L)),
+                        new jdwp.ThreadReferenceCmds.ThreadGroupReply(425825, new ThreadGroupReference(2L))),
+                p(new jdwp.ThreadReferenceCmds.StatusRequest(425826, new ThreadReference(1136L)),
+                        new jdwp.ThreadReferenceCmds.StatusReply(425826, PrimitiveValue.wrap(1),
+                                PrimitiveValue.wrap(1))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(425827, new ThreadReference(1136L),
+                                PrimitiveValue.wrap(0), PrimitiveValue.wrap(1)),
+                        new jdwp.ThreadReferenceCmds.FramesReply(425827, new ListValue<>(Type.LIST,
+                                List.of(new ThreadReferenceCmds.FramesReply.Frame(new FrameReference(65536L),
+                                        new Location(new ClassTypeReference(110L),
+                                                new MethodReference(105553119273528L),
+                                                PrimitiveValue.wrap((long) -1))))))),
+                p(new jdwp.ThreadReferenceCmds.NameRequest(425828, new ThreadReference(1137L)),
+                        new jdwp.ThreadReferenceCmds.NameReply(425828, PrimitiveValue.wrap("process reaper")))
+        ));
+        var graph = DependencyGraph.calculate(partition);
+        assertEquals(6, graph.getAllNodes().size());
+        var layers = graph.computeLayers();
+        assertEquals(6, layers.getAllNodes().size());
+        assertEquals(6, layers.getAllNodesWithoutDuplicates().size());
     }
 
     static TestRequest request(int id, Value value) {
