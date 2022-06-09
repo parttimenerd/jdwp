@@ -232,6 +232,10 @@ public class Parser {
 
     IntegerLiteral parseInteger() {
         StringBuilder buf = new StringBuilder();
+        if (current == '-') {
+            buf.append('-');
+            next();
+        }
         while (!isEOF() && Character.isDigit(current)) {
             buf.append(currentChar());
             next();
@@ -244,9 +248,11 @@ public class Parser {
         char usedQuote = current == '\'' ? '\'' : '"';
         expect(usedQuote);
         while (!isEOF() && current != usedQuote) {
-            buf.append(currentChar());
-            next();
             if (current == '\\') {
+                next();
+                buf.append(currentChar());
+                next();
+            } else {
                 buf.append(currentChar());
                 next();
             }
@@ -256,7 +262,7 @@ public class Parser {
     }
 
     Literal<?> parseLiteral() {
-        if (Character.isDigit(current)) {
+        if (Character.isDigit(current) || current == '-') {
             return parseInteger();
         }
         return parseString();

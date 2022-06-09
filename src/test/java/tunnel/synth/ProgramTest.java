@@ -172,6 +172,8 @@ public class ProgramTest {
         return new Object[][]{
                 {"(wrap 'bytes' '234')", new ByteList((byte) -37, (byte) 126)},
                 {"(wrap 'string' '234')", wrap("234")},
+                {"(wrap 'string' '\"')", wrap("\"")},
+                {"(wrap 'string' \"\\\"\")", wrap("\"")},
                 {"(wrap 'array-reference' 32)", Reference.array(32)},
                 {"(wrap 'int' 10)", wrap(10)},
                 {"(wrap 'object' 10)", Reference.object(10)},
@@ -192,6 +194,16 @@ public class ProgramTest {
                         .evaluate(
                                 Expression.parse(Functions.createWrapperFunctionCall(expectedValue).toString())),
                 expectedValue);
+    }
+
+    @Test
+    public void testFormatEscapedString() {
+        assertEquals("(wrap \"string\" \"\\\"\")", Functions.createWrapperFunctionCall(wrap("\"")).toString());
+    }
+
+    @Test
+    public void testParseEscapedString() {
+        assertEquals("\"", ((StringLiteral)Expression.parse("\"\\\"\"")).get());
     }
 
     @Test
