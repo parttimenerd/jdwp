@@ -8,30 +8,78 @@ import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.Value.WalkableValue;
 import jdwp.util.Pair;
+import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import tunnel.synth.program.AST.*;
 import tunnel.synth.program.Visitors.ReturningExpressionVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.wrap;
+import static jdwp.util.Pair.p;
 import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
 public class Evaluator {
 
-    /** default id for requests */
+    /**
+     * Can be thrown be functions (and request/event call handlers) to signify that something
+     * went wrong
+     */
+    @Getter
+    public static class EvaluationAbortException extends RuntimeException {
+        /**
+         * discard whole evaluation (and not only the current call)
+         */
+        private final boolean discard;
+
+        public EvaluationAbortException(boolean discard) {
+            this.discard = discard;
+        }
+
+        public EvaluationAbortException() {
+            this(false);
+        }
+
+        public EvaluationAbortException(boolean discard, String message) {
+            super(message);
+            this.discard = discard;
+        }
+
+        public EvaluationAbortException(boolean discard, String message, Throwable cause) {
+            super(message, cause);
+            this.discard = discard;
+        }
+    }
+
+    /**
+     * default id for requests
+     */
     public static final int DEFAULT_ID = 0;
 
     private final Functions functions;
+    private final Consumer<EvaluationAbortException> errorConsumer;
 
     public Evaluator(Functions functions) {
-        this.functions = functions;
+        this(functions, e -> {
+        });
     }
 
-    public Scopes<Value> evaluate(Program program) {
+    public Evaluator(Functions functions, Consumer<EvaluationAbortException> errorConsumer) {
+        this.functions = functions;
+        this.errorConsumer = errorConsumer;
+    }
+
+    /**
+     * @return (scope, [not evaluated statements])
+     * @throws EvaluationAbortException with discard=true if the evaluation had severe problems
+     */
+    public Pair<Scopes<Value>, Set<Statement>> evaluate(Program program) {
         var scope = new Scopes<Value>();
         if (program.hasCause()) {
             evaluate(scope, new Body(List.of(program.getCauseStatement())));
@@ -39,15 +87,36 @@ public class Evaluator {
         return evaluate(scope, program.getBody());
     }
 
-    public Scopes<Value> evaluate(Scopes<Value> scope, Body body) {
+    /**
+     * @throws EvaluationAbortException with discard=true if the evaluation had severe problems
+     */
+    public Pair<Scopes<Value>, Set<Statement>> evaluate(Scopes<Value> scope, Body body) {
+        Set<Statement> notEvaluated = new HashSet<>();
         body.accept(
                 new StatementVisitor() {
 
+                    private void addToNotEvaluated(Statement statement) {
+                        notEvaluated.addAll(body.getDependentStatementsAndAnchor(statement));
+                    }
+
                     @Override
                     public void visit(Loop loop) {
-                        Value iterable = evaluate(scope, loop.getIterable());
+                        if (notEvaluated.contains(loop)) {
+                            return;
+                        }
+                        Value iterable;
+                        try {
+                            iterable = evaluate(scope, loop.getIterable());
+                        } catch (AssertionError | Exception e) {
+                            addToNotEvaluated(loop);
+                            throw new EvaluationAbortException(
+                                    e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
+                                    "loop header evaluation failed", e);
+                        }
                         if (!(iterable instanceof WalkableValue)) {
-                            throw new AssertionError(String.format("Iterable %s not walkable in loop %s", iterable, loop));
+                            addToNotEvaluated(loop);
+                            throw new EvaluationAbortException(false,
+                                    String.format("Iterable %s not walkable in loop %s", iterable, loop));
                         }
                         for (Pair<?, Value> pair : ((WalkableValue<?>) iterable).getValues()) {
                             scope.push();
@@ -59,19 +128,48 @@ public class Evaluator {
 
                     @Override
                     public void visit(AssignmentStatement assignment) {
-                        if (assignment.isCause()) {
-                            scope.put(CAUSE_NAME, evaluatePacketCall(scope, (PacketCall) assignment.getExpression()));
-                        } else {
-                            scope.put(assignment.getVariable().getName(), evaluate(scope, assignment.getExpression()));
+                        if (notEvaluated.contains(assignment)) {
+                            return;
+                        }
+                        try {
+                            if (assignment.isCause()) {
+                                scope.put(CAUSE_NAME, evaluatePacketCall(scope,
+                                        (PacketCall) assignment.getExpression()));
+                            } else {
+                                scope.put(assignment.getVariable().getName(), evaluate(scope,
+                                        assignment.getExpression()));
+                            }
+                        } catch (AssertionError | Exception e) {
+                            addToNotEvaluated(assignment);
+                            throw new EvaluationAbortException(
+                                    e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
+                                    String.format("evaluation of assignment %s failed", assignment), e);
                         }
                     }
 
                     @Override
-                    public void visit(Body body){
-                        body.getSubStatements().forEach(s -> s.accept(this));
+                    public void visit(Body body) {
+                        if (notEvaluated.contains(body)) {
+                            return;
+                        }
+                        for (int i = 0; i < body.getSubStatements().size(); i++) {
+                            var s = body.getSubStatements().get(i);
+                            try {
+                                s.accept(this);
+                            } catch (EvaluationAbortException e) {
+                                errorConsumer.accept(e);
+                                addToNotEvaluated(s);
+                                if (e.discard) {
+                                    for (int j = i + 1; j < body.getSubStatements().size(); j++) {
+                                        addToNotEvaluated(body.getSubStatements().get(j));
+                                    }
+                                    throw e;
+                                }
+                            }
+                        }
                     }
                 });
-        return scope;
+        return p(scope, notEvaluated);
     }
 
     public Value evaluate(Expression expression) {
@@ -132,7 +230,8 @@ public class Evaluator {
         } catch (ClassNotFoundException e) {
             throw new PacketError("Unknown class", e);
         } catch (AssertionError e) {
-            throw new AssertionError(String.format("Cannot evaluate packet call %s (name = %s)", packetCall, name), e);
+            throw new EvaluationAbortException(false,
+                    String.format("Cannot evaluate packet call %s (name = %s)", packetCall, name), e);
         }
     }
 

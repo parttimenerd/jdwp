@@ -1,8 +1,7 @@
 package tunnel.synth;
 
 import jdwp.*;
-import jdwp.Reference.ClassReference;
-import jdwp.Reference.MethodReference;
+import jdwp.Reference.*;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import jdwp.util.Pair;
@@ -16,21 +15,18 @@ import tunnel.util.Either;
 import java.util.List;
 import java.util.function.Function;
 
+import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class SynthesizerTest {
 
     private static Object[][] realPartitionsTestSource() {
-        return new Object[][]{{"((= var0 (request VirtualMachine IDSizes)))", new Partition(null,
-                List.of(p(new jdwp.VirtualMachineCmds.IDSizesRequest(174),
-                        new jdwp.VirtualMachineCmds.IDSizesReply(174, PrimitiveValue.wrap(8), PrimitiveValue.wrap(8),
-                                PrimitiveValue.wrap(8), PrimitiveValue.wrap(8), PrimitiveValue.wrap(8)))))},
-                {"((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=(wrap " +
-                        "\"byte\" 0))))",
-                        new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(12006,
-                                PrimitiveValue.wrap((byte) 8),
-                                PrimitiveValue.wrap((byte) 0), new ListValue<>(Type.LIST, List.of()))), List.of())},
+        return new Object[][]{
+                {"((= var0 (request VirtualMachine IDSizes)))", new Partition(null,
+                        List.of(p(new jdwp.VirtualMachineCmds.IDSizesRequest(174),
+                                new jdwp.VirtualMachineCmds.IDSizesReply(174, wrap(8), wrap(8),
+                                        wrap(8), wrap(8), wrap(8)))))},
                 {"((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=(wrap " +
                         "\"byte\" 1) (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"ClassMatch\") (\"modifiers\" 0 " +
                         "\"classPattern\")=(wrap \"string\" \"sun.instrument.InstrumentationImpl\")))\n" +
@@ -39,26 +35,26 @@ public class SynthesizerTest {
                         ".InstrumentationImpl\") (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"ClassMatch\")))\n" +
                         "  (= var1 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 426))))",
                         new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(12090,
-                                PrimitiveValue.wrap((byte) 8), PrimitiveValue.wrap((byte) 1),
+                                wrap((byte) 8), wrap((byte) 1),
                                 new ListValue<>(Type.LIST,
                                         List.of(new EventRequestCmds.SetRequest.ClassMatch(
-                                                PrimitiveValue.wrap("sun" + ".instrument.InstrumentationImpl")))))),
-                                List.of(p(new jdwp.EventRequestCmds.SetRequest(12090, PrimitiveValue.wrap((byte) 8),
-                                                        PrimitiveValue.wrap((byte) 1), new ListValue<>(Type.LIST,
+                                                wrap("sun" + ".instrument.InstrumentationImpl")))))),
+                                List.of(p(new jdwp.EventRequestCmds.SetRequest(12090, wrap((byte) 8),
+                                                        wrap((byte) 1), new ListValue<>(Type.LIST,
                                                         List.of(new EventRequestCmds.SetRequest.ClassMatch(
-                                                                PrimitiveValue.wrap("sun" + ".instrument" +
+                                                                wrap("sun" + ".instrument" +
                                                                         ".InstrumentationImpl"))))),
-                                                new jdwp.EventRequestCmds.SetReply(12090, PrimitiveValue.wrap(6))),
+                                                new jdwp.EventRequestCmds.SetReply(12090, wrap(6))),
                                         p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(12094,
                                                         new ClassReference(426L)),
                                                 new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(12094,
                                                         new ListValue<>(Type.LIST,
                                                                 List.of(new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(
                                                                         new MethodReference(105553140349016L),
-                                                                        PrimitiveValue.wrap("<init>"),
-                                                                        PrimitiveValue.wrap("(JZZ)V"),
-                                                                        PrimitiveValue.wrap(""),
-                                                                        PrimitiveValue.wrap(2))))))))
+                                                                        wrap("<init>"),
+                                                                        wrap("(JZZ)V"),
+                                                                        wrap(""),
+                                                                        wrap(2))))))))
                 },
                 {
                         "((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 8) (\"suspendPolicy\")=" +
@@ -70,15 +66,15 @@ public class SynthesizerTest {
                                 "\"string\" \"build.tools.jdwpgen.CodeGeneration$genToString$1$*\") (\"modifiers\" 0 " +
                                 "\"kind\")=(wrap \"string\" \"ClassMatch\"))))",
                         new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(16165,
-                                PrimitiveValue.wrap((byte) 8), PrimitiveValue.wrap((byte) 1),
+                                wrap((byte) 8), wrap((byte) 1),
                                 new ListValue<>(Type.LIST,
-                                        List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("build" +
+                                        List.of(new EventRequestCmds.SetRequest.ClassMatch(wrap("build" +
                                                 ".tools.jdwpgen.CodeGeneration$genToString$1$*")))))), List.of(
-                                p(new jdwp.EventRequestCmds.SetRequest(16165, PrimitiveValue.wrap((byte) 8),
-                                                PrimitiveValue.wrap((byte) 1), new ListValue<>(Type.LIST,
-                                                List.of(new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("build" +
+                                p(new jdwp.EventRequestCmds.SetRequest(16165, wrap((byte) 8),
+                                                wrap((byte) 1), new ListValue<>(Type.LIST,
+                                                List.of(new EventRequestCmds.SetRequest.ClassMatch(wrap("build" +
                                                         ".tools.jdwpgen.CodeGeneration$genToString$1$*"))))),
-                                        new jdwp.EventRequestCmds.SetReply(16165, PrimitiveValue.wrap(45)))))
+                                        new jdwp.EventRequestCmds.SetReply(16165, wrap(45)))))
                 },
                 {
                         "((= cause (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) (\"requestID\")=" +
@@ -88,17 +84,17 @@ public class SynthesizerTest {
                                 "  (= var1 (request Method LineTable (\"methodID\")=(wrap \"method\" 105553155251400)" +
                                 " (\"refType\")=(wrap \"klass\" 1055))))",
                         new Partition(Either.left(new jdwp.EventRequestCmds.ClearRequest(37962,
-                                PrimitiveValue.wrap((byte) 1), PrimitiveValue.wrap(77))), List.of(
-                                p(new jdwp.EventRequestCmds.ClearRequest(37962, PrimitiveValue.wrap((byte) 1),
-                                        PrimitiveValue.wrap(77)), new jdwp.EventRequestCmds.ClearReply(37962)),
+                                wrap((byte) 1), wrap(77))), List.of(
+                                p(new jdwp.EventRequestCmds.ClearRequest(37962, wrap((byte) 1),
+                                        wrap(77)), new jdwp.EventRequestCmds.ClearReply(37962)),
                                 p(new jdwp.MethodCmds.LineTableRequest(37963, new ClassReference(1055L),
                                                 new MethodReference(105553155251400L)),
-                                        new jdwp.MethodCmds.LineTableReply(37963, PrimitiveValue.wrap((long) 0),
-                                                PrimitiveValue.wrap((long) 7), new ListValue<>(Type.LIST,
-                                                List.of(new MethodCmds.LineTableReply.LineInfo(PrimitiveValue.wrap((long) 0),
-                                                                PrimitiveValue.wrap(6)),
-                                                        new MethodCmds.LineTableReply.LineInfo(PrimitiveValue.wrap((long) 2),
-                                                                PrimitiveValue.wrap(8))))))))
+                                        new jdwp.MethodCmds.LineTableReply(37963, wrap((long) 0),
+                                                wrap((long) 7), new ListValue<>(Type.LIST,
+                                                List.of(new MethodCmds.LineTableReply.LineInfo(wrap((long) 0),
+                                                                wrap(6)),
+                                                        new MethodCmds.LineTableReply.LineInfo(wrap((long) 2),
+                                                                wrap(8))))))))
                 },
                 {
                         "((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)) " +
@@ -106,11 +102,11 @@ public class SynthesizerTest {
                                 "\"test\"))))",
                         new Partition(Either.left(new jdwp.VirtualMachineCmds.IDSizesRequest(0)), List.of(
                                 p(new jdwp.VirtualMachineCmds.IDSizesRequest(0),
-                                        new jdwp.VirtualMachineCmds.IDSizesReply(0, PrimitiveValue.wrap(8),
-                                                PrimitiveValue.wrap(8), PrimitiveValue.wrap(8),
-                                                PrimitiveValue.wrap(8), PrimitiveValue.wrap(8))),
+                                        new jdwp.VirtualMachineCmds.IDSizesReply(0, wrap(8),
+                                                wrap(8), wrap(8),
+                                                wrap(8), wrap(8))),
                                 p(new jdwp.VirtualMachineCmds.ClassesBySignatureRequest(1,
-                                                PrimitiveValue.wrap("test")),
+                                                wrap("test")),
                                         new jdwp.VirtualMachineCmds.ClassesBySignatureReply(1,
                                                 new ListValue<>(Type.LIST, List.of())))))
                 },
@@ -121,12 +117,12 @@ public class SynthesizerTest {
                                 "\"sig\"))) (= var0" +
                                 " (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
                                 "\"test\"))))",
-                        new Partition(Either.right(new jdwp.EventCmds.Events(0, PrimitiveValue.wrap((byte) 2),
+                        new Partition(Either.right(new jdwp.EventCmds.Events(0, wrap((byte) 2),
                                 new ListValue<>(Type.LIST,
-                                        List.of(new EventCmds.Events.ClassUnload(PrimitiveValue.wrap(0),
-                                                PrimitiveValue.wrap("sig")))))), List.of(
+                                        List.of(new EventCmds.Events.ClassUnload(wrap(0),
+                                                wrap("sig")))))), List.of(
                                 p(new jdwp.VirtualMachineCmds.ClassesBySignatureRequest(0,
-                                                PrimitiveValue.wrap("test")),
+                                                wrap("test")),
                                         new jdwp.VirtualMachineCmds.ClassesBySignatureReply(0,
                                                 new ListValue<>(Type.LIST, List.of())))))
                 }
@@ -150,11 +146,36 @@ public class SynthesizerTest {
     @Test
     public void testRemoveDuplicatesInPartition() {
         Function<Integer, Pair<Request<?>, Reply>> func = id -> p(new jdwp.VirtualMachineCmds.IDSizesRequest(id),
-                new jdwp.VirtualMachineCmds.IDSizesReply(id, PrimitiveValue.wrap(8), PrimitiveValue.wrap(8),
-                        PrimitiveValue.wrap(8), PrimitiveValue.wrap(8), PrimitiveValue.wrap(8)));
+                new jdwp.VirtualMachineCmds.IDSizesReply(id, wrap(8), wrap(8),
+                        wrap(8), wrap(8), wrap(8)));
         var partition = new Partition(Either.left(func.apply(1).first),
                 List.of(func.apply(1), func.apply(3), func.apply(4)));
         assertEquals("((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)))",
                 Synthesizer.synthesizeProgram(partition).toString());
+    }
+
+    @Test
+    public void testRealPartition() {
+        var partition = new Partition(Either.left(new jdwp.ThreadReferenceCmds.NameRequest(425824,
+                new ThreadReference(1136L))), List.of(
+                p(new jdwp.ThreadReferenceCmds.NameRequest(425824, new ThreadReference(1136L)),
+                        new jdwp.ThreadReferenceCmds.NameReply(425824, PrimitiveValue.wrap("process reaper"))),
+                p(new jdwp.ThreadReferenceCmds.ThreadGroupRequest(425825, new ThreadReference(1136L)),
+                        new jdwp.ThreadReferenceCmds.ThreadGroupReply(425825, new ThreadGroupReference(2L))),
+                p(new jdwp.ThreadReferenceCmds.StatusRequest(425826, new ThreadReference(1136L)),
+                        new jdwp.ThreadReferenceCmds.StatusReply(425826, PrimitiveValue.wrap(1),
+                                PrimitiveValue.wrap(1))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(425827, new ThreadReference(1136L),
+                        PrimitiveValue.wrap(0), PrimitiveValue.wrap(1)),
+                        new jdwp.ThreadReferenceCmds.FramesReply(425827, new ListValue<>(Type.LIST,
+                                List.of(new ThreadReferenceCmds.FramesReply.Frame(new FrameReference(65536L),
+                                        new Location(new ClassTypeReference(110L),
+                                                new MethodReference(105553119273528L),
+                                                PrimitiveValue.wrap((long) -1))))))),
+                p(new jdwp.ThreadReferenceCmds.NameRequest(425828, new ThreadReference(1137L)),
+                        new jdwp.ThreadReferenceCmds.NameReply(425828, PrimitiveValue.wrap("process reaper")))
+        ));
+
+        var program = Synthesizer.synthesizeProgram(partition);
     }
 }

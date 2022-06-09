@@ -5,7 +5,11 @@ import ch.qos.logback.classic.Logger;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.ClassUnload;
 import jdwp.EventCmds.Events.ThreadDeath;
+import jdwp.EventCmds.Events.VMDeath;
+import jdwp.EventRequestCmds.SetReply;
+import jdwp.EventRequestCmds.SetRequest;
 import jdwp.JDWP.ReturningRequestVisitor;
+import jdwp.PacketError.SupplierWithError;
 import jdwp.Reference;
 import jdwp.Reply;
 import jdwp.Request;
@@ -27,6 +31,11 @@ import tunnel.BasicTunnel;
 import tunnel.Listener;
 import tunnel.ReplyCache;
 import tunnel.State.Mode;
+import tunnel.synth.program.AST;
+import tunnel.synth.program.AST.AssignmentStatement;
+import tunnel.synth.program.AST.EventsCall;
+import tunnel.synth.program.AST.RequestCall;
+import tunnel.synth.program.Program;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -282,12 +291,14 @@ public class BasicMockVMTest {
             assertEquals(new ResumeReply(0), tp.client.query(new ResumeRequest(2)));
             assertFalse(tp.serverTunnel.getState().hasUnfinishedRequests());
             assertFalse(tp.clientTunnel.getState().hasUnfinishedRequests());
-            Thread.sleep(10);
+            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100), () -> {
+                while (tp.clientTunnel.getState().getProgramCache().size() != 1) ;
+            });
             // check the program
             assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());
             assertEquals("((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)) (= " +
-                    "var1 (request VirtualMachine " +
-                    "ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))",
+                            "var1 (request VirtualMachine " +
+                            "ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))",
                     tp.clientTunnel.getState().getProgramCache().get(idSizesRequest).get().toString());
             assertEquals(0, tp.serverTunnel.getState().getProgramCache().size());
             // assumption is that calling idSizes triggers classes request
@@ -310,6 +321,7 @@ public class BasicMockVMTest {
         var classesReply = new ClassesBySignatureReply(0, new ListValue<>(Type.OBJECT));
         var classesRequest = new ClassesBySignatureRequest(0, wrap("test"));
         var events = new Events(0, wrap((byte) 2), new ListValue<>(new ClassUnload(wrap(0), wrap("sig"))));
+        var death = new VMDeath(wrap(0));
         try (var tp = VMTunnelTunnelClientTuple.create(new ReturningRequestVisitor<>() {
             @Override
             public Reply visit(ClassesBySignatureRequest classesBySignatureRequest) {
@@ -321,18 +333,21 @@ public class BasicMockVMTest {
             // send the classes request
             assertEquals(classesReply, tp.client.query(classesRequest));
             assertEquals(List.of(classesRequest), tp.vm.getReceivedRequests());
-            tp.vm.sendEvent(events); // should break the partition at the client tunnel
+            tp.vm.sendEvent(100, death); // should break the partition at the client tunnel
+            assertEquals(death, tp.client.readEvents().events.get(0));
+            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100), () -> {
+                // the propagation might need some time
+                while (tp.serverTunnel.getState().getProgramCache().size() != 1) ;
+            });
+            tp.vm.sendEvent(events);
             assertEquals(events, tp.client.readEvents());
-            assertEquals(0, tp.clientTunnel.getState().getProgramCache().size());
-            assertEquals(1, tp.serverTunnel.getState().getProgramCache().size());
-            assertFalse(tp.serverTunnel.getState().hasUnfinishedRequests());
+            assertEquals(0, tp.clientTunnel.getState().getProgramCache().getClientPrograms().size());
+            //assertFalse(tp.serverTunnel.getState().hasUnfinishedRequests());
             assertFalse(tp.clientTunnel.getState().hasUnfinishedRequests());
-            assertEquals("((= cause (events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" \"ClassUnload\")" +
-                            " " +
-                            "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
-                            "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\")))" +
-                            " (= var0" +
-                            " (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))",
+            assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
+                            "\"kind\")=(wrap \"string\" \"ClassUnload\") (\"events\" 0 \"requestID\")=(wrap \"int\" " +
+                            "0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 (request " +
+                            "VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))",
                     tp.serverTunnel.getState().getCachedProgram(events).get().toString());
             // the event should have caused the usage of this program, resulting in another Classes request to the vm
             assertEquals(List.of(classesRequest, classesRequest), tp.vm.getReceivedRequests());
@@ -344,11 +359,93 @@ public class BasicMockVMTest {
             var classUnloadEvent = new ThreadDeath(wrap(1), Reference.thread(1));
             tp.vm.sendEvent(0, classUnloadEvent); // invalidate the caches
             Thread.sleep(10);
-            Assertions.assertTimeout(Duration.ofMillis(100), () -> {
+            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100), () -> {
                 while (tp.clientTunnel.getState().getReplyCache().size() > 0) Thread.yield();
             });
             assertEquals(new ReplyCache(), tp.clientTunnel.getState().getReplyCache());
             assertEquals(new Events(0, wrap((byte) 2), new ListValue<>(classUnloadEvent)), tp.client.readEvents());
         }
+    }
+
+    @Test
+    @SneakyThrows
+    public void testTunnelEventsHandlingInPartition() {
+        var classesReply = new ClassesBySignatureReply(0, new ListValue<>(Type.OBJECT));
+        var classesRequest = new ClassesBySignatureRequest(0, wrap("test"));
+        var events = new Events(0, wrap((byte) 2), new ListValue<>(new ClassUnload(wrap(0), wrap("sig"))));
+        try (var tp = VMTunnelTunnelClientTuple.create(new ReturningRequestVisitor<>() {
+            @Override
+            public Reply visit(ClassesBySignatureRequest classesBySignatureRequest) {
+                return classesReply;
+            }
+        })) {
+            var program = new Program(EventsCall.create(events), List.of(new AssignmentStatement(AST.ident("var0"),
+                    RequestCall.create(classesRequest))));
+            // store an artificial program in the program cache
+            tp.serverTunnel.getState().getProgramCache().accept(program);
+            tp.vm.sendEvent(events);
+            assertEquals(events, tp.client.readEvents());
+            // we got the event and stored the additional packets in the cache
+            // we now run the request
+            assertEquals(classesReply, tp.client.query(classesRequest));
+            // request should be queried from the cache
+            assertEquals(List.of(classesRequest), tp.vm.getReceivedRequests());
+            // we now do another request
+            assertEquals(tp.vm.getIdSizesReply(), tp.client.query(new IDSizesRequest(0)));
+            // we have to abort the partition on client and server tunnel
+            tp.vm.sendEvent(10, new VMDeath(wrap(1)));
+            tp.client.readEvents();
+            // the old program has been overridden by the new one in the server cache
+            assertEquals(1, tp.serverTunnel.getState().getProgramCache().size());
+
+            assertEqualsTimeout(new Program(EventsCall.create(events), List.of(new AssignmentStatement(AST.ident(
+                    "var0"),
+                            RequestCall.create(classesRequest)), new AssignmentStatement(AST.ident("var1"),
+                            RequestCall.create(new IDSizesRequest(0))))),
+                    () -> tp.serverTunnel.getState().getProgramCache().get(events).get());
+            assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());
+        }
+    }
+
+    @Test
+    @SneakyThrows
+    public void testTunnelBasicProgramAndPartition() {
+        var classesReply = new ClassesBySignatureReply(0, new ListValue<>(Type.OBJECT));
+        var classesRequest = new ClassesBySignatureRequest(0, wrap("test"));
+        var events = new Events(0, wrap((byte) 2), new ListValue<>(new ClassUnload(wrap(0), wrap("sig"))));
+        try (var tp = VMTunnelTunnelClientTuple.create(new ReturningRequestVisitor<>() {
+            @Override
+            public Reply visit(ClassesBySignatureRequest classesBySignatureRequest) {
+                return classesReply;
+            }
+
+            @Override
+            public Reply visit(SetRequest setRequest) {
+                return new SetReply(0, wrap(1));
+            }
+        })) {
+            // store an artificial program in the program cache
+            tp.serverTunnel.getState().getProgramCache().accept(Program.parse(
+                    "((= cause (request EventRequest Set (\"eventKind\")" +
+                            "=(wrap \"byte\" 9) (\"suspendPolicy\")=(wrap \"byte\" 0))) " +
+                            "(= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
+                            "(\"suspendPolicy\")=(wrap \"byte\" 0))) (= var1 (request VirtualMachine Version)))"));
+            // send the set request and trigger the program execution
+            assertEquals(new SetReply(0, wrap(1)),
+                    tp.client.query(new SetRequest(0, wrap((byte) 9), wrap((byte) 0), new ListValue<>(Type.OBJECT))));
+            assertEquals(tp.vm.getIdSizesReply(), tp.client.query(new IDSizesRequest(0)));
+            Thread.sleep(100);
+            tp.vm.sendEvent(10, new VMDeath(wrap(2))); // trigger the partition
+        }
+    }
+
+    private void assertEqualsTimeout(Object expected, SupplierWithError<Object> actual) {
+        assertEqualsTimeout(expected, actual, Duration.ofMillis(100));
+    }
+
+    private void assertEqualsTimeout(Object expected, SupplierWithError<Object> actual, Duration timeout) {
+        Assertions.assertTimeoutPreemptively(timeout, () -> {
+            while (!expected.equals(actual.call())) Thread.yield();
+        });
     }
 }

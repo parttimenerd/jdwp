@@ -3216,6 +3216,17 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (OnlyReads "true")
     )
+    (Command UpdateCache=2
+        "Add the passed debugging program to the program cache"
+        (Out
+            (Repeat programs "The number of programs."
+                (string program "Debugging program that should be added to the program cache")
+            )
+        )
+        (Reply)
+        (ErrorSet)
+        (OnlyReads "true")
+    )
 )
 (ConstantSet Error
     (Constant NONE                   =0   "No error has occurred.")

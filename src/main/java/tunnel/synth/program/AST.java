@@ -270,6 +270,10 @@ public interface AST {
             return ret;
         }
 
+        default Set<Statement> getDependentStatementsAndAnchor(Statement anchor) {
+            return getDependentStatementsAndAnchors(Set.of(anchor));
+        }
+
         default Set<Statement> getDependentStatementsAndAnchors(Set<Statement> anchors) {
             if (anchors.isEmpty()) {
                 return Set.of();
@@ -403,13 +407,20 @@ public interface AST {
     }
 
     @Getter
-    @AllArgsConstructor
     @EqualsAndHashCode(callSuper = false)
     abstract class PacketCall extends Expression {
         private final String name;
         private final String commandSet;
         private final String command;
         private final List<CallProperty> properties;
+
+        public PacketCall(String name, String commandSet, String command, List<CallProperty> properties) {
+            this.name = name;
+            this.commandSet = commandSet;
+            this.command = command;
+            this.properties =
+                    properties.stream().sorted((x, y) -> x.getPath().compareTo(y.getPath())).collect(Collectors.toList());
+        }
 
         @Override
         public <R> R accept(ReturningExpressionVisitor<R> visitor) {
@@ -845,7 +856,10 @@ public interface AST {
 
         @Override
         public boolean equals(Object o) {
-            return (o instanceof Body) && ((Body) o).body.equals(body);
+            if (o instanceof Body) {
+                return ((Body) o).body.equals(body);
+            }
+            return false;
         }
 
         public Map<Statement, Integer> getIndexesOfStatements() {
@@ -967,6 +981,17 @@ public interface AST {
                     .map(s -> s instanceof CompoundStatement<?> ?
                             ((CompoundStatement<?>) s).removeStatements(statements) : s)
                     .collect(Collectors.toList()));
+        }
+
+        public void replaceSource(AssignmentStatement firstStatement, AssignmentStatement newFirstStatement) {
+            accept(new RecursiveASTVisitor() {
+                @Override
+                public void visit(Identifier name) {
+                    if (name.hasSource() && name.getSource().equals(firstStatement)) {
+                        name.setSource(newFirstStatement);
+                    }
+                }
+            });
         }
     }
 }

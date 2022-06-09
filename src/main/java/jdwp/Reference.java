@@ -148,7 +148,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
     }
 
     public static class ThreadGroupReference extends Reference {
-        ThreadGroupReference(long ref) {
+        public ThreadGroupReference(long ref) {
             super(Type.THREAD_GROUP, ref);
         }
 
@@ -359,7 +359,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
     }
 
     public static class FrameReference extends Reference {
-        FrameReference(long val) {
+        public FrameReference(long val) {
             super(Type.OBJECT, val);
         }
 

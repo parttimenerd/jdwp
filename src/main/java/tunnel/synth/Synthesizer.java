@@ -40,7 +40,11 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
     public static final String ITER_NAME_PREFIX = "iter";
 
     public static Program synthesizeProgram(Partition partition) {
-        return synthesizeProgram(DependencyGraph.calculate(partition));
+        try {
+            return synthesizeProgram(DependencyGraph.calculate(partition));
+        } catch (AssertionError e) {
+            throw new AssertionError("Failed to synthesize program for partition: " + partition.toCode(), e);
+        }
     }
 
     public static Program synthesizeProgram(DependencyGraph graph) {

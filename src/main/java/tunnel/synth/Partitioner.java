@@ -3,6 +3,7 @@ package tunnel.synth;
 import ch.qos.logback.classic.Logger;
 import jdwp.AbstractParsedPacket;
 import jdwp.EventCmds.Events;
+import jdwp.EventCmds.Events.TunnelRequestReplies;
 import jdwp.Reply;
 import jdwp.ReplyOrError;
 import jdwp.Request;
@@ -115,14 +116,18 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         }
     }
 
+    /**
+     * invariant: cause is request => request is first statement in partition
+     */
     @EqualsAndHashCode(callSuper = true)
     public static class Partition extends AbstractList<Pair<Request<?>, Reply>> implements ToCode {
-        private final @Nullable Either<Request<?>, Events> cause;
+        private @Nullable Either<Request<?>, Events> cause;
         private final List<Pair<? extends Request<?>, ? extends Reply>> items;
 
         Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<? extends Request<?>, ? extends Reply>> items) {
             this.cause = cause;
             this.items = items;
+            checkInvariant();
         }
 
         Partition(Either<Request<?>, Events> cause) {
@@ -164,8 +169,8 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         public String toCode() {
             return String.format("new Partition(%s, %s)", cause == null ? "null" : cause.toCode(),
                     String.format("List.of(\n%s)", items.stream()
-                    .map(p -> String.format("\tp(%s, %s)", p.first.toCode(), p.second.toCode()))
-                    .collect(Collectors.joining(",\n"))));
+                            .map(p -> String.format("\tp(%s, %s)", p.first.toCode(), p.second.toCode()))
+                            .collect(Collectors.joining(",\n"))));
         }
 
         /**
@@ -190,7 +195,30 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
 
         @Override
         public boolean add(Pair<Request<?>, Reply> requestReplyPair) {
-            return items.add(requestReplyPair);
+            checkInvariant();
+            if (cause == null) {
+                cause = Either.left(requestReplyPair.first);
+            }
+            if (items.size() > 0 && items.get(0).first.equals(requestReplyPair.first) &&
+                    items.get(0).first.getId() == requestReplyPair.first.getId()) {
+                return false;
+            }
+            var ret = items.add(requestReplyPair);
+            if (!(cause == null || cause.isRight() || items.isEmpty() || items.get(0).first.equals(cause.getLeft()))) {
+                //throw new AssertionError(String.format("Invariant does not hold for %s, after adding %s", this,
+                // requestReplyPair));
+                cause = Either.left(requestReplyPair.first);
+                // might happen due to replies beeing processed after requests
+                // a request might come in before the reply to an evaluate program request is processed
+            }
+            return ret;
+        }
+
+        private void checkInvariant() {
+            assert cause == null || cause.isRight() || items.isEmpty() || items.get(0).first.equals(cause.getLeft());
+            if (!(cause == null || cause.isRight() || items.isEmpty() || items.get(0).first.equals(cause.getLeft()))) {
+                throw new AssertionError(String.format("Invariant does not hold for %s", this));
+            }
         }
 
         public @Nullable Either<Request<?>, Events> getCause() {
@@ -207,6 +235,8 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     private final Timings timings;
     private @Nullable Partition currentPartition;
 
+    private boolean enabled = true;
+
     public Partitioner(Timings timings) {
         this.timings = timings;
     }
@@ -219,12 +249,28 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         if (currentPartition != null) {
             submit(currentPartition);
         }
-        currentPartition = new Partition(cause);
+        currentPartition = cause == null ? null : new Partition(cause);
+        if (currentPartition != null) {
+            LOG.debug("Starting new partition: {}", currentPartition);
+        }
         logSplitReason(reason);
+    }
+
+    private void removeRequestFromPartition(Request<?> request) {
+        if (currentPartition != null) {
+            if (request.equals(currentPartition.getCause())) {
+                currentPartition = null;
+            } else {
+                currentPartition.items.removeIf(p -> p.first.equals(request));
+            }
+        }
     }
 
     @Override
     public void onRequest(WrappedPacket<Request<?>> requestPacket) {
+        if (!enabled) {
+            return;
+        }
         var request = requestPacket.getPacket();
         boolean affected = false;
         if (request instanceof EvaluateProgramRequest) {
@@ -245,7 +291,14 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
 
     @Override
     public void onEvent(Events events) {
+        if (!enabled) {
+            return;
+        }
         boolean affected = false;
+        if (events.events.size() == 0) {
+            return;
+        }
+        assert !(events.events.get(0) instanceof TunnelRequestReplies);
         if (currentPartition == null || (affected = currentPartition.isAffectedBy(events))) {
             startNewPartition(affected ? "current partition is affected by event" : "current partition is empty",
                     Either.right(events));
@@ -254,10 +307,16 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
 
     @Override
     public void onReply(WrappedPacket<Request<?>> requestPacket, WrappedPacket<ReplyOrError<?>> replyPacket) {
+        if (!enabled) {
+            return;
+        }
         var request = requestPacket.getPacket();
         var reply = replyPacket.getPacket();
         if (reply.isError()) {  // start a new partition on error
-            startNewPartition("last reply was an error", null);
+            LOG.error("partition {} ended with error reply {} for request {}", currentPartition, reply, request);
+            removeRequestFromPartition(request);
+            startNewPartition(String.format("last reply was an error (%d for request %s)",
+                    reply.getErrorCode(), request), null);
         } else {
             if (currentPartition == null) {
                 startNewPartition("current partition is empty", null);
@@ -267,8 +326,12 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             }
             try {
                 if (request instanceof EvaluateProgramRequest) {
+                    System.out.println("omit reply of " + request);
                     return;
                     // don't add these requests to partitions, as they are the result of caching in a different tunnel
+                }
+                if (currentPartition == null) {
+                    startNewPartition("current partition is empty", Either.left(request));
                 }
                 currentPartition.add(p(request, reply.getReply()));
             } catch (Exception e) {
@@ -281,6 +344,9 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
 
     @Override
     public void onTick() {
+        if (!enabled) {
+            return;
+        }
         long time = timings.currentTimeMillis();
         if (currentPartition != null && timings.shouldBreak(time)) {
             logSplitReason(String.format("timing, %.2f times longer than last difference (difference was %.2fms)",
@@ -304,6 +370,18 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         if (currentPartition != null) {
             submit(currentPartition);
         }
+    }
+
+    public void enable() {
+        enabled = true;
+    }
+
+    public void disable() {
+        if (currentPartition != null) {
+            submit(currentPartition);
+        }
+        currentPartition = null;
+        enabled = false;
     }
 
     private void logSplitReason(String reason) {

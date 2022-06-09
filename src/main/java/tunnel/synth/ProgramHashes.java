@@ -53,6 +53,9 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
     }
 
     public Hashed<Statement> get(Statement statement) {
+        if (!statementToHashed.containsKey(statement)) {
+            throw new IllegalArgumentException(String.format("Statement %s not found", statement));
+        }
         return Objects.requireNonNull(statementToHashed.get(statement));
     }
 
@@ -190,18 +193,22 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
         if (program.hasCause()) {
             hashes.add(hashes.create(program.getCauseStatement()), hashes.size());
         }
-        program.getBody().forEach(s -> s.accept(new StatementVisitor() {
-            @Override
-            public void visit(Statement statement) {
-                hashes.add(hashes.create(statement), hashes.size());
-            }
+        try {
+            program.getBody().forEach(s -> s.accept(new StatementVisitor() {
+                @Override
+                public void visit(Statement statement) {
+                    hashes.add(hashes.create(statement), hashes.size());
+                }
 
-            @Override
-            public void visit(Loop loop) {
-                hashes.add(hashes.create(loop), hashes.size());
-                loop.getBody().forEach(s -> s.accept(this));
-            }
-        }));
+                @Override
+                public void visit(Loop loop) {
+                    hashes.add(hashes.create(loop), hashes.size());
+                    loop.getBody().forEach(s -> s.accept(this));
+                }
+            }));
+        } catch (IllegalArgumentException e) {
+            throw new AssertionError("problem with program " + program, e);
+        }
         return hashes;
     }
 

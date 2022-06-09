@@ -29,9 +29,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
 
-import static tunnel.State.Mode.CLIENT;
-import static tunnel.State.Mode.NONE;
+import static tunnel.State.Mode.*;
 
 /**
  * handles unfinished requests and supports listeners
@@ -58,10 +58,14 @@ public class State {
 
     @Getter
     @EqualsAndHashCode
-    @AllArgsConstructor
     public static class WrappedPacket<R> {
         final R packet;
         final long time;
+
+        public WrappedPacket(R packet, long time) {
+            this.packet = Objects.requireNonNull(packet);
+            this.time = time;
+        }
 
         public WrappedPacket(R packet) {
             this(packet, System.currentTimeMillis());
@@ -72,23 +76,32 @@ public class State {
     @Getter
     @Setter
     public static class Formatter {
+
+        private static final int maxLength = 200;
         private ToStringMode packetToStringMode;
         private ToStringMode partitionToStringMode;
 
         public String format(Packet packet) {
-            return packetToStringMode.format(packet);
+            return cut(packetToStringMode.format(packet));
         }
 
         public String format(ParsedPacket packet) {
-            return packetToStringMode.format(packet);
+            return cut(packetToStringMode.format(packet));
         }
 
         public String format(ReplyOrError<?> packet) {
-            return packetToStringMode.format(packet);
+            return cut(packetToStringMode.format(packet));
         }
 
         public String format(Partition partition) {
-            return packetToStringMode.format(partition);
+            return cut(packetToStringMode.format(partition));
+        }
+
+        private String cut(String s) {
+            if (s.length() > maxLength - 3) {
+                return s.substring(0, maxLength) + "...";
+            }
+            return s;
         }
     }
 
@@ -98,7 +111,10 @@ public class State {
     private final Map<Integer, WrappedPacket<Request<?>>> unfinished;
 
     private final Map<Integer, EvaluateProgramRequest> unfinishedEvaluateRequests;
+    private final LinkedBlockingQueue<Program> programsToSendToServer = new LinkedBlockingQueue<>();
     private final Set<Listener> listeners;
+    private Partitioner clientPartitioner;
+    private Partitioner serverPartitioner;
 
     private ReplyCache replyCache;
     private ProgramCache programCache;
@@ -121,7 +137,9 @@ public class State {
         LOG = (Logger) LoggerFactory.getLogger((mode == NONE ? "" : mode.name().toLowerCase() + "-") + "tunnel");
         if (mode != NONE) {
             registerCacheListener();
-            registerProgramCacheListener();
+            if (mode == CLIENT) {
+                registerPartitionListener();
+            }
         }
     }
 
@@ -133,6 +151,7 @@ public class State {
         try (var input = Files.newInputStream(programCacheFile)) {
             int count = programCache.load(input);
             LOG.info("Loaded {} debug programs from {}", count, programCacheFile);
+            programsToSendToServer.addAll(programCache.getServerPrograms());
         } catch (IOException e) {
             LOG.error("Cannot load program cache", e);
         }
@@ -198,18 +217,75 @@ public class State {
         });
     }
 
-    private void registerProgramCacheListener() {
-        listeners.add(new Partitioner().addListener(partition -> {
+    /**
+     * register client and server partitioner, only runs in client mode
+     * <p>
+     * we have to run both on the client, as the server has an incomplete picture, due to reply caching
+     * in the client
+     * <p>
+     * Idea: send the gathered server programs (start with events) to the server
+     */
+    private void registerPartitionListener() {
+        assert mode == CLIENT;
+        clientPartitioner = new Partitioner().addListener(partition -> {
             if (partition.hasCause()) {
                 var cause = partition.getCause();
-                if (cause.isLeft() == (State.this.mode == CLIENT)) {
+                if (cause.isLeft()) {
                     var program = Synthesizer.synthesizeProgram(partition);
-                    LOG.info("Cache program {}", program.toPrettyString());
+                    LOG.info("Synthesized client program: {}", program.toPrettyString());
                     programCache.accept(program);
                     storeProgramCache();
                 }
             }
-        }));
+        });
+        addPartitionerListener(clientPartitioner);
+        serverPartitioner = new Partitioner().addListener(partition -> {
+            if (partition.hasCause()) {
+                var cause = partition.getCause();
+                if (cause.isRight()) {
+                    var program = Synthesizer.synthesizeProgram(partition);
+                    LOG.info("Synthesized server program: {}", program.toPrettyString());
+                    programCache.accept(program);
+                    storeProgramCache();
+                    programsToSendToServer.add(program);
+                }
+            }
+        });
+        addPartitionerListener(serverPartitioner);
+    }
+
+    private void addPartitionerListener(Partitioner partitioner) {
+        listeners.add(new Listener() {
+            @Override
+            public void onRequest(WrappedPacket<Request<?>> request) {
+                partitioner.onRequest(request);
+            }
+
+            @Override
+            public void onReply(WrappedPacket<Request<?>> request, WrappedPacket<ReplyOrError<?>> reply) {
+                if (request.getPacket() instanceof EvaluateProgramRequest) {
+                    var evaluateProgramRequest = (EvaluateProgramRequest) request.getPacket();
+                    if (reply.getPacket().isReply()) {
+                        var repl = BasicTunnel.parseEvaluateProgramReply(vm,
+                                (EvaluateProgramReply) reply.getPacket().getReply());
+                        partitioner.onReply(repl.get(0).first, repl.get(0).second);
+                        return;
+                    }
+                }
+                System.out.println("--------------- Partitioner onReply: " + reply);
+                partitioner.onReply(request, reply);
+            }
+
+            @Override
+            public void onEvent(WrappedPacket<Events> event) {
+                partitioner.onEvent(event);
+            }
+
+            @Override
+            public void onTick() {
+                partitioner.onTick();
+            }
+        });
     }
 
     public void addRequest(WrappedPacket<Request<?>> request) {
@@ -244,7 +320,7 @@ public class State {
     public Request<?> readRequest(InputStream inputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream); // already wrapped in PacketError
         var request = PacketError.call(() -> JDWP.parse(ps), ps);
-        LOG.debug(formatter.format(request));
+        LOG.debug("Read {}", formatter.format(request));
         addRequest(new WrappedPacket<>(request));
         try {
             vm.captureInformation(request);
@@ -261,9 +337,13 @@ public class State {
             if (unfinishedEvaluateRequests.containsKey(ps.id())) {
                 var reply = PacketError.call(() -> EvaluateProgramReply.parse(ps), ps);
                 LOG.debug(formatter.format(reply));
+                var program = unfinishedEvaluateRequests.get(ps.id()).program;
+                LOG.debug("original program " + unfinishedEvaluateRequests.get(ps.id()));
                 unfinishedEvaluateRequests.remove(ps.id());
                 if (reply.isError()) {
-                    addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), (short)1)));
+                    LOG.error("Error in evaluate program reply: " + reply);
+                    addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), (short) 1)));
+                    removeCachedProgram(Program.parse(program.getValue()));
                 } else {
                     var realReply = reply.getReply();
                     assert clientOutputStream != null;
@@ -273,19 +353,25 @@ public class State {
                         LOG.debug("put into reply cache: {} -> {}", formatter.format(p.first),
                                 formatter.format(p.second));
                     }
-                    // now go through all unfinished requests and check
-                    for (WrappedPacket<Request<?>> value : new HashMap<>(unfinished).values()) { // TODO: writeReply
+                    clientPartitioner.disable();
+                    serverPartitioner.disable();
+                    // now go through all unfinished requests and check (but only if is not the original request)
+                    for (WrappedPacket<Request<?>> value : new HashMap<>(unfinished).values()) {
                         // might cause a concurrent modification exception
                         var unfinishedRequest = value.packet;
-                        if (hasCachedReply(unfinishedRequest)) {
-                            var cachedReply = replyCache.get(unfinishedRequest);
+                        if (hasCachedReply(unfinishedRequest) && unfinishedRequest.getId() != ps.id()) {
+                            var cachedReply = replyCache.getOrNull(unfinishedRequest);
                             addReply(new WrappedPacket<>(new ReplyOrError<>(cachedReply),
                                     System.currentTimeMillis()));
                             writeReply(clientOutputStream, Either.right(new ReplyOrError<>(cachedReply)));
                         }
                     }
-                    var originalReply = new ReplyOrError<>(ps.id(), replyCache.get(getUnfinishedRequest(ps.id()).getPacket()));
+                    // handle the original request
+                    var originalReply = new ReplyOrError<>(ps.id(),
+                            replyCache.get(getUnfinishedRequest(ps.id()).getPacket()).get());
                     addReply(new WrappedPacket<>(originalReply));
+                    clientPartitioner.enable();
+                    serverPartitioner.enable();
                     return Either.right(originalReply);
                 }
             }
@@ -300,7 +386,7 @@ public class State {
             return Either.right(reply);
         } else {
             var events = Events.parse(ps);
-            LOG.debug(formatter.format(events));
+            LOG.debug("Read event " + formatter.format(events));
             captureInformation(events);
             for (EventCommon event : events.events) {
                 if (event instanceof TunnelRequestReplies) {
@@ -394,11 +480,11 @@ public class State {
     }
 
     public boolean hasCachedReply(Request<?> request) {
-        return replyCache.get(request) != null;
+        return replyCache.getOrNull(request) != null;
     }
 
     public Reply getCachedReply(Request<?> request) {
-        return replyCache.get(request);
+        return replyCache.getOrNull(request);
     }
 
     public Optional<Program> getCachedProgram(ParsedPacket packet) {
@@ -407,5 +493,33 @@ public class State {
 
     public void addUnfinishedEvaluateRequest(EvaluateProgramRequest evaluateRequest) {
         unfinishedEvaluateRequests.put(evaluateRequest.getId(), evaluateRequest);
+    }
+
+    public List<Program> drainProgramsToSendToServer() {
+        List<Program> programs = new ArrayList<>();
+        programsToSendToServer.drainTo(programs);
+        return programs;
+    }
+
+    public boolean hasProgramsToSendToServer() {
+        return programsToSendToServer.size() > 0;
+    }
+
+    public void updateProgramCache(List<String> programs) {
+        LOG.info("Received programs from client: {}", programs);
+        programs.forEach(program -> programCache.accept(Program.parse(program)));
+        storeProgramCache();
+    }
+
+    public boolean isClient() {
+        return mode == CLIENT;
+    }
+
+    public boolean isServer() {
+        return mode == SERVER;
+    }
+
+    public void removeCachedProgram(Program program) {
+        programCache.remove(program);
     }
 }

@@ -14,15 +14,17 @@ public class ReplyOrError<R extends Reply> implements ParsedPacket, ToShortStrin
     private final R reply;
     private final short errorCode;
 
-    public ReplyOrError(int id, short flags, @Nullable R reply) {
-        this.reply = reply;
+    public ReplyOrError(int id, short flags, R reply) {
+        this.reply = Objects.requireNonNull(reply);
         this.errorCode = 0;
         this.id = id;
         this.flags = flags;
     }
 
     public ReplyOrError(int id, short flags, short errorCode) {
-        assert errorCode != 0;
+        if (errorCode == 0) {
+            throw new AssertionError("error code must not be 0");
+        }
         this.reply = null;
         this.errorCode = errorCode;
         this.id = id;

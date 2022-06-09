@@ -6,6 +6,7 @@ import jdwp.Reply;
 import jdwp.Request;
 import jdwp.util.Pair;
 
+import javax.annotation.Nullable;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -45,10 +46,17 @@ public class ReplyCache {
         cache.put(request, reply);
     }
 
-    /** returns a cached reply if possible, with the same id as the request */
-    public Reply get(Request<?> request) {
+    /**
+     * returns a cached reply if possible, with the same id as the request
+     */
+    public @Nullable Reply getOrNull(Request<?> request) {
         return Optional.ofNullable(cache.getIfPresent(request))
-                .map(r -> (Reply)r.withNewId(request.getId())).orElse(null);
+                .map(r -> (Reply) r.withNewId(request.getId())).orElse(null);
+    }
+
+    public Optional<Reply> get(Request<?> request) {
+        return Optional.ofNullable(cache.getIfPresent(request))
+                .map(r -> (Reply) r.withNewId(request.getId()));
     }
 
     public boolean contains(Request<?> request) {

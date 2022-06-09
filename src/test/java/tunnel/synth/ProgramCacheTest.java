@@ -57,10 +57,10 @@ public class ProgramCacheTest {
     @Test
     public void testAccessEventsProgram() {
         var events = new Events(0, wrap((byte) 2), new ListValue<>(new ClassUnload(wrap(0), wrap("sig"))));
-        var program = "((= cause (events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" \"ClassUnload\") " +
-                "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
-                "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 " +
-                "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))";
+        var program = "((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
+                "\"kind\")=(wrap \"string\" \"ClassUnload\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) " +
+                "(\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 (request VirtualMachine " +
+                "ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))";
         var cache = new ProgramCache();
         cache.accept(Program.parse(program));
         assertEquals(program, cache.get(events).get().toString());
@@ -168,5 +168,20 @@ public class ProgramCacheTest {
         var newCache = new ProgramCache();
         newCache.load(input);
         assertEquals(cache, newCache);
+    }
+
+    @Test
+    public void testGetSimilar() {
+        var cache = new ProgramCache(Mode.LAST, 1);
+        var program = Program.parse("((= cause " +
+                "(request EventRequest Set (\"eventKind\")=( wrap \"byte\" 8) (\"suspendPolicy\")=(wrap \"byte\" 0)))" +
+                "(= var0 (request EventRequest Set (\"eventKind\")=( wrap \"byte\" 8) (\"suspendPolicy\")=(wrap " +
+                "\"byte\" 0))))");
+        cache.accept(program);
+        var program2 = Program.parse("((= cause " +
+                "(request EventRequest Set (\"eventKind\")=( wrap \"byte\" 9) (\"suspendPolicy\")=(wrap \"byte\" 0)))" +
+                "(= var0 (request EventRequest Set (\"eventKind\")=( wrap \"byte\" 9) (\"suspendPolicy\")=(wrap " +
+                "\"byte\" 0))))");
+        assertEquals(program2, cache.getSimilar(program2.getCause()).get());
     }
 }

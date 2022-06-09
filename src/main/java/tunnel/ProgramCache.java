@@ -11,8 +11,12 @@ import tunnel.synth.program.AST.RequestCall;
 import tunnel.synth.program.Program;
 
 import java.io.*;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static jdwp.util.Pair.p;
 
@@ -23,7 +27,9 @@ import static jdwp.util.Pair.p;
 public class ProgramCache implements Consumer<Program> {
 
     public enum Mode {
-        /** always use the last cached program */
+        /**
+         * always use the last cached program
+         */
         LAST  // we currently only support this mode, it is the simplest
         // a possible mode would be to merge the last 5 cached programs
         // or to look for other events with nearby locations for events
@@ -31,12 +37,16 @@ public class ProgramCache implements Consumer<Program> {
 
     private final Mode mode;
     private final Cache<PacketCall, Program> causeToProgram;
+    private final Cache<Program, Program> originForSimilars;
+    private Set<Program> removedSimilars;
 
     public static final int DEFAULT_MIN_SIZE = 2;
 
     public static final int DEFAULT_MAX_CACHE_SIZE = 200;
 
-    /** minimal number assignments in a program to be added, event causes are included */
+    /**
+     * minimal number assignments in a program to be added, event causes are included
+     */
     private final int minSize;
 
     private final int maxCacheSize;
@@ -53,6 +63,8 @@ public class ProgramCache implements Consumer<Program> {
         this.mode = mode;
         this.minSize = minSize;
         this.causeToProgram = CacheBuilder.newBuilder().maximumSize(maxCacheSize).build();
+        this.originForSimilars = CacheBuilder.newBuilder().maximumSize(maxCacheSize * 2L).build();
+        this.removedSimilars = new HashSet<>();
         assert mode == Mode.LAST;
     }
 
@@ -60,6 +72,8 @@ public class ProgramCache implements Consumer<Program> {
     public void accept(Program program) {
         if (program.getNumberOfDistinctCalls() >= minSize) {
             add(program);
+            originForSimilars.invalidate(program); // ignore equivalent similars
+            removedSimilars.remove(program);
         }
     }
 
@@ -93,7 +107,8 @@ public class ProgramCache implements Consumer<Program> {
     }
 
     /**
-     * returns the program with the most similar cause
+     * returns the program with the most similar cause and alters the obtained program so that the cause
+     * (and if needed the first statement) matches the given packet
      *
      * @see PacketCall#computeSimilarity(PacketCall)
      */
@@ -102,7 +117,13 @@ public class ProgramCache implements Consumer<Program> {
                 .map(e -> p(e, e.getKey().computeSimilarity(packet)))
                 .max((p1, p2) -> Float.compare(p1.second, p2.second));
         if (best.isPresent() && best.get().second > 0) {
-            return Optional.of(best.get().first.getValue());
+            var origin = best.get().first.getValue();
+            var prog = origin.setCause(packet);
+            if (removedSimilars.contains(origin)) { // this similar program already failed
+                return Optional.empty();
+            }
+            addSimilar(origin, prog);
+            return Optional.of(prog);
         }
         return Optional.empty();
     }
@@ -112,8 +133,19 @@ public class ProgramCache implements Consumer<Program> {
                 EventsCall.create((Events) packet) : RequestCall.create((Request<?>) packet));
     }
 
+    /**
+     * is this program only a similar program and not a synthesized one?
+     */
+    private boolean isSimilar(Program program) {
+        return originForSimilars.asMap().containsKey(program);
+    }
+
+    private void addSimilar(Program origin, Program program) {
+        originForSimilars.put(origin, program);
+    }
+
     public int size() {
-        return (int)causeToProgram.size();
+        return (int) causeToProgram.size();
     }
 
     public static class DisabledProgramCache extends ProgramCache {
@@ -158,7 +190,7 @@ public class ProgramCache implements Consumer<Program> {
     @Override
     public boolean equals(Object obj) {
         return obj instanceof ProgramCache &&
-                causeToProgram.asMap().equals(((ProgramCache)obj).causeToProgram.asMap());
+                causeToProgram.asMap().equals(((ProgramCache) obj).causeToProgram.asMap());
     }
 
     @Override
@@ -169,5 +201,36 @@ public class ProgramCache implements Consumer<Program> {
     @Override
     public int hashCode() {
         return causeToProgram.asMap().hashCode();
+    }
+
+
+    /**
+     * Returns all programs with an event cause
+     */
+    public Collection<Program> getServerPrograms() {
+        return causeToProgram.asMap().values().stream().filter(Program::isServerProgram).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns all programs with a request cause
+     */
+    public Collection<Program> getClientPrograms() {
+        return causeToProgram.asMap().values().stream().filter(Program::isClientProgram).collect(Collectors.toList());
+    }
+
+    /**
+     * programs should be removed if their execution was unsuccessful
+     */
+    public void remove(Program program) {
+        if (program.getFirstCallAssignment() != null) {
+            causeToProgram.invalidate((PacketCall) program.getFirstCallAssignment().getExpression());
+            if (isSimilar(program)) {
+                removedSimilars.add(program);
+                if (removedSimilars.size() > maxCacheSize * 10) {
+                    removedSimilars = removedSimilars.stream().limit(maxCacheSize * 5L)
+                            .collect(Collectors.toCollection(HashSet::new));
+                }
+            }
+        }
     }
 }

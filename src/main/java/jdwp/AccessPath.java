@@ -164,8 +164,12 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
 
     public Value access(WalkableValue<?> root) {
         Value current = root;
-        for (Object o : path) {
-            current = access(current, o);
+        try {
+            for (Object o : path) {
+                current = access(current, o);
+            }
+        } catch (Exception e) {
+            throw new AssertionError("Cannot access " + this + " on " + root.toCode(), e);
         }
         return current;
     }

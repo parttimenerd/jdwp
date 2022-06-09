@@ -10,6 +10,8 @@ import tunnel.synth.program.Visitors.RecursiveStatementVisitor;
 import tunnel.synth.program.Visitors.ReturningStatementVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -31,8 +33,9 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     public Program(@Nullable PacketCall cause, Body body) {
         this.cause = cause;
-        this.body = body;
+        this.body = new Body(Collections.unmodifiableList(body.getSubStatements()));
         this.hashes = ProgramHashes.create(this);
+        checkInvariant();
     }
 
     public Program(PacketCall cause, List<Statement> body) {
@@ -51,7 +54,18 @@ public class Program extends Statement implements CompoundStatement<Program> {
         this(new Body(List.of(body)));
     }
 
-    /** run on each sub statement */
+    private void checkInvariant() {
+        if (cause != null && cause instanceof RequestCall && body.size() > 0 &&
+                (!(body.get(0) instanceof AssignmentStatement) ||
+                        !(((AssignmentStatement) body.get(0)).getExpression().equals(cause)))) {
+            throw new AssertionError(String.format("Program has a cause but the first statement is not an assignment " +
+                    "of the cause: %s", this.toPrettyString()));
+        }
+    }
+
+    /**
+     * run on each sub statement
+     */
     public void accept(StatementVisitor visitor) {
         visitor.visit(this);
     }
@@ -132,5 +146,34 @@ public class Program extends Statement implements CompoundStatement<Program> {
     @Override
     public List<Statement> getSubStatements() {
         return body.getSubStatements();
+    }
+
+    public boolean isServerProgram() {
+        return hasCause() && cause instanceof EventsCall;
+    }
+
+    public boolean isClientProgram() {
+        return hasCause() && cause instanceof RequestCall;
+    }
+
+    public Program setCause(PacketCall packet) {
+        assert cause == null || packet.getClass().equals(cause.getClass());
+        if (body.isEmpty() || cause == null) {
+            return new Program(packet, body);
+        }
+
+        var newBody = new Body(new ArrayList<>(body.getSubStatements()));
+        AssignmentStatement newCauseStatement = new AssignmentStatement(AST.ident(CAUSE_NAME), packet);
+        if (cause instanceof EventsCall) {
+            newBody.replaceSource(getCauseStatement(), newCauseStatement);
+            return new Program(packet, newBody);
+        }
+        // we have to do more for request causes: we have to replace the first statement with the new cause
+        var firstStatement = (AssignmentStatement) body.get(0);
+        var newFirstStatement = new AssignmentStatement(firstStatement.getVariable(), packet);
+        newBody.set(0, newFirstStatement);
+        newBody.replaceSource(firstStatement, newFirstStatement);
+        newBody.replaceSource(getCauseStatement(), newCauseStatement);
+        return new Program(packet, newBody);
     }
 }

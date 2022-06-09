@@ -546,6 +546,10 @@ public abstract class Value implements ToCode {
                             .map(e -> p(e.getKey(), e.getValue()))
                             .collect(Collectors.toList()));
         }
+
+        public List<T> asList() {
+            return values;
+        }
     }
 
     /** also known as array region */
@@ -698,7 +702,7 @@ public abstract class Value implements ToCode {
             this.value = value;
         }
 
-        T getValue() {
+        public T getValue() {
             return value;
         }
 
@@ -714,7 +718,7 @@ public abstract class Value implements ToCode {
 
         @Override
         public int hashCode() {
-            return super.hashCode() * value.hashCode();
+            return super.hashCode() * 31 + value.hashCode();
         }
 
         public abstract boolean isPrimitive();

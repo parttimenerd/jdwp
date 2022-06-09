@@ -4,6 +4,7 @@ import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ThreadReference;
+import jdwp.TunnelCmds.UpdateCacheRequest;
 import jdwp.Value.BasicValue;
 import jdwp.Value.ByteList;
 import jdwp.Value.ListValue;
@@ -15,6 +16,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import tunnel.synth.program.*;
+import tunnel.synth.program.Evaluator.EvaluationAbortException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +25,9 @@ import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.*;
 import static tunnel.synth.program.AST.*;
 
+/**
+ * Test for {@link Program}, {@link Evaluator} and {@link Functions}.
+ */
 public class ProgramTest {
 
     private static class RecordingFunctions extends Functions {
@@ -98,8 +103,6 @@ public class ProgramTest {
     @CsvSource({
             "((= ret (func))),((= ret (func))),((= ret (func)))",
             "((= ret (func2))),((= ret (func))),((= ret (func2)) (= ret (func)))",
-           // "((= ret2 func) (= r ret2)),((= ret func) (= r2 ret)),((= ret2 func) (= r ret2))",
-         //   "((= ret2 func) (= y (func2)) (= r ret2)),((= ret func) (= x (func)) (= r2 ret)),((= ret2 func) (= y (func2)) (= x (func)) (= r ret2))",
             "((= ret (func2)) (for iter iterable (= iter 1)))," +
                     "((= ret (func)))," +
                     "((= ret (func2)) (for iter iterable (= iter 1)) (= ret (func))))",
@@ -322,18 +325,21 @@ public class ProgramTest {
     public void testEvaluation() {
         var functions = new RecordingFunctions();
         assertEquals(new ClassesBySignatureRequest(0, wrap("test")), new Evaluator(functions).evaluatePacketCall(
-                (PacketCall) PacketCall.parse("(request VirtualMachine ClassesBySignature ('signature')=(wrap 'string' 'test'))")));
+                (PacketCall) PacketCall.parse(
+                        "(request VirtualMachine ClassesBySignature ('signature')=(wrap 'string' 'test'))")));
         assertEquals(0, functions.requests.size());
     }
 
     @Test
     public void testCauseEvaluation() {
         var functions = new RecordingFunctions();
-        var eventString = "(events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" \"VMStart\") " +
-                "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+        var eventString = "(events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")=" +
+                "(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
                 "\"thread\")=(wrap \"thread\" 0))";
-        var scope = new Evaluator(functions).evaluate(Program.parse("((= cause " + eventString + ") (= var0 (request VirtualMachine ClassesBySignature ('signature')=(wrap 'string' 'bla'))))"));
-        assertEquals(eventString, EventsCall.create((Events)scope.get("cause")).toString());
+        var scope =
+                new Evaluator(functions).evaluate(Program.parse("((= cause " + eventString + ") " +
+                        "(= var0 (request VirtualMachine ClassesBySignature ('signature')=(wrap 'string' 'bla'))))"));
+        assertEquals(eventString, EventsCall.create((Events) scope.first.get("cause")).toString());
         assertEquals(1, functions.requests.size());
     }
 
@@ -343,12 +349,12 @@ public class ProgramTest {
                 "\"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"thread\")=" +
                 "(wrap \"thread\" 0))";
         var functions = new RecordingFunctions();
-        var ev = (Events)new Evaluator(functions).evaluatePacketCall((PacketCall) PacketCall.parse(events));
-        assertEquals(ev, new jdwp.EventCmds.Events(0, PrimitiveValue.wrap((byte)2),
+        var ev = (Events) new Evaluator(functions).evaluatePacketCall((PacketCall) PacketCall.parse(events));
+        assertEquals(ev, new jdwp.EventCmds.Events(0, PrimitiveValue.wrap((byte) 2),
                 new ListValue<>(new EventCmds.Events.VMStart(PrimitiveValue.wrap(0), new ThreadReference(0L)))));
-        assertEquals("(events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" \"VMStart\") " +
-                "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
-                "\"thread\")=(wrap \"thread\" 0))", EventsCall.create(ev).toString());
+        assertEquals("(events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")=(wrap " +
+                "\"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"thread\")=" +
+                "(wrap \"thread\" 0))", EventsCall.create(ev).toString());
     }
 
     private Request<?> evaluateRequestCall(RequestCall requestCall) {
@@ -393,5 +399,100 @@ public class ProgramTest {
     public void testRemoveDirectPointerRelated(String testProgram, String expectedResultingProgram) {
         var prog = Program.parse(testProgram);
         assertEquals(Program.parse(expectedResultingProgram), prog.removeDirectPointerRelatedStatementsTransitively());
+    }
+
+    /**
+     * tests that an array out of bounds exception in a get call
+     */
+    @Test
+    public void testEvaluatorArrayOutOfBounds() {
+        var result = new Evaluator(new RecordingFunctions())
+                .evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
+                        "(= va10 (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
+                        "(= var0 (get 'programs' 0)) (= var1 (get 'programs' 1)) " +
+                        "(= var2 1))"));
+        assertEquals(2, result.second.size());
+    }
+
+    @Test
+    public void testEvaluatorInvalidPropertyAccess() {
+        var result = new Evaluator(new RecordingFunctions())
+                .evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
+                        "(= var10 (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
+                        "(= var0 (get 'programs')) (= var1 (get var0 'progx')) " +
+                        "(= var2 2))"));
+        assertEquals(1, result.second.size());
+    }
+
+    @Test
+    public void testEvaluatorNoDiscardRequestHandling() {
+        var result = new Evaluator(new Functions() {
+            @Override
+            protected Value processRequest(Request<?> request) {
+                throw new EvaluationAbortException(false);
+            }
+        }).evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
+                "(= var0 (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a')))" +
+                "(= var2 1)))"));
+        assertEquals(1, result.second.size());
+        assertEquals(wrap((long) 1), result.first.get("var2"));
+    }
+
+    @Test
+    public void testEvaluatorDiscardRequestHandling() {
+        assertThrows(EvaluationAbortException.class, () -> {
+            new Evaluator(new Functions() {
+                @Override
+                protected Value processRequest(Request<?> request) {
+                    throw new EvaluationAbortException(true);
+                }
+            }).evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
+                    "(= var0 (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a')))" +
+                    "(= var2 1))"));
+        });
+    }
+
+    @Test
+    public void testUpdateCacheRequestEvaluation() {
+        var pc = (UpdateCacheRequest) new Evaluator(new RecordingFunctions())
+                .evaluatePacketCall((PacketCall) PacketCall.parse("(request Tunnel UpdateCache " +
+                        "('programs' 0)=(wrap 'string' 'a'))"));
+        assertEquals(wrap("a"), pc.programs.get(0));
+    }
+
+    @Test
+    public void testSetEventCause() {
+        var program = Program.parse("((= cause (events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" " +
+                "\"ClassPrepare\") (\"events\" 1 \"kind\")=(wrap \"string\" \"ClassPrepare\") (\"suspendPolicy\")=" +
+                "(wrap \"byte\" 1) (\"events\" 0 \"requestID\")=(wrap \"int\" 12) (\"events\" 0 \"thread\")=(wrap " +
+                "\"thread\" 1) (\"events\" 0 \"refTypeTag\")=(wrap \"byte\" 1) (\"events\" 0 \"typeID\")=(wrap " +
+                "\"klass\" 1129) (\"events\" 0 \"signature\")=(wrap \"string\" \"Ltunnel/EndlessLoop;\") (\"events\" " +
+                "0 \"status\")=(wrap \"int\" 3) (\"events\" 1 \"requestID\")=(wrap \"int\" 2) (\"events\" 1 " +
+                "\"thread\")=(wrap \"thread\" 1) (\"events\" 1 \"refTypeTag\")=(wrap \"byte\" 1) (\"events\" 1 " +
+                "\"typeID\")=(wrap \"klass\" 1129) (\"events\" 1 \"signature\")=(wrap \"string\" " +
+                "\"Ltunnel/EndlessLoop;\") (\"events\" 1 \"status\")=(wrap \"int\" 3)))\n" +
+                "  (= var0 (request ReferenceType MethodsWithGeneric (\"refType\")=(get cause \"events\" 0 " +
+                "\"typeID\"))))");
+        var newCause = (PacketCall) PacketCall.parse("(events Event Composite (\"events\" 0 \"kind\")=(wrap " +
+                "\"string\" \"ClassPrepare\") (\"suspendPolicy\")=(wrap \"byte\" 0) (\"events\" 0 \"requestID\")=" +
+                "(wrap \"int\" 2) (\"events\" 0 \"thread\")=(wrap \"thread\" 1) (\"events\" 0 \"refTypeTag\")=(wrap " +
+                "\"byte\" 1) (\"events\" 0 \"typeID\")=(wrap \"klass\" 1128) (\"events\" 0 \"signature\")=(wrap " +
+                "\"string\" \"Lsun/launcher/LauncherHelper;\") (\"events\" 0 \"status\")=(wrap \"int\" 3))");
+        assertEquals(program.getBody().get(0), program.setCause(newCause).getBody().get(0));
+    }
+
+    @Test
+    public void testInvariantViolatingProgram() {
+        assertThrows(AssertionError.class, () -> {
+            Program.parse("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) (\"suspendPolicy\")=" +
+                    "(wrap \"byte\" 0)))\n" +
+                    "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 7) (\"suspendPolicy\")=(wrap " +
+                    "\"byte\" 0)))\n" +
+                    "  (= var1 (request VirtualMachine Version))\n" +
+                    "  (= var2 (request VirtualMachine TopLevelThreadGroups))\n" +
+                    "  (= var3 (request VirtualMachine Capabilities))\n" +
+                    "  (= var4 (request VirtualMachine CapabilitiesNew))\n" +
+                    "  (= var5 (request VirtualMachine AllClassesWithGeneric)))");
+        });
     }
 }

@@ -105,9 +105,15 @@ TODO
   - the program synthesizer guarantees that the order of the statements depends only on the structure 
     of the dependency graph
 - test more
-- handle Tunnel requests and events properly in synthesizer
+- add cost model (remove costly statements from only similar programs)
+- add second level program cache
+  - insert derived programs
+- use reply cache to cache all replies
 - look into generated programs and add sanity checks
   - i.e. ResumeRequests can never be the cause for something
+- program cache: improve similar program search: alter values in cause
+- "get thread dump" in IntelliJ does not work
+- implement tests with real OpenJDK
 - implement tester for OpenJDK to find bugs in JDWP error handling
   - the assumption that no valid JDWP packet can make the JVM segfault is false
   - is this really a problem? Find JDI reproduction
