@@ -419,7 +419,7 @@ public class DependencyGraph {
         private Comparator<Node> nodeComparator;
 
         /**
-         * Sort based on each node's layer, command set, command and edge paths. Only uses the is as measure of
+         * Sort based on each node's layer, command set, command and edge paths. Only uses the id as measure of
          * last resort
          */
         public Comparator<Node> getNodeComparator() {
@@ -488,7 +488,11 @@ public class DependencyGraph {
 
             @Override
             public boolean equals(Object obj) {
-                return obj instanceof HashedNode && node.equals(((HashedNode) obj).node);
+                if (obj instanceof HashedNode) {
+                    HashedNode other = (HashedNode) obj;
+                    return other.hashCode == hashCode && Objects.equals(node.origin, other.node.origin);
+                }
+                return false;
             }
 
             public Node get() {

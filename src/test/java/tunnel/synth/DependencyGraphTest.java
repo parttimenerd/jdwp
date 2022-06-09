@@ -18,6 +18,7 @@ import tunnel.util.Either;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static jdwp.PrimitiveValue.wrap;
@@ -219,6 +220,20 @@ public class DependencyGraphTest {
         assertEquals(6, layers.getAllNodesWithoutDuplicates().size());
     }
 
+
+    @Test
+    public void getAllNodesWithoutDuplicatesWithDuplicates() {
+        Function<Integer, Pair<Request<?>, Reply>> func = id -> p(new jdwp.VirtualMachineCmds.IDSizesRequest(id),
+                new jdwp.VirtualMachineCmds.IDSizesReply(id, wrap(8), wrap(8),
+                        wrap(8), wrap(8), wrap(8)));
+        var partition = new Partition(Either.left(func.apply(1).first),
+                List.of(func.apply(1), func.apply(3), func.apply(4)));
+        var graph = DependencyGraph.calculate(partition);
+        assertEquals(4, graph.getAllNodes().size());
+        var layers = graph.computeLayers();
+        assertEquals(4, layers.getAllNodes().size());
+        assertEquals(2, layers.getAllNodesWithoutDuplicates().size());
+    }
     static TestRequest request(int id, Value value) {
         return new TestRequest(id, p("value", value));
     }
