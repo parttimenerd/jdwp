@@ -4,6 +4,7 @@ import jdwp.AccessPath;
 import jdwp.EventCmds.Events;
 import jdwp.EventRequestCmds;
 import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
+import jdwp.JDWP;
 import jdwp.Request;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.util.Pair;
@@ -20,6 +21,7 @@ import tunnel.synth.program.Functions.Function;
 import tunnel.synth.program.Visitors.*;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -308,6 +310,21 @@ public interface AST {
             return ret;
         }
 
+        default T removeStatementsTransitively(Predicate<Statement> predicate) {
+            Set<Statement> toRemove = new HashSet<>();
+            ((Statement) this).getSubStatements().forEach(s -> s.accept(new StatementVisitor() {
+                @Override
+                public void visit(Statement statement) {
+                    if (predicate.test(statement)) {
+                        toRemove.add(statement);
+                    } else {
+                        statement.getSubStatements().forEach(this::visit);
+                    }
+                }
+            }));
+            return removeStatementsTransitively(toRemove);
+        }
+
         /**
          * remove statements that directly contain a wrapped direct pointer
          */
@@ -419,7 +436,7 @@ public interface AST {
             this.commandSet = commandSet;
             this.command = command;
             this.properties =
-                    properties.stream().sorted((x, y) -> x.getPath().compareTo(y.getPath())).collect(Collectors.toList());
+                    properties.stream().sorted(Comparator.comparing(CallProperty::getPath)).collect(Collectors.toList());
         }
 
         @Override
@@ -511,14 +528,18 @@ public interface AST {
                     modifier.getTaggedValues().forEach(t -> tagged.add(t.prependPath(prefix)));
                     i++;
                 }
-                var res = create(request.getCommandSetName(), request.getCommandName(), tagged.stream(), List.of());
-                return res;
+                return create(request.getCommandSetName(), request.getCommandName(), tagged.stream(), List.of());
             }
             return create(
                     request.getCommandSetName(),
                     request.getCommandName(),
                     request.asCombined().getTaggedValues(),
                     List.of());
+        }
+
+        public float getCost() {
+            return JDWP.getCost(JDWP.getCommandSetByte(getCommandSet()),
+                    JDWP.getCommandByte(getCommandSet(), getCommand()));
         }
     }
 

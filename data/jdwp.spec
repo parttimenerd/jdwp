@@ -41,6 +41,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (Error VM_DEAD)
         )
         (OnlyReads "true")
+        (Cost 1)
     )
     (Command ClassesBySignature=2
         "Returns reference types for all the classes loaded by the target VM "

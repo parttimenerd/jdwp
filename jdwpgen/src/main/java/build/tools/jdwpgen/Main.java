@@ -45,6 +45,9 @@ public class Main {
         System.err.println("-doc <doc_output>");
         System.err.println("-jdi <java_output>");
         System.err.println("-include <include_file_output>");
+        System.err.println("-costfile <csv file that contains the cmd, cmd set and average milliseconds>");
+        System.err.println("-rawcostfile <same as costfile but with multiple entries, overrides the costfile if passed>");
+        System.err.println("   use the JDK from https://github.com/parttimenerd/jdk/blob/parttimenerd_jdwp_cost_recorder");
     }
 
     @SneakyThrows
@@ -54,6 +57,8 @@ public class Main {
         Path jdiFile = null;
         PrintWriter jdi = null;
         PrintWriter include = null;
+        Path costFile = null;
+        Path rawCostFile = null;
 
         // Parse arguments
         for (int i = 0 ; i < args.length ; ++i) {
@@ -71,6 +76,12 @@ public class Main {
                     case "-include":
                         include = new PrintWriter(new FileWriter(fn));
                         break;
+                    case "-costfile":
+                        costFile = Paths.get(fn);
+                        break;
+                    case "-rawcostfile":
+                        rawCostFile = Paths.get(fn);
+                        break;
                     default:
                         System.err.println("Invalid option: " + arg);
                         usage();
@@ -86,6 +97,10 @@ public class Main {
             usage();
             return;
         }
+        if (rawCostFile != null && costFile != null) {
+            System.out.println("Override costfile");
+            CostFile.load(rawCostFile).store(costFile);
+        }
 
         Parse parse = new Parse(reader);
         RootNode root = parse.items();
@@ -97,7 +112,7 @@ public class Main {
             doc.close();
         }
         if (jdi != null) {
-            root.genJava(jdi, jdiFile);
+            root.genJava(jdi, jdiFile, costFile != null ? CostFile.load(costFile) : CostFile.empty());
             jdi.close();
         }
         if (include != null) {

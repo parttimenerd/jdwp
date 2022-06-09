@@ -29,7 +29,7 @@ package build.tools.jdwpgen
 
 internal class CommandNode : AbstractCommandNode() {
     public override fun constrain(ctx: Context) {
-        if (components.size == 4) {
+        if (components.size >= 4) {
             val out = components[0]
             val reply = components[1]
             val error = components[2]
@@ -44,7 +44,13 @@ internal class CommandNode : AbstractCommandNode() {
                 error("Expected 'ErrorSet' item, got: $error")
             }
             if (onlyReads !is OnlyReadsNode) {
-                error("Expected 'OnlyReads' item, got: $error")
+                error("Expected 'OnlyReads' item, got: $onlyReads")
+            }
+            if (components.size == 5) {
+                val cost = components[4]
+                if (cost !is CostNode) {
+                    error("Expected 'Cost' node, got: $cost")
+                }
             }
         } else if (components.size == 1) {
             val evt = components[0]
@@ -70,8 +76,10 @@ internal class CommandNode : AbstractCommandNode() {
         get() = components[1] as ReplyNode
     val error: ErrorSetNode
         get() = components[2] as ErrorSetNode
-     val onlyReads: Boolean
+    val onlyReads: Boolean
         get() = (components[3] as OnlyReadsNode).boolean
+    val cost: Int
+        get() = if (components.size == 5) (components[4] as CostNode).integer else 0
 
     val eventNode: EventNode
         get() = components[0] as EventNode

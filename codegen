@@ -2,4 +2,4 @@
 
 SCRIPT_PATH=$(readlink -f "$0")
 
-(cd jdwpgen; mvn package exec:java -Dexec.args="../data/jdwp.spec -jdi ../src/main/java/jdwp/JDWP.java")
+(cd jdwpgen; mvn package exec:java -Dexec.args="../data/jdwp.spec -jdi ../src/main/java/jdwp/JDWP.java -costfile ../data/costs.csv")

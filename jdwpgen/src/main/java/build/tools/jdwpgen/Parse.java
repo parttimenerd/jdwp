@@ -55,6 +55,7 @@ class Parse {
         kindMap.put("Reply", new ReplyNode());
         kindMap.put("ErrorSet", new ErrorSetNode());
         kindMap.put("OnlyReads", new OnlyReadsNode());
+        kindMap.put("Cost", new CostNode());
         kindMap.put("Error", new ErrorNode());
         kindMap.put("Event", new EventNode());
         kindMap.put("Repeat", new RepeatNode());

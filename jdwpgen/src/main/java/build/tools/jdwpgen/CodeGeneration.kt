@@ -6,12 +6,12 @@ import javax.lang.model.element.Modifier
 
 internal object CodeGeneration {
 
-    private fun genCommandNodeJavaClasses(cmd: CommandNode): List<TypeSpec> {
-        return if (cmd.isEventNode) listOf(generateEventClass(cmd)) else generateCommandClasses(cmd)
+    private fun genCommandNodeJavaClasses(cmd: CommandNode, costFile: CostFile): List<TypeSpec> {
+        return if (cmd.isEventNode) listOf(generateEventClass(cmd)) else generateCommandClasses(cmd, costFile)
     }
 
-    private fun generateCommandClasses(cmd: CommandNode): List<TypeSpec> {
-        return listOf(genRequestClass(cmd), genReplyClass(cmd))
+    private fun generateCommandClasses(cmd: CommandNode, costFile: CostFile): List<TypeSpec> {
+        return listOf(genRequestClass(cmd, costFile), genReplyClass(cmd))
     }
 
     // idea: keep the code at a single place
@@ -135,7 +135,7 @@ internal object CodeGeneration {
         }
     }
 
-    private fun genRequestClass(cmd: CommandNode): TypeSpec {
+    private fun genRequestClass(cmd: CommandNode, costFile: CostFile): TypeSpec {
         val out = cmd.out
         val fields = out.components.map { t: Node -> t as TypeNode.AbstractTypeNode }
         val requestClassName = cmd.requestClassName
@@ -184,6 +184,12 @@ internal object CodeGeneration {
             `public`(TypeName.BOOLEAN, "onlyReads") {
                 `@Override`()
                 _return(cmd.onlyReads.L)
+            }
+
+            `public`(TypeName.FLOAT, "getCost") {
+                `@Override`()
+                _return((if (cmd.cost == 0) costFile.getCost(Integer.parseInt((cmd.parent as CommandSetNode).nameNode.value()),
+                    Integer.parseInt(cmd.nameNode.value())).L else cmd.cost.L) + "f")
             }
 
             genVisitorAccept(requestVisitorName)
@@ -555,7 +561,7 @@ internal object CodeGeneration {
 
     private fun TypeSpec.Builder.genHashCode(fields: List<TypeNode.AbstractTypeNode>) = `public`(TypeName.INT, "hashCode") {
         `@Override`()
-        val vars = listOf<String>("COMMAND", "COMMAND_SET") + fields.map { it.name() }
+        val vars = listOf("COMMAND", "COMMAND_SET") + fields.map { it.name() }
         _return("Objects.hash(${vars.joinToString(", ")})")
     }
 
@@ -670,14 +676,14 @@ internal object CodeGeneration {
     }
 
     @JvmStatic
-    fun genCommandCode(node: CommandSetNode): TypeSpec {
+    fun genCommandCode(node: CommandSetNode, costFile: CostFile): TypeSpec {
         return `public class`(node.name()) {
             `public static final field`(TypeName.INT, "COMMAND_SET") {
                 `=`(node.nameNode.value())
             }
 
             for (command in node.commandNodes) {
-                genCommandNodeJavaClasses(command).forEach { addType(it) }
+                genCommandNodeJavaClasses(command, costFile).forEach { addType(it) }
             }
 
             genAdditionalCommandSetCode(node)
@@ -730,7 +736,7 @@ internal object CodeGeneration {
 
     /** generate the parse method for every packet */
     @JvmStatic
-    fun genRootCode(root: RootNode): TypeSpec {
+    fun genRootCode(root: RootNode, costFile: CostFile): TypeSpec {
         val nodes = root.commandSetNodes
         val commands = nodes.flatMap { cs ->
             cs.components.filterIsInstance<CommandNode>().map { c -> "${cs.name()}.${c.name()}" to c } }
@@ -790,6 +796,23 @@ internal object CodeGeneration {
             `public static`(TypeName.BYTE, "getCommandByte", param("String", "commandSetName"),
                 param("String", "commandName")) {
                 _return("commandNameToByte.get(commandSetName).get(commandName)")
+            }
+
+            `private static final field`(
+                ParameterizedTypeName.get(bg("Map"), bg("Integer"), pt("Map", "Integer", "Float")), "commandToCost") {
+                `=`("Map.ofEntries(${
+                    nodes.joinToString(", ") {
+                        "Map.entry(${it.nameNode.value()}, Map.ofEntries(${
+                            it.components.filterIsInstance<CommandNode>()
+                                .joinToString(", ") { c -> "Map.entry(${c.nameNode.value()}, ${if (c.cost == 0) costFile.getCost(it.nameNode.value().toInt(), c.nameNode.value().toInt()) else c.cost}f)" }
+                        }))"
+                    }
+                })")
+            }
+
+            `public static`(TypeName.FLOAT, "getCost", param(TypeName.INT, "commandSet"),
+                param(TypeName.INT, "command")) {
+                _return("commandToCost.get(commandSet).get(command)")
             }
 
             for (node in root.constantSetNodes) {

@@ -16,6 +16,16 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
 
     boolean onlyReads();
 
+    /**
+     * The average number of milliseconds it takes to execute on my machine (the machine that the cost.csv file
+     * is created on).
+     *
+     * A high value is a value of at least 1, these should therefore be omitted in only similar programs.
+     * A value of 0 is used to note that this command was not observed in the evaluation runs and therefore no
+     * data is available.
+     */
+    float getCost();
+
     Packet toPacket(VM vm);
 
     ReplyOrError<R> parseReply(PacketInputStream ps);

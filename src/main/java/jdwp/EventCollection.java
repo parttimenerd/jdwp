@@ -120,4 +120,9 @@ public interface EventCollection extends Request<NullReply>, Reply {
             throw new AssertionError();
         }
     }
+
+    @Override
+    default float getCost() {
+        return 0;
+    }
 }

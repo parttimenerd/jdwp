@@ -5,6 +5,7 @@ import com.google.common.cache.CacheBuilder;
 import jdwp.EventCmds.Events;
 import jdwp.ParsedPacket;
 import jdwp.Request;
+import tunnel.synth.program.AST.AssignmentStatement;
 import tunnel.synth.program.AST.EventsCall;
 import tunnel.synth.program.AST.PacketCall;
 import tunnel.synth.program.AST.RequestCall;
@@ -44,6 +45,8 @@ public class ProgramCache implements Consumer<Program> {
 
     public static final int DEFAULT_MAX_CACHE_SIZE = 200;
 
+    public static final float DEFAULT_MAX_COST_FOR_SIMILAR = 2;
+
     /**
      * minimal number assignments in a program to be added, event causes are included
      */
@@ -51,17 +54,21 @@ public class ProgramCache implements Consumer<Program> {
 
     private final int maxCacheSize;
 
+    /** only include statements in programs for getSimilar if their cost is <= this value (in milli seconds)*/
+    private final float maxCostForSimilar;
+
     public ProgramCache() {
         this(Mode.LAST, DEFAULT_MIN_SIZE);
     }
 
     public ProgramCache(Mode mode, int minSize) {
-        this(mode, minSize, DEFAULT_MAX_CACHE_SIZE);
+        this(mode, minSize, DEFAULT_MAX_CACHE_SIZE, DEFAULT_MAX_COST_FOR_SIMILAR);
     }
-    public ProgramCache(Mode mode, int minSize, int maxCacheSize) {
+    public ProgramCache(Mode mode, int minSize, int maxCacheSize, float maxCostForSimilar) {
         this.maxCacheSize = maxCacheSize;
         this.mode = mode;
         this.minSize = minSize;
+        this.maxCostForSimilar = maxCostForSimilar;
         this.causeToProgram = CacheBuilder.newBuilder().maximumSize(maxCacheSize).build();
         this.originForSimilars = CacheBuilder.newBuilder().maximumSize(maxCacheSize * 2L).build();
         this.removedSimilars = new HashSet<>();
@@ -119,6 +126,10 @@ public class ProgramCache implements Consumer<Program> {
         if (best.isPresent() && best.get().second > 0) {
             var origin = best.get().first.getValue();
             var prog = origin.setCause(packet);
+            // remove statements that are deemed to be to costly
+            prog = prog.removeStatementsTransitively(s -> s instanceof AssignmentStatement &&
+                    ((AssignmentStatement) s).getExpression() instanceof RequestCall &&
+                    ((RequestCall) ((AssignmentStatement) s).getExpression()).getCost() > maxCostForSimilar);
             if (removedSimilars.contains(origin)) { // this similar program already failed
                 return Optional.empty();
             }
@@ -156,10 +167,10 @@ public class ProgramCache implements Consumer<Program> {
 
     public int load(InputStream stream) throws IOException {
         var reader = new BufferedReader(new InputStreamReader(stream));
-        String line = null;
+        String line;
         int count = 0;
         while ((line = reader.readLine()) != null) {
-            StringBuffer program = new StringBuffer(line);
+            StringBuilder program = new StringBuilder(line);
             while ((line = reader.readLine()) != null && !line.isBlank()) {
                 program.append(line);
             }

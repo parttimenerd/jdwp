@@ -67,4 +67,9 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
     public Request<TestReply> withNewId(int id) {
         return new TestRequest(id);
     }
+
+    @Override
+    public float getCost() {
+        return 0;
+    }
 }
