@@ -141,6 +141,7 @@ public class State {
                 registerPartitionListener();
             }
         }
+        vm.setLogger(LOG);
     }
 
     public void loadProgramCache(Path programCacheFile) {
@@ -198,14 +199,14 @@ public class State {
         listeners.add(new Listener() {
             @Override
             public void onRequest(Request<?> request) {
-                if (!request.onlyReads()) {
+                if (request.invalidatesReplyCache()) {
                     replyCache.invalidate();
                 }
             }
 
             @Override
             public void onReply(Request<?> request, Reply reply) {
-                if (request.onlyReads()) {
+                if (!request.invalidatesReplyCache()) {
                     replyCache.put(request, reply);
                 }
             }

@@ -16,6 +16,10 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
 
     boolean onlyReads();
 
+    default boolean invalidatesReplyCache() {
+        return !onlyReads();
+    }
+
     /**
      * The average number of milliseconds it takes to execute on my machine (the machine that the cost.csv file
      * is created on).

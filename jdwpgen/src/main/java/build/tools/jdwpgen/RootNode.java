@@ -25,8 +25,6 @@
 
 package build.tools.jdwpgen;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -98,7 +96,7 @@ class RootNode extends AbstractNamedNode {
     }
 
     void genJavaClass(PrintWriter writer, Path jdiFile, CostFile costFile) {
-        writer.println(CodeGeneration.genRootCode(this, costFile));
+        writer.println(CodeGeneration.genRootCode(this));
         genCommandSets(jdiFile, costFile);
     }
 

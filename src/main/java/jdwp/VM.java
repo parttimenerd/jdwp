@@ -25,12 +25,17 @@
 
 package jdwp;
 
+import ch.qos.logback.classic.Logger;
 import jdwp.ClassTypeCmds.NewInstanceReply;
 import jdwp.ClassTypeCmds.NewInstanceRequest;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.*;
 import jdwp.JDWP.RequestReplyVisitor;
 import jdwp.JDWP.RequestVisitor;
+import jdwp.MethodCmds.VariableTableReply;
+import jdwp.MethodCmds.VariableTableRequest;
+import jdwp.MethodCmds.VariableTableWithGenericReply;
+import jdwp.MethodCmds.VariableTableWithGenericRequest;
 import jdwp.ObjectReferenceCmds.ReferenceTypeReply;
 import jdwp.ObjectReferenceCmds.ReferenceTypeRequest;
 import jdwp.PrimitiveValue.StringValue;
@@ -43,6 +48,7 @@ import jdwp.VM.NoTagPresentException.Source;
 import jdwp.VirtualMachineCmds.*;
 import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
 import lombok.Getter;
+import org.slf4j.LoggerFactory;
 import tunnel.BasicTunnel;
 
 import java.util.HashMap;
@@ -66,7 +72,9 @@ public class VM {
         }
     }
 
-    final int id;
+    private final int id;
+
+    private Logger log = (Logger) LoggerFactory.getLogger("VM");
 
     // VM Level exported variables, these
     // are unique to a given vm
@@ -76,6 +84,10 @@ public class VM {
     private int sizeofClassRef = 8;
     private int sizeofFrameRef = 8;
     private int sizeofModuleRef = 8;
+
+    public static class ClassImpl {
+
+    }
 
     /**
      * class id -> field id -> tag
@@ -277,7 +289,7 @@ public class VM {
             public void visit(TunnelRequestReplies obj) {
                 var pair = BasicTunnel.parseTunnelRequestReplyEvent(VM.this, obj);
                 captureInformation(pair.first);
-                pair.second.stream().forEach(p -> captureInformation(p.first, p.second));
+                pair.second.forEach(p -> captureInformation(p.first, p.second));
             }
         });
     }
@@ -385,6 +397,16 @@ public class VM {
                               SignatureWithGenericReply reply) {
                 addClass(reply.signature.value, request.refType.value);
             }
+
+            @Override
+            public void visit(VariableTableWithGenericRequest request, VariableTableWithGenericReply reply) {
+                log.error("VariableTableWithGenericRequest not implemented " + reply);
+            }
+
+            @Override
+            public void visit(VariableTableRequest request, VariableTableReply reply) {
+                log.error("VariableTableRequest not implemented" + reply);
+            }
         }, reply);
     }
 
@@ -406,5 +428,9 @@ public class VM {
 
     private byte signatureToTag(String signature) {
         return new JNITypeParser(signature).jdwpTag();
+    }
+
+    public void setLogger(Logger logger) {
+        this.log = logger;
     }
 }

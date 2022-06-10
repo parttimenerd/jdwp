@@ -29,11 +29,11 @@ package build.tools.jdwpgen
 
 internal class CommandNode : AbstractCommandNode() {
     public override fun constrain(ctx: Context) {
-        if (components.size >= 4) {
+        if (components.size == 4) {
             val out = components[0]
             val reply = components[1]
             val error = components[2]
-            val onlyReads = components[3]
+            val metadata = components[3]
             if (out !is OutNode) {
                 error("Expected 'Out' item, got: $out")
             }
@@ -43,14 +43,8 @@ internal class CommandNode : AbstractCommandNode() {
             if (error !is ErrorSetNode) {
                 error("Expected 'ErrorSet' item, got: $error")
             }
-            if (onlyReads !is OnlyReadsNode) {
-                error("Expected 'OnlyReads' item, got: $onlyReads")
-            }
-            if (components.size == 5) {
-                val cost = components[4]
-                if (cost !is CostNode) {
-                    error("Expected 'Cost' node, got: $cost")
-                }
+            if (metadata !is MetadataNode) {
+                error("Expected 'Metadata' item, got: $metadata")
             }
         } else if (components.size == 1) {
             val evt = components[0]
@@ -58,7 +52,7 @@ internal class CommandNode : AbstractCommandNode() {
                 error("Expected 'Event' item, got: $evt")
             }
         } else {
-            error("Command $name must have Out and Reply items or ErrorSet item with OnlyReads item")
+            error("Command $name must have Out and Reply items or ErrorSet item with metadata item")
         }
         super.constrain(ctx)
     }
@@ -76,10 +70,8 @@ internal class CommandNode : AbstractCommandNode() {
         get() = components[1] as ReplyNode
     val error: ErrorSetNode
         get() = components[2] as ErrorSetNode
-    val onlyReads: Boolean
-        get() = (components[3] as OnlyReadsNode).boolean
-    val cost: Int
-        get() = if (components.size == 5) (components[4] as CostNode).integer else 0
+    val metadata: MetadataNode
+        get() = components[3] as MetadataNode
 
     val eventNode: EventNode
         get() = components[0] as EventNode

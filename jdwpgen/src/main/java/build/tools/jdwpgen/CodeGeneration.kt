@@ -181,15 +181,23 @@ internal object CodeGeneration {
                 _return("$replyClassName.parse(ps)")
             }
 
-            `public`(TypeName.BOOLEAN, "onlyReads") {
-                `@Override`()
-                _return(cmd.onlyReads.L)
-            }
-
-            `public`(TypeName.FLOAT, "getCost") {
-                `@Override`()
-                _return((if (cmd.cost == 0) costFile.getCost(Integer.parseInt((cmd.parent as CommandSetNode).nameNode.value()),
-                    Integer.parseInt(cmd.nameNode.value())).L else cmd.cost.L) + "f")
+            for ((entry, value) in cmd.metadata.entryValues.entries) {
+                `public static final field`(entry.typeName, entry.constantName) {
+                    addJavadoc(entry.description)
+                    `=`(
+                        if (entry.nodeName.equals("Cost")) {
+                            (if (value == 0) costFile.getCost(
+                                Integer.parseInt((cmd.parent as CommandSetNode).nameNode.value()),
+                                Integer.parseInt(cmd.nameNode.value())
+                            ).L else value.L) + "f"
+                        } else if (value is String) value.S else value.L
+                    )
+                }
+                `public`(entry.typeName, entry.methodName) {
+                    `@Override`()
+                    addJavadoc(entry.description)
+                    _return(entry.constantName)
+                }
             }
 
             genVisitorAccept(requestVisitorName)
@@ -659,9 +667,9 @@ internal object CodeGeneration {
         this
     }
 
-    private fun typeNameToParameterName(typeName: String) = typeName.split(".").last().lowercaseFirstCharacter()
+    public fun typeNameToParameterName(typeName: String) = typeName.split(".").last().lowercaseFirstCharacter()
 
-    private fun String.lowercaseFirstCharacter() = this[0].lowercase() + substring(1, length)
+    fun String.lowercaseFirstCharacter() = this[0].lowercase() + substring(1, length)
 
     private fun TypeSpec.Builder.genVisitorAccept(visitorName: String) = `public`(TypeName.VOID, "accept", param(visitorName, "visitor")) {
         `@Override`()
@@ -736,10 +744,11 @@ internal object CodeGeneration {
 
     /** generate the parse method for every packet */
     @JvmStatic
-    fun genRootCode(root: RootNode, costFile: CostFile): TypeSpec {
+    fun genRootCode(root: RootNode): TypeSpec {
         val nodes = root.commandSetNodes
         val commands = nodes.flatMap { cs ->
-            cs.components.filterIsInstance<CommandNode>().map { c -> "${cs.name()}.${c.name()}" to c } }
+            cs.components.filterIsInstance<CommandNode>().map { c -> "${cs.name()}.${c.name()}" to c }
+        }
         val rrCommands = commands.filter { it.second.components.size > 2 } // filter events
         val requestNames = rrCommands.map { it.first + "Request" }
         val replyNames = rrCommands.map { it.first + "Reply" } + listOf("EventCmds.Events")
@@ -793,28 +802,50 @@ internal object CodeGeneration {
                 _return("commandSetNameToByte.get(commandSetName)")
             }
 
-            `public static`(TypeName.BYTE, "getCommandByte", param("String", "commandSetName"),
-                param("String", "commandName")) {
+            `public static`(
+                TypeName.BYTE, "getCommandByte", param("String", "commandSetName"),
+                param("String", "commandName")
+            ) {
                 _return("commandNameToByte.get(commandSetName).get(commandName)")
             }
 
-            `private static final field`(
-                ParameterizedTypeName.get(bg("Map"), bg("Integer"), pt("Map", "Integer", "Float")), "commandToCost") {
-                `=`("Map.ofEntries(${
-                    nodes.joinToString(", ") {
-                        "Map.entry(${it.nameNode.value()}, Map.ofEntries(${
-                            it.components.filterIsInstance<CommandNode>()
-                                .joinToString(", ") { c -> "Map.entry(${c.nameNode.value()}, ${if (c.cost == 0) costFile.getCost(it.nameNode.value().toInt(), c.nameNode.value().toInt()) else c.cost}f)" }
-                        }))"
-                    }
-                })")
-            }
+            for (entry in MetadataNode.entries) {
+                `private static final field`(
+                    ParameterizedTypeName.get(
+                        bg("Map"), bg("Integer"), pt(
+                            "Map", "Integer",
+                            ClassName.get(entry.resultType).toString()
+                        )
+                    ), "commandTo${entry.nodeName}"
+                ) {
+                    `=`("Map.ofEntries(${
+                        nodes.joinToString(", ") {
+                            "Map.entry(${it.nameNode.value()}, Map.ofEntries(${
+                                it.components.filterIsInstance<CommandNode>().filter { c -> !c.isEventNode }
+                                    .joinToString(", ") { c ->
+                                        "Map.entry(${c.nameNode.value()}, ${c.parent.name()}.${c.requestClassName}.${entry.constantName})"
+                                    }
+                            }))"
+                        }
+                    })")
+                }
 
-            `public static`(TypeName.FLOAT, "getCost", param(TypeName.INT, "commandSet"),
-                param(TypeName.INT, "command")) {
-                _return("commandToCost.get(commandSet).get(command)")
-            }
+                `public static`(
+                    entry.typeName, entry.methodName, param(TypeName.INT, "commandSet"),
+                    param(TypeName.INT, "command")
+                ) {
+                    addJavadoc(entry.description)
+                    _return("commandTo${entry.nodeName}.get(commandSet).get(command)")
+                }
 
+                `public static`(
+                    entry.typeName, entry.methodName, param("String", "commandSetName"),
+                    param("String", "commandName")
+                ) {
+                    addJavadoc(entry.description)
+                    _return("commandTo${entry.nodeName}.get(getCommandSetByte(commandSetName)).get(getCommandByte(commandSetName, commandName))")
+                }
+            }
             for (node in root.constantSetNodes) {
                 addType(genConstantClass(node))
             }

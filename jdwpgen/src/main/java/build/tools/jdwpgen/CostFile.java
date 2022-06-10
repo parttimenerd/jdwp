@@ -19,6 +19,7 @@ public class CostFile {
         this.costsInMillis = costsInMillis;
     }
 
+    @SuppressWarnings("unchecked")
     public static CostFile load(Path path) {
         var costsInMillis = new HashMap<Integer, Map<Integer, List<Float>>>();
         try {
@@ -32,14 +33,14 @@ public class CostFile {
                         .computeIfAbsent(command, k -> new ArrayList<>()).add(cost);
             });
             return new CostFile(costsInMillis.entrySet().stream().collect((Collector<? super Entry<Integer,
-                    Map<Integer, List<Float>>>, Object, Map<Integer, Map<Integer, Float>>>) Collectors.toMap((Function<Entry<Integer, Map<Integer, List<Float>>>, Integer>) e -> e.getKey(), e -> {
+                    Map<Integer, List<Float>>>, Object, Map<Integer, Map<Integer, Float>>>) Collectors.toMap((Function<Entry<Integer, Map<Integer, List<Float>>>, Integer>) Entry::getKey, e -> {
                 var commandSet = e.getKey();
                 var commandToCost = e.getValue();
                 return commandToCost.entrySet().stream().collect(
                         Collectors.toMap((Function<Entry<Integer, List<Float>>, Integer>) Entry::getKey, e2 -> {
                             var count = e2.getValue().size();
                             var skip = (int) Math.floor(count * 0.1); // skip the lowest and largest 10%
-                            var cost = e2.getValue().stream().skip(skip).limit(count - 2 * skip)
+                            var cost = e2.getValue().stream().skip(skip).limit(count - 2L * skip)
                                     .mapToDouble(f -> f).average().orElse(0);
                             return (Float) (float) cost;
                         }));
@@ -55,10 +56,11 @@ public class CostFile {
 
     public void store(Path path) {
         try {
-            Files.writeString(path, costsInMillis.entrySet().stream().map(e -> {
+            Files.writeString(path, costsInMillis.entrySet().stream()
+                    .sorted(Entry.comparingByKey()).map(e -> {
                 var commandSet = e.getKey();
                 var commandToCost = e.getValue();
-                return commandToCost.entrySet().stream().map(e2 -> {
+                return commandToCost.entrySet().stream().sorted(Entry.comparingByKey()).map(e2 -> {
                     var command = e2.getKey();
                     var cost = e2.getValue();
                     return String.format(Locale.US, "%d, %d, %f", commandSet, command, cost);

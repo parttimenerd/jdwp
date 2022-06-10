@@ -25,9 +25,17 @@
 
 package build.tools.jdwpgen;
 
-import java.util.*;
-import java.io.*;
+import build.tools.jdwpgen.MetadataNode.EntryNode;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StreamTokenizer;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 class Parse {
 
@@ -54,8 +62,6 @@ class Parse {
         kindMap.put("Out", new OutNode());
         kindMap.put("Reply", new ReplyNode());
         kindMap.put("ErrorSet", new ErrorSetNode());
-        kindMap.put("OnlyReads", new OnlyReadsNode());
-        kindMap.put("Cost", new CostNode());
         kindMap.put("Error", new ErrorNode());
         kindMap.put("Event", new EventNode());
         kindMap.put("Repeat", new RepeatNode());
@@ -91,6 +97,14 @@ class Parse {
         kindMap.put("referenceType", new TypeNode.ReferenceIDTypeNode());
         kindMap.put("typed-sequence", new TypeNode.ArrayRegionTypeNode());
         kindMap.put("untagged-value", new TypeNode.UntaggedValueTypeNode());
+        kindMap.put("Metadata", new MetadataNode());
+        // some request and reply meta data
+        MetadataNode.entries.forEach(e -> {
+            if (kindMap.containsKey(e.getNodeName())) {
+                throw new IllegalArgumentException("Duplicate entry name: " + e.getNodeName());
+            }
+            kindMap.put(e.getNodeName(), new EntryNode());
+        });
     }
 
     RootNode items() throws IOException {
