@@ -869,7 +869,7 @@ public interface AST {
     /**
      * (map variable iterable iter [call properties])
      * <p>
-     * Currently, only single string paths are supported
+     * Currently, only single string and empty paths are supported
      */
     @Getter
     @EqualsAndHashCode(callSuper = false)
@@ -889,9 +889,13 @@ public interface AST {
         }
 
         private void checkArguments() {
-            if (arguments.isEmpty() || arguments.stream().map(CallProperty::getPath)
-                    .anyMatch(p -> p.size() != 1 && p.get(0) instanceof String)) {
-                throw new IllegalArgumentException("iter cannot be an argument");
+            if (arguments.isEmpty()) {
+                throw new AssertionError("map call must have at least one argument");
+            }
+            if (!arguments.stream().map(CallProperty::getPath)
+                    .allMatch(p -> p.size() <= 1 &&
+                            ((p.size() == 0 && arguments.size() == 1) || p.get(0) instanceof String))) {
+                throw new AssertionError("map call paths must be single string or empty");
             }
         }
 

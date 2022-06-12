@@ -215,19 +215,31 @@ public class Evaluator {
                         ListValue<Value> result;
                         scope.push();
                         try {
-                            result = new ListValue<>(Type.OBJECT,
-                                    ((WalkableValue<?>) iterable).getValues().stream()
-                                            .map(p -> new MapCallResultEntry(mapCall.getArguments().stream().map(arg -> {
-                                                try {
-                                                    scope.push();
-                                                    scope.put(mapCall.getIter().getName(), p.second);
-                                                    return Map.entry((String) arg.getPath().get(0), evaluate(scope,
-                                                            arg.getAccessor()));
-                                                } finally {
-                                                    scope.pop();
-                                                }
-                                            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))))
-                                            .collect(Collectors.toList()));
+                            var vals = ((WalkableValue<?>) iterable).getValues().stream()
+                                    .map(p -> {
+                                        var firstArgument = mapCall.getArguments().get(0);
+                                        if (firstArgument.getPath().size() == 0) { // a basic map
+                                            try {
+                                                scope.push();
+                                                scope.put(mapCall.getIter().getName(), p.second);
+                                                return evaluate(scope, firstArgument.getAccessor());
+                                            } finally {
+                                                scope.pop();
+                                            }
+                                        }
+                                        return new MapCallResultEntry(mapCall.getArguments().stream().map(arg -> {
+                                            try {
+                                                scope.push();
+                                                scope.put(mapCall.getIter().getName(), p.second);
+                                                return Map.entry((String) arg.getPath().get(0), evaluate(scope,
+                                                        arg.getAccessor()));
+                                            } finally {
+                                                scope.pop();
+                                            }
+                                        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                                    })
+                                    .collect(Collectors.toList());
+                            result = new ListValue<>(vals.isEmpty() ? Type.OBJECT : vals.get(0).type, vals);
                         } catch (AssertionError | Exception e) {
                             e.printStackTrace();
                             addToNotEvaluated(mapCall);
