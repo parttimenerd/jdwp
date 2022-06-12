@@ -1,5 +1,6 @@
 package tunnel.synth.program;
 
+import com.google.common.collect.Lists;
 import jdwp.AccessPath;
 import jdwp.EventCmds.Events;
 import jdwp.EventRequestCmds;
@@ -156,7 +157,10 @@ public interface AST {
 
         @Nullable @Setter private Statement source;
 
-        @Setter private boolean isLoopIterableRelated;
+        @Setter
+        private boolean isLoopIterableRelated;
+        @Setter
+        private boolean mapIterableRelated;
 
         public Identifier(String name) {
             this.name = name;
@@ -204,7 +208,20 @@ public interface AST {
         }
     }
 
-    static abstract class Statement implements AST {
+    abstract class Statement implements AST {
+
+        @Getter
+        private ProgramHashes hashes;
+
+        public Statement setHashes(ProgramHashes hashes) {
+            this.hashes = hashes;
+            return this;
+        }
+
+        public Statement initHashes(@Nullable ProgramHashes parentHash) {
+            ProgramHashes.setInStatement(parentHash, this);
+            return this;
+        }
 
         public abstract void accept(StatementVisitor visitor);
 
@@ -249,6 +266,7 @@ public interface AST {
     }
 
     interface CompoundStatement<T extends Statement> extends AST {
+
         List<Statement> getSubStatements();
 
         T removeStatements(Set<Statement> statements);
@@ -340,6 +358,12 @@ public interface AST {
             }
             return removeStatementsTransitively(statements);
         }
+    }
+
+    interface PartiallyMergeable<T extends PartiallyMergeable<T>> extends AST {
+        List<T> merge(T other);
+
+        List<T> overlap(T other);
     }
 
     @Getter
@@ -597,6 +621,9 @@ public interface AST {
         }
     }
 
+    /**
+     * (access path)=(expression)
+     */
     @Getter
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = false)
@@ -637,19 +664,14 @@ public interface AST {
 
     @Getter
     @EqualsAndHashCode(callSuper = false)
-    class Loop extends Statement implements CompoundStatement<Loop> {
+    @AllArgsConstructor
+    class Loop extends Statement implements CompoundStatement<Loop>, PartiallyMergeable<Loop> {
         private final Identifier iter;
         private final Expression iterable;
         private final Body body;
 
         public Loop(Identifier iter, Expression iterable, List<Statement> body) {
             this(iter, iterable, new Body(body));
-        }
-
-        public Loop(Identifier iter, Expression iterable, Body body) {
-            this.iter = iter;
-            this.iterable = iterable;
-            this.body = body;
         }
 
         @Override
@@ -673,18 +695,20 @@ public interface AST {
                     body.toPrettyString(subIndent, innerIndent));
         }
 
-        public List<Loop> merge(ProgramHashes hashes, ProgramHashes otherHashes, Loop other) {
-            if (hashes.get(this).equals(otherHashes.get(other))) {
-                return List.of(new Loop(iter, iterable, body.merge(hashes, otherHashes, other.body)));
+        @Override
+        public List<Loop> merge(Loop other) {
+            if (getHashes().get(this).equals(other.getHashes().get(other))) {
+                return List.of((Loop) new Loop(iter, iterable, body.merge(other.body)).initHashes(getHashes().getParent()));
             }
             return List.of(this, other);
         }
 
-        public List<Loop> overlap(ProgramHashes hashes, ProgramHashes otherHashes, Loop other) {
-            if (hashes.get(this).equals(otherHashes.get(other))) {
-                var newBody = body.overlap(hashes, otherHashes, other.body);
+        @Override
+        public List<Loop> overlap(Loop other) {
+            if (getHashes().get(this).equals(other.getHashes().get(other))) {
+                var newBody = body.overlap(other.body);
                 if (newBody.size() > 0) {
-                    return List.of(new Loop(iter, iterable, newBody));
+                    return List.of((Loop) new Loop(iter, iterable, newBody).initHashes(getHashes().getParent()));
                 }
             }
             return List.of();
@@ -701,7 +725,7 @@ public interface AST {
 
         @Override
         public Loop removeStatements(Set<Statement> statements) {
-            return new Loop(iter, iterable, body.removeStatements(statements));
+            return (Loop) new Loop(iter, iterable, body.removeStatements(statements)).initHashes(getHashes().getParent());
         }
 
         @Override
@@ -709,6 +733,196 @@ public interface AST {
             return List.of(iter, iterable);
         }
     }
+
+    @Getter
+    @EqualsAndHashCode(callSuper = false)
+    class SwitchStatement extends Statement
+            implements CompoundStatement<SwitchStatement>, PartiallyMergeable<SwitchStatement> {
+        private final Expression expression;
+        private final List<CaseStatement> cases;
+
+        public SwitchStatement(Expression expression, List<CaseStatement> cases) {
+            this.expression = expression;
+            this.cases = cases;
+        }
+
+        @Override
+        public void accept(StatementVisitor visitor) {
+            visitor.visit(this);
+        }
+
+        @Override
+        public <R> R accept(ReturningStatementVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        public String toPrettyString(String indent, String innerIndent) {
+            String subIndent = innerIndent + indent;
+            return String.format(
+                    "%s(switch %s%s%s)",
+                    indent,
+                    expression,
+                    innerIndent.isEmpty() ? (cases.isEmpty() ? "" : " ") : "\n",
+                    cases.stream().map(c -> c.toPrettyString(subIndent, innerIndent))
+                            .collect(Collectors.joining(innerIndent.isEmpty() ? " " : "\n")));
+        }
+
+        @Override
+        public List<SwitchStatement> merge(SwitchStatement other) {
+            throw new AssertionError("not implemented");
+        }
+
+        @Override
+        public List<SwitchStatement> overlap(SwitchStatement other) {
+            if (getHashes().get(this).equals(other.getHashes().get(other))) {
+                var newBody = cases.stream().filter(c -> other.getHashes().contains(getHashes().get(c)))
+                        .flatMap(c -> c.overlap((CaseStatement) other.getHashes().get(getHashes().get(c))).stream())
+                        .collect(Collectors.toList());
+                if (newBody.size() > 0) {
+                    return List.of((SwitchStatement) new SwitchStatement(expression, newBody).initHashes(getHashes().getParent()));
+                }
+            }
+            return List.of();
+        }
+
+        @Override
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        public List<Statement> getSubStatements() {
+            return (List<Statement>) (List) cases;
+        }
+
+        @Override
+        public SwitchStatement removeStatements(Set<Statement> statements) {
+            return (SwitchStatement) new SwitchStatement(expression, cases.stream().
+                    filter(statements::contains)
+                    .map(c -> c.removeStatements(statements)).collect(Collectors.toList())).initHashes(getHashes().getParent());
+        }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return List.of(expression);
+        }
+    }
+
+    @Getter
+    @EqualsAndHashCode(callSuper = false)
+    @AllArgsConstructor
+    class CaseStatement extends Statement
+            implements CompoundStatement<CaseStatement>, PartiallyMergeable<CaseStatement> {
+        private final Expression expression;
+        private final Body body;
+
+        CaseStatement(Expression expression, List<Statement> body) {
+            this(expression, new Body(body));
+        }
+
+        @Override
+        public void accept(StatementVisitor visitor) {
+            visitor.visit(this);
+        }
+
+        @Override
+        public <R> R accept(ReturningStatementVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        public String toPrettyString(String indent, String innerIndent) {
+            String subIndent = innerIndent + indent;
+            return String.format(
+                    "%s(case %s%s%s)",
+                    indent,
+                    expression,
+                    innerIndent.isEmpty() ? (body.isEmpty() ? "" : " ") : "\n",
+                    body.toPrettyString(subIndent, innerIndent));
+        }
+
+        public List<CaseStatement> merge(CaseStatement other) {
+            throw new AssertionError("not implemented");
+        }
+
+        public List<CaseStatement> overlap(CaseStatement other) {
+            if (getHashes().get(this).equals(other.getHashes().get(other))) {
+                var newBody = body.overlap(other.body);
+                if (newBody.size() > 0) {
+                    return List.of((CaseStatement) new CaseStatement(expression, newBody).initHashes(getHashes().getParent()));
+                }
+            }
+            return List.of();
+        }
+
+        @Override
+        public List<Statement> getSubStatements() {
+            return List.of(body);
+        }
+
+        @Override
+        public CaseStatement removeStatements(Set<Statement> statements) {
+            return (CaseStatement) new CaseStatement(expression, body.removeStatements(statements)).initHashes(getHashes().getParent());
+        }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return List.of(expression);
+        }
+    }
+
+    /**
+     * (map variable iterable iter [call properties])
+     * <p>
+     * Currently, only single string paths are supported
+     */
+    @Getter
+    @EqualsAndHashCode(callSuper = false)
+    class MapCallStatement extends Statement {
+        private final Identifier variable;
+        private final Expression iterable;
+        private final Identifier iter;
+        private final List<CallProperty> arguments;
+
+        public MapCallStatement(Identifier variable, Expression iterable, Identifier iter,
+                                List<CallProperty> arguments) {
+            this.variable = variable;
+            this.iterable = iterable;
+            this.iter = iter;
+            this.arguments = arguments;
+            checkArguments();
+        }
+
+        private void checkArguments() {
+            if (arguments.isEmpty() || arguments.stream().map(CallProperty::getPath)
+                    .anyMatch(p -> p.size() != 1 && p.get(0) instanceof String)) {
+                throw new IllegalArgumentException("iter cannot be an argument");
+            }
+        }
+
+
+        @Override
+        public void accept(StatementVisitor visitor) {
+            visitor.visit(this);
+        }
+
+        @Override
+        public <R> R accept(ReturningStatementVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        public Pair<Identifier, Expression> getHeader() {
+            return p(iter, iterable);
+        }
+
+        @Override
+        public String toPrettyString(String indent, String innerIndent) {
+            return String.format("%s(map %s %s %s%s%s)", indent, variable, iterable, iter,
+                    arguments.isEmpty() ? "" : " ",
+                    arguments.stream().map(CallProperty::toString).collect(Collectors.joining(" ")));
+        }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return Lists.asList(iter, iterable, arguments.toArray(new CallProperty[0]));
+        }
+    }
+
 
     class SyntaxError extends RuntimeException {
         public SyntaxError(int line, int column, String msg) {
@@ -755,7 +969,7 @@ public interface AST {
         public String toPrettyString(String indent, String innerIndent) {
             return body.stream()
                     .map(s -> s.toPrettyString(indent, innerIndent))
-                    .collect(Collectors.joining("\n"));
+                    .collect(Collectors.joining(innerIndent.isEmpty() ? " " : "\n"));
         }
 
         /** run on each sub statement */
@@ -903,7 +1117,7 @@ public interface AST {
          * Merge both programs using a simple algorithm that works if the program generation is highly
          * deterministic.
          */
-        public Body merge(ProgramHashes hashes, ProgramHashes otherHashes, Body other) {
+        public Body merge(Body other) {
             if (other.isEmpty()) {
                 return this;
             }
@@ -935,7 +1149,7 @@ public interface AST {
                     }
                     prevIndex++;
                     if (loopInd.size() > 0) {
-                        newStatements.addAll(((Loop) statement).merge(hashes, otherHashes, (Loop) other.body.get(sIndex)));
+                        newStatements.addAll(((Loop) statement).merge((Loop) other.body.get(sIndex)));
                     } else {
                         newStatements.add(statement);
                     }
@@ -947,34 +1161,35 @@ public interface AST {
                 newStatements.add(other.body.get(prevIndex));
                 prevIndex++;
             }
-            return new Body(newStatements);
+            return (Body) new Body(newStatements).initHashes(getHashes().getParent());
         }
 
-        public Body overlap(ProgramHashes hashes, ProgramHashes otherHashes, Body other) {
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        public Body overlap(Body other) {
             if (isEmpty() || other.isEmpty()) {
-                return new Body(List.of());
+                return (Body) new Body(List.of()).initHashes(getHashes().getParent());
             }
-            var startIndex = hashes.getIndex(body.get(0));
+            var startIndex = getHashes().getIndex(body.get(0));
             List<Statement> newStatements = new ArrayList<>();
             int lastIndex = -1;
             for (Statement statement : other) {
-                var hashedStatement = otherHashes.get(statement);
-                if (statement instanceof Loop) {
-                    var loop = (Loop) statement;
-                    if (hashes.contains(hashedStatement)) {
-                        var index = hashes.getIndex(hashedStatement);
-                        newStatements.addAll(((Loop) get(index - startIndex)).overlap(hashes, otherHashes, loop));
+                var hashedStatement = other.getHashes().get(statement);
+                if (statement instanceof PartiallyMergeable) {
+                    var pm = (PartiallyMergeable<?>) statement;
+                    if (getHashes().contains(hashedStatement)) {
+                        var index = getHashes().getIndex(hashedStatement);
+                        newStatements.addAll(((PartiallyMergeable) get(index - startIndex)).overlap(pm));
                         lastIndex = index;
                     }
-                } else if (hashes.contains(hashedStatement)) {
-                    var index = hashes.getIndex(hashedStatement);
+                } else if (getHashes().contains(hashedStatement)) {
+                    var index = getHashes().getIndex(hashedStatement);
                     if (index > lastIndex) {
                         newStatements.add(get(index - startIndex));
                         lastIndex = index;
                     }
                 }
             }
-            return new Body(newStatements);
+            return (Body) new Body(newStatements).initHashes(getHashes().getParent());
         }
 
         @Override
@@ -998,10 +1213,10 @@ public interface AST {
         }
 
         public Body removeStatements(Set<Statement> statements) {
-            return new Body(body.stream().filter(s -> !statements.contains(s))
+            return (Body) new Body(body.stream().filter(s -> !statements.contains(s))
                     .map(s -> s instanceof CompoundStatement<?> ?
                             ((CompoundStatement<?>) s).removeStatements(statements) : s)
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList())).initHashes(getHashes().getParent());
         }
 
         public void replaceSource(AssignmentStatement firstStatement, AssignmentStatement newFirstStatement) {

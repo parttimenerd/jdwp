@@ -241,8 +241,7 @@ public class DependencyGraph {
 
         boolean hasRequestCause = partition.hasCause() && partition.getCause().isLeft();
         if (hasRequestCause && !(partition.get(0).first().equals(partition.getCause().getLeft()))) {
-            throw new AssertionError(String.format("Request cause but first element in partition is not this request:" +
-                    " %s", partition.toCode()));
+            throw new AssertionError("partition.get(0).first().equals(partition.getCause().getLeft())");
         }
 
         // look for requests that only depend on the cause or values not in the set

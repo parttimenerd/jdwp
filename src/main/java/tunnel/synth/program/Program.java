@@ -29,13 +29,12 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     private final @Nullable PacketCall cause;
     private final Body body;
-    private final ProgramHashes hashes;
 
     public Program(@Nullable PacketCall cause, Body body) {
         this.cause = cause;
         this.body = new Body(Collections.unmodifiableList(body.getSubStatements()));
-        this.hashes = ProgramHashes.create(this);
         checkInvariant();
+        ProgramHashes.setInProgram(this);
     }
 
     public Program(PacketCall cause, List<Statement> body) {
@@ -94,11 +93,11 @@ public class Program extends Statement implements CompoundStatement<Program> {
     }
 
     public Program merge(Program other) {
-        return new Program(body.merge(hashes, other.hashes, other.body));
+        return new Program(body.merge(other.body));
     }
 
     public Program overlap(Program other) {
-        return new Program(body.overlap(hashes, other.hashes, other.body));
+        return new Program(body.overlap(other.body));
     }
 
     public boolean hasCause() {

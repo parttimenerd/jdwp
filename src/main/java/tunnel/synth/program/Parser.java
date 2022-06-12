@@ -3,6 +3,7 @@ package tunnel.synth.program;
 import jdwp.AccessPath;
 import lombok.SneakyThrows;
 import org.apache.commons.text.StringEscapeUtils;
+import org.jetbrains.annotations.NotNull;
 import tunnel.synth.program.AST.*;
 
 import java.io.ByteArrayInputStream;
@@ -10,6 +11,10 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * the language is constructed to work with an LL(1) PEG parser, making it feasible to write the parser by hand
+ * without using a lexer
+ */
 public class Parser {
     private final InputStream stream;
     private int current;
@@ -109,6 +114,12 @@ public class Parser {
             case 'f':
                 ret = parseLoop();
                 break;
+            case 'm':
+                ret = parseMapCallStatement();
+                break;
+            case 's':
+                ret = parseSwitchStatement();
+                break;
             default:
                 throw new SyntaxError(line, column, String.format("Unexpected %s", (char) current));
         }
@@ -143,6 +154,55 @@ public class Parser {
         return loop;
     }
 
+    MapCallStatement parseMapCallStatement() {
+        expect("map ");
+        skipWhitespace();
+        var variable = parseIdentifier();
+        skipWhitespace();
+        var iterable = parseExpression();
+        skipWhitespace();
+        identifiers.push();
+        var iter = parseIdentifier();
+        skipWhitespace();
+        List<CallProperty> arguments = parseCallPropertyList();
+        identifiers.pop();
+        var statement = new MapCallStatement(variable, iterable, iter, arguments);
+        iter.setSource(statement);
+        iter.setMapIterableRelated(true);
+        variable.setSource(statement);
+        return statement;
+    }
+
+    SwitchStatement parseSwitchStatement() {
+        expect("switch ");
+        skipWhitespace();
+        var expression = parseExpression();
+        skipWhitespace();
+        List<CaseStatement> cases = parseCaseStatements();
+        return new SwitchStatement(expression, cases);
+    }
+
+    List<CaseStatement> parseCaseStatements() {
+        List<CaseStatement> cases = new ArrayList<>();
+        while (current != ')') {
+            skipWhitespace();
+            expect('(');
+            cases.add(parseCaseStatement());
+            expect(')');
+            skipWhitespace();
+        }
+        return cases;
+    }
+
+    CaseStatement parseCaseStatement() {
+        expect("case ");
+        skipWhitespace();
+        var expression = parseExpression();
+        skipWhitespace();
+        var body = parseBlock();
+        return new CaseStatement(expression, body);
+    }
+
     Expression parseExpression() {
         if (current == '(') {
             return parseFunctionCall();
@@ -174,11 +234,7 @@ public class Parser {
         skipWhitespace();
         var command = parseIdentifier().getName();
         skipWhitespace();
-        List<CallProperty> arguments = new ArrayList<>();
-        while (current != ')') {
-            arguments.add(parseCallProperty());
-            skipWhitespace();
-        }
+        List<CallProperty> arguments = parseCallPropertyList();
         expect(')');
         switch (name) {
             case "request":
@@ -188,6 +244,16 @@ public class Parser {
             default:
                 throw new AssertionError(String.format("Unknown packet call name %s", name));
         }
+    }
+
+    @NotNull
+    private List<CallProperty> parseCallPropertyList() {
+        List<CallProperty> arguments = new ArrayList<>();
+        while (current != ')') {
+            arguments.add(parseCallProperty());
+            skipWhitespace();
+        }
+        return arguments;
     }
 
     CallProperty parseCallProperty() {
@@ -233,7 +299,7 @@ public class Parser {
     IntegerLiteral parseInteger() {
         StringBuilder buf = new StringBuilder();
         if (current == '-') {
-            buf.append('-');
+            buf.append(currentChar());
             next();
         }
         while (!isEOF() && Character.isDigit(current)) {
@@ -250,12 +316,10 @@ public class Parser {
         while (!isEOF() && current != usedQuote) {
             if (current == '\\') {
                 next();
-                buf.append(currentChar());
-                next();
-            } else {
-                buf.append(currentChar());
-                next();
+
             }
+            buf.append(currentChar());
+            next();
         }
         expect(usedQuote);
         return new StringLiteral(StringEscapeUtils.unescapeEcmaScript(buf.toString()));

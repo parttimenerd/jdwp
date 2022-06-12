@@ -26,6 +26,18 @@ public interface Visitors {
         default void visit(Body body) {
             visit((Statement) body);
         }
+
+        default void visit(MapCallStatement mapCall) {
+            visit((Statement) mapCall);
+        }
+
+        default void visit(SwitchStatement switchStatement) {
+            visit((Statement) switchStatement);
+        }
+
+        default void visit(CaseStatement caseStatement) {
+            visit((Statement) caseStatement);
+        }
     }
 
     interface ReturningStatementVisitor<R> {
@@ -44,6 +56,18 @@ public interface Visitors {
 
         default R visit(Body body) {
             return visit((Statement) body);
+        }
+
+        default R visit(MapCallStatement mapCall) {
+            return visit((Statement) mapCall);
+        }
+
+        default R visit(SwitchStatement switchStatement) {
+            return visit((Statement) switchStatement);
+        }
+
+        default R visit(CaseStatement caseStatement) {
+            return visit((Statement) caseStatement);
         }
     }
 

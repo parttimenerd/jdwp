@@ -4,9 +4,7 @@ import jdwp.AbstractParsedPacket;
 import jdwp.PacketError;
 import jdwp.Request;
 import jdwp.Value;
-import jdwp.Value.BasicValue;
-import jdwp.Value.TaggedBasicValue;
-import jdwp.Value.WalkableValue;
+import jdwp.Value.*;
 import jdwp.util.Pair;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
@@ -16,6 +14,7 @@ import tunnel.synth.program.Visitors.StatementVisitor;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -26,6 +25,32 @@ import static jdwp.util.Pair.p;
 import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
 public class Evaluator {
+
+    /** entry of the list stored by an evaluation of {@link MapCallStatement} */
+    public static class MapCallResultEntry extends CombinedValue {
+
+        private final Map<String, Value> entries;
+
+        public MapCallResultEntry(Map<String, Value> entries) {
+            super(Type.OBJECT);
+            this.entries = entries;
+        }
+
+        @Override
+        protected boolean containsKey(String key) {
+            return entries.containsKey(key);
+        }
+
+        @Override
+        public List<String> getKeys() {
+            return entries.keySet().stream().sorted().collect(Collectors.toList());
+        }
+
+        @Override
+        public Value get(String key) {
+            return entries.get(key);
+        }
+    }
 
     /**
      * Can be thrown be functions (and request/event call handlers) to signify that something
@@ -168,6 +193,82 @@ public class Evaluator {
                             }
                         }
                     }
+
+                    public void visit(MapCallStatement mapCall) {
+                        if (notEvaluated.contains(mapCall)) {
+                            return;
+                        }
+                        Value iterable;
+                        try {
+                            iterable = evaluate(scope, mapCall.getIterable());
+                        } catch (AssertionError | Exception e) {
+                            addToNotEvaluated(mapCall);
+                            throw new EvaluationAbortException(
+                                    e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
+                                    "map header evaluation failed", e);
+                        }
+                        if (!(iterable instanceof WalkableValue)) {
+                            addToNotEvaluated(mapCall);
+                            throw new EvaluationAbortException(false,
+                                    String.format("Iterable %s not walkable in map %s", iterable, mapCall));
+                        }
+                        ListValue<Value> result;
+                        scope.push();
+                        try {
+                            result = new ListValue<>(Type.OBJECT,
+                                    ((WalkableValue<?>) iterable).getValues().stream()
+                                            .map(p -> new MapCallResultEntry(mapCall.getArguments().stream().map(arg -> {
+                                                try {
+                                                    scope.push();
+                                                    scope.put(mapCall.getIter().getName(), p.second);
+                                                    return Map.entry((String) arg.getPath().get(0), evaluate(scope,
+                                                            arg.getAccessor()));
+                                                } finally {
+                                                    scope.pop();
+                                                }
+                                            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))))
+                                            .collect(Collectors.toList()));
+                        } catch (AssertionError | Exception e) {
+                            e.printStackTrace();
+                            addToNotEvaluated(mapCall);
+                            throw new EvaluationAbortException(
+                                    e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
+                                    String.format("evaluation of assignment %s failed", mapCall), e);
+                        } finally {
+                            scope.pop();
+                        }
+                        scope.put(mapCall.getVariable().getName(), result);
+                    }
+
+                    @Override
+                    public void visit(SwitchStatement switchStatement) {
+                        if (notEvaluated.contains(switchStatement)) {
+                            return;
+                        }
+                        Value expression;
+                        try {
+                            expression = evaluate(scope, switchStatement.getExpression());
+                        } catch (AssertionError | Exception e) {
+                            addToNotEvaluated(switchStatement);
+                            throw new EvaluationAbortException(
+                                    e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
+                                    "switch expression evaluation failed", e);
+                        }
+                        Map<Value, CaseStatement> cases = switchStatement.getCases().stream()
+                                .collect(Collectors.toMap(s -> {
+                                    try {
+                                        return evaluate(scope, s.getExpression());
+                                    } catch (AssertionError | Exception e) {
+                                        addToNotEvaluated(s);
+                                        throw new EvaluationAbortException(
+                                                e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
+                                                "switch case expression evaluation failed", e);
+                                    }
+                                }, s -> s));
+                        if (cases.containsKey(expression)) {
+                            cases.get(expression).getBody().accept(this);
+                        }
+                    }
                 });
         return p(scope, notEvaluated);
     }
@@ -212,6 +313,11 @@ public class Evaluator {
                     @Override
                     public Value visit(Identifier name) {
                         return scope.get(name.getName());
+                    }
+
+                    @Override
+                    public Value visit(CallProperty property) {
+                        throw new UnsupportedOperationException("CallProperty not supported");
                     }
                 });
     }

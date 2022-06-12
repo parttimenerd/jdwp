@@ -256,12 +256,37 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             }
             processedNodes.addAll(fullBody);
         }
-        finishedStatements.add(new Loop(AST.ident(iterNameAndCall.first), AST.ident(iterableNameAndCall.first), merged.getBody()));
+        finishedStatements.add(new Loop(AST.ident(iterNameAndCall.first), AST.ident(iterableNameAndCall.first),
+        merged.getBody()));
         variables.unmarkIterPath(node, prefix);
         return Optional.of(p(new Program(finishedStatements), processedNodes));
     }*/
 
-    private static Pair<Program, Set<Node>> processNodes(NodeNames variables, Layers layers, Set<Node> fullBody, int minSize) {
+    /**
+     * Idea: a common sequence of requests is the following
+     * ...
+     * (= var9 (request ThreadReference Frames ("length")=(get var5 "frameCount") (
+     * "startFrame")=(wrap "int" 0) ("thread")=(get cause "events" 0 "thread")))
+     * ...
+     * (= var14 (request StackFrame GetValues ("frame")=(get var9 "frames" 0
+     * "frameID") ("thread")=(get cause "events" 0 "thread")
+     * ("slots" 0 "sigbyte")=(wrap "byte" 91) ("slots" 0 "slot")=(get var1 "slots" 0 "slot")
+     * ("slots" 1 "sigbyte")=(wrap "byte" 73) ("slots" 1 "slot")=(get var5 "frameCount")))
+     * (= var15 (request ObjectReference ReferenceType ("object")=(get var14 "values"
+     * 0)))
+     * (= var16 (request ArrayReference Length("arrayObject")=(get var14 "values" 0)
+     * )))
+     * <p>
+     * Two observations:
+     * 1. GetValues references
+     */
+    private static Optional<Pair<Program, Set<Node>>> isPossibleMapSourceNode(NodeNames variables, Layers layers,
+                                                                              Node node) {
+        return null;
+    }
+
+    private static Pair<Program, Set<Node>> processNodes(NodeNames variables, Layers layers, Set<Node> fullBody,
+                                                         int minSize) {
         var fullBodySorted = new ArrayList<>(fullBody);
         fullBodySorted.sort(layers.getNodeComparator()); // makes the statement order deterministic
         List<Statement> statements = new ArrayList<>();

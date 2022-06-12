@@ -212,7 +212,7 @@ public abstract class Functions {
     public static abstract class Function {
         private final String name;
 
-        private Function(String name) {
+        public Function(String name) {
             this.name = name;
         }
 

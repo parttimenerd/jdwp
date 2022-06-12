@@ -205,8 +205,6 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             }
             var ret = items.add(requestReplyPair);
             if (!(cause == null || cause.isRight() || items.isEmpty() || items.get(0).first.equals(cause.getLeft()))) {
-                //throw new AssertionError(String.format("Invariant does not hold for %s, after adding %s", this,
-                // requestReplyPair));
                 cause = Either.left(requestReplyPair.first);
                 // might happen due to replies beeing processed after requests
                 // a request might come in before the reply to an evaluate program request is processed
@@ -259,6 +257,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     private void removeRequestFromPartition(Request<?> request) {
         if (currentPartition != null) {
             if (request.equals(currentPartition.getCause())) {
+                logSplitReason(String.format("Request %s removed from partition", request));
                 currentPartition = null;
             } else {
                 currentPartition.items.removeIf(p -> p.first.equals(request));
@@ -277,6 +276,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             if (currentPartition != null) {
                 submit(currentPartition);
             }
+            logSplitReason(String.format("Received EvaluateProgramRequest", request));
             currentPartition = null;
             return;
         }
@@ -328,6 +328,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
                 if (request instanceof EvaluateProgramRequest) {
                     System.out.println("omit reply of " + request);
                     return;
+                    // TODO: improve, as it splits up partitions
                     // don't add these requests to partitions, as they are the result of caching in a different tunnel
                 }
                 if (currentPartition == null) {

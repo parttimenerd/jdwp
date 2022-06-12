@@ -2,6 +2,7 @@ package tunnel.synth;
 
 import jdwp.JDWP;
 import lombok.Getter;
+import org.jetbrains.annotations.Nullable;
 import tunnel.synth.program.AST.*;
 import tunnel.synth.program.Program;
 import tunnel.synth.program.Visitors.ReturningExpressionVisitor;
@@ -32,14 +33,26 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
     private final byte LOOP = 0;
     private final byte PRIMITIVE = 1;
     private final byte FUNCTION_CALL = 2;
-    private final byte OTHER = 3;
+    private final byte MAP_CALL = 3;
+    private final byte SWITCH = 4;
+    private final byte CASE = 5;
+    private final byte BODY = 6;
+    private final byte OTHER = 100;
 
+    private final ProgramHashes parent;
     private final Map<Statement, Hashed<Statement>> statementToHashed;
+    private final Map<Hashed<Statement>, Statement> hashedToStatement;
     private final Map<Hashed<Statement>, Integer> hashedToIndex;
 
     public ProgramHashes() {
+        this(null);
+    }
+
+    public ProgramHashes(@Nullable ProgramHashes parent) {
         this.statementToHashed = new HashMap<>();
+        this.hashedToStatement = new HashMap<>();
         this.hashedToIndex = new HashMap<>();
+        this.parent = parent;
     }
 
     @Override
@@ -59,20 +72,36 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
         return Objects.requireNonNull(statementToHashed.get(statement));
     }
 
+    private Hashed<Statement> getOrParent(Statement statement) {
+        if (!statementToHashed.containsKey(statement)) {
+            if (parent != null) {
+                return parent.getOrParent(statement);
+            }
+            throw new IllegalArgumentException(String.format("Statement %s not found", statement));
+        }
+        return Objects.requireNonNull(statementToHashed.get(statement));
+    }
+
     /**
      * Used for reporting collisions, a collision happened if the hashed objects are equal, but the objects are not.
      * This works only if both statement are in the same programs.
      */
-    private Hashed<Statement> get(Hashed<Statement> hashed) {
+    private Hashed<Statement> getCollission(Hashed<Statement> hashed) {
         return hashedToIndex.keySet().stream()
                 .filter(h -> h.hashCode() == hashed.hashCode() && h.equals(hashed)).findFirst().get();
+    }
+
+    public Statement get(Hashed<Statement> hashed) {
+        return hashedToStatement.get(hashed);
     }
 
     public int getIndex(Hashed<Statement> hashed) {
         return hashedToIndex.get(hashed);
     }
 
-    /** approximately */
+    /**
+     * approximately
+     */
     public int getIndex(Statement statement) {
         return getIndex(get(statement));
     }
@@ -98,10 +127,11 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
     private void add(Hashed<Statement> hashed, int index) {
         if (contains(hashed) && !contains(hashed.get())) {
             throw new AssertionError(String.format("hash collision: %s (%d) and %s (%d), " +
-                    "maybe two similar statements in the same program", hashed.get(), hashed.hash(),
-                    get(hashed).get(), hashed.hash()));
+                            "maybe two similar statements in the same program", hashed.get(), hashed.hash(),
+                    getCollission(hashed).get(), hashed.hash()));
         }
         statementToHashed.put(hashed.get(), hashed);
+        hashedToStatement.put(hashed, hashed.get());
         hashedToIndex.put(hashed, index);
     }
 
@@ -109,11 +139,15 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
         return name.isGlobalVariable() ? name.hashCode() : get(name.getSource()).hash();
     }
 
+    public long getOrParent(Identifier name) {
+        return name.isGlobalVariable() ? name.hashCode() : getOrParent(name.getSource()).hash();
+    }
+
     private long hash(Expression expression) {
         return expression.accept(new ReturningExpressionVisitor<>() {
             @Override
             public Long visit(Identifier name) {
-                return get(name);
+                return getOrParent(name);
             }
 
             @Override
@@ -185,31 +219,58 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
             public Hashed<Statement> visit(Loop loop) {
                 return Hashed.create(loop, 0, LOOP, hash(loop.getIterable()));
             }
+
+            @Override
+            public Hashed<Statement> visit(MapCallStatement mapCall) {
+                return Hashed.create(mapCall, 0, MAP_CALL, hash(mapCall.getIterable()));
+            }
+
+            @Override
+            public Hashed<Statement> visit(SwitchStatement switchStatement) {
+                return Hashed.create(switchStatement, 0, SWITCH, hash(switchStatement.getExpression()));
+            }
+
+            @Override
+            public Hashed<Statement> visit(CaseStatement caseStatement) {
+                return Hashed.create(caseStatement, 0, CASE, hash(caseStatement.getExpression()));
+            }
         });
     }
 
-    public static ProgramHashes create(Program program) {
-        ProgramHashes hashes = new ProgramHashes();
-        if (program.hasCause()) {
-            hashes.add(hashes.create(program.getCauseStatement()), hashes.size());
-        }
-        try {
-            program.getBody().forEach(s -> s.accept(new StatementVisitor() {
-                @Override
-                public void visit(Statement statement) {
-                    hashes.add(hashes.create(statement), hashes.size());
-                }
+    public static void setInProgram(Program program) {
+        setInStatement(null, program);
+    }
 
-                @Override
-                public void visit(Loop loop) {
-                    hashes.add(hashes.create(loop), hashes.size());
-                    loop.getBody().forEach(s -> s.accept(this));
+    public static void setInStatement(@Nullable ProgramHashes parentHashes, Statement statement) {
+        ProgramHashes hashes = new ProgramHashes(parentHashes);
+        var visitor = new StatementVisitor() {
+            @Override
+            public void visit(Statement statement) {
+                hashes.add(hashes.create(statement), hashes.size());
+                setInStatement(hashes, statement);
+                statement.getHashes().add(hashes.get(statement), 0);
+            }
+
+            @Override
+            public void visit(Body body) {
+                body.forEach(s -> s.accept(this));
+                body.setHashes(hashes);
+            }
+        };
+        try {
+            if (statement instanceof Program) {
+                var program = (Program) statement;
+                if (program.hasCause()) {
+                    hashes.add(hashes.create(program.getCauseStatement()), hashes.size());
                 }
-            }));
+                program.getBody().accept(visitor);
+            } else {
+                statement.getSubStatements().forEach(s -> s.accept(visitor));
+            }
         } catch (IllegalArgumentException e) {
-            throw new AssertionError("problem with program " + program, e);
+            throw new AssertionError("problem with statement " + statement, e);
         }
-        return hashes;
+        statement.setHashes(hashes);
     }
 
     @Override

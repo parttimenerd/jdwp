@@ -17,9 +17,11 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import tunnel.synth.program.*;
 import tunnel.synth.program.Evaluator.EvaluationAbortException;
+import tunnel.synth.program.Evaluator.MapCallResultEntry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,11 +34,26 @@ public class ProgramTest {
 
     private static class RecordingFunctions extends Functions {
         final List<Request<?>> requests = new ArrayList<>();
+        final List<Value> values = new ArrayList<>();
 
         @Override
         protected Value processRequest(Request<?> request) {
             requests.add(request);
             return wrap(10);
+        }
+
+        @Override
+        public Function getFunction(String name) {
+            if (name.equals("collect")) {
+                return new Function("collect") {
+                    @Override
+                    public Value evaluate(List<Value> arguments) {
+                        values.addAll(arguments);
+                        return wrap(0);
+                    }
+                };
+            }
+            return super.getFunction(name);
         }
     }
 
@@ -77,10 +94,10 @@ public class ProgramTest {
     }
 
     private static Object[][] testParseProgramMethodSource() {
-        return new Object[][] {
-                new Object[] {"()", List.<Statement>of()},
-                new Object[] {"((= ret 1))", List.of(new AssignmentStatement(ident("ret"), literal(1)))},
-                new Object[] {
+        return new Object[][]{
+                {"()", List.<Statement>of()},
+                {"((= ret 1))", List.of(new AssignmentStatement(ident("ret"), literal(1)))},
+                {
                         "((for iter iterable\n  (= ret 1)))",
                         List.of(
                                 new Loop(
@@ -97,6 +114,34 @@ public class ProgramTest {
         var program = new Program(statements);
         assertEquals(program, Program.parse(string));
         assertEquals(program, Program.parse(program.toString()), program.toString()); // round-trip for good measure
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "(map var0 xs x ('a')=(get x 'a'))",
+            "(map var0 xs x ('a')=(get x 'a') ('b')=(get x 'b'))",
+            "(switch x)",
+            "(switch x (case 'a'))",
+            "(switch x (case 'a' (= var0 1)))",
+            "(switch x (case 'a' (= var0 1)) (case 'b' (= var0 1) (= var1 2)))"
+    })
+    public void testParseMapAndSwitch(String statement) {
+        assertEquals(statement, Statement.parse(statement).toString().replace('"', '\''));
+    }
+
+
+    @ParameterizedTest
+    @CsvSource({
+            "((= xs 1) (map var0 xs x ('a')=(get x 'a')))",
+            "((= xs 1) (map var0 xs x ('a')=(get x 'a') ('b')=(get x 'b')))",
+            "((= x 1) (switch x))",
+            "((= x 1) (switch x (case 'a')))",
+            "((= x 1) (switch x (case 'a' (= var0 1))))",
+            "((= x 1) (switch x (case 'a' (= var0 2))))",
+            "((= x 1) (switch x (case 'a' (= var0 1)) (case 'b' (= var0 1) (= var1 2))))"
+    })
+    public void testParseMapAndSwitchProgramParse(String statement) {
+        assertEquals(statement, Program.parse(statement).toString().replace('"', '\''));
     }
 
     @ParameterizedTest
@@ -124,11 +169,19 @@ public class ProgramTest {
     @CsvSource({
             "((= ret func)),((= ret func)),((= ret func))",
             "((= ret func2)),((= ret func)),()",
-            "((= ret2 func) (= y (func2)) (= r ret2)),((= ret func) (= x (func)) (= r2 ret)),((= ret2 func) (= r ret2))",
+            "((= ret2 func) (= y (func2)) (= r ret2)),((= ret func) (= x (func)) (= r2 ret)),((= ret2 func) (= r " +
+                    "ret2))",
             "((= ret2 func) (= r ret2)),((= ret func) (= r2 ret)),((= ret2 func) (= r ret2))",
             "((for iter iterable (= iter 1))),((for iter iterable (= iter 2))),()",
             "((for iter iterable (= iter 1))),((for iter iterable (= iter 1)))," +
-                    "((for iter iterable (= iter 1)))"
+                    "((for iter iterable (= iter 1)))",
+            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a'))),((= x 1))",
+            "((= x 1) (switch x (case 'a' (= x 1)))),((= x 1) (switch x (case 'a' (= x 1)))),((= x 1) (switch x (case" +
+                    " 'a' (= x 1))))",
+            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'b'))),((= x 1))",
+            "((= x 1) (switch x (case 'a') (case 'b'))),((= x 1) (switch x (case 'a'))),((= x 1))",
+            "((= x 1) (switch x (case 'a' (= v 1) (= v 2)))),((= x 1) (switch x (case 'a' (= v 2)))),((= x 1) (switch" +
+                    " x (case 'a' (= v 2))))",
     })
     public void testOverlap(String program1, String program2, String overlap) {
         var overlapParse = Program.parse(overlap);
@@ -494,5 +547,37 @@ public class ProgramTest {
                     "  (= var4 (request VirtualMachine CapabilitiesNew))\n" +
                     "  (= var5 (request VirtualMachine AllClassesWithGeneric)))");
         });
+    }
+
+    @Test
+    public void testEvaluateMapStatement() {
+        var program = Program.parse("((= cause (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 32505856) " +
+                "(\"thread\")=(wrap \"thread\" 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 91) (\"slots\" 0 \"slot\")" +
+                "=(wrap \"int\" 0) (\"slots\" 1 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 1 \"slot\")=(wrap \"int\" " +
+                "1))) (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 32505856) (\"thread\")=(wrap " +
+                "\"thread\" 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 91) (\"slots\" 0 \"slot\")=(wrap \"int\" 0) " +
+                "(\"slots\" 1 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 1 \"slot\")=(wrap \"int\" 1)))\n" +
+                "(map xs (get cause 'slots') x ('a')=(get x 'sigbyte') ('b')=(get x 'slot')))");
+        var scopes = new Evaluator(new RecordingFunctions()).evaluate(program).first;
+        assertEquals(new ListValue<>(new MapCallResultEntry(Map.of("a", wrap((byte) 91), "b", wrap(0))),
+                new MapCallResultEntry(Map.of("a", wrap((byte) 73), "b", wrap(1)))), scopes.get("xs"));
+    }
+
+    @Test
+    public void testEvaluateSwitchStatement() {
+        var program = Program.parse("((= x 1) (switch (const x) (case 1 (= v (collect 2))) (case 2 (= v (collect 1)))" +
+                "))");
+        var funcs = new RecordingFunctions();
+        new Evaluator(funcs).evaluate(program);
+        assertEquals(List.of(wrap(2L)), funcs.values);
+    }
+
+    @Test
+    public void testEvaluateSwitchStatement2() {
+        var program = Program.parse("((= x 3) (switch (const x) (case 1 (= v (collect 2))) (case 2 (= v (collect 3)))" +
+                "))");
+        var funcs = new RecordingFunctions();
+        new Evaluator(funcs).evaluate(program);
+        assertEquals(List.of(), funcs.values);
     }
 }
