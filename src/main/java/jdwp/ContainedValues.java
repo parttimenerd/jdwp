@@ -62,6 +62,11 @@ public class ContainedValues {
         return map.get(value).get(0);
     }
 
+    public List<TaggedBasicValue<?>> getTaggedValues(BasicValue value) {
+        assert containsBasicValue(value);
+        return map.get(value);
+    }
+
     public Collection<BasicValue> getBasicValues() {
         return map.keySet();
     }

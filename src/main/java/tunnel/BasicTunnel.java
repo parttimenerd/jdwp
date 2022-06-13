@@ -303,7 +303,7 @@ public class BasicTunnel {
 
     private void handleEvaluateProgramEvent(InputStream jvmInputStream, OutputStream jvmOutputStream,
                                             OutputStream clientOutputStream, Events events, Program program) {
-        List<Pair<Request<?>, Reply>> requestReplies = new ArrayList<>();
+        List<Pair<Request<?>, Reply>> requestReplies;
         try {
             requestReplies = handleEvaluateProgramRequest(jvmInputStream, jvmOutputStream, clientOutputStream,
                     events.id, program);
@@ -334,7 +334,7 @@ public class BasicTunnel {
         readRepliesForAllUnfinishedRequests(initialId, jvmInputStream, clientOutputStream,
                 e -> writeClientReply(clientOutputStream, e));
         List<Pair<Request<?>, Reply>> requestReplies = new ArrayList<>();
-        new Evaluator(new Functions() {
+        new Evaluator(state.vm(), new Functions() {
 
             int id = initialId + 10000;
 

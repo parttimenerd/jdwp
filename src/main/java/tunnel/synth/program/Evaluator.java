@@ -1,9 +1,6 @@
 package tunnel.synth.program;
 
-import jdwp.AbstractParsedPacket;
-import jdwp.PacketError;
-import jdwp.Request;
-import jdwp.Value;
+import jdwp.*;
 import jdwp.Value.*;
 import jdwp.util.Pair;
 import lombok.Getter;
@@ -86,16 +83,17 @@ public class Evaluator {
      * default id for requests
      */
     public static final int DEFAULT_ID = 0;
-
+    private final VM vm;
     private final Functions functions;
     private final Consumer<EvaluationAbortException> errorConsumer;
 
-    public Evaluator(Functions functions) {
-        this(functions, e -> {
+    public Evaluator(VM vm, Functions functions) {
+        this(vm, functions, e -> {
         });
     }
 
-    public Evaluator(Functions functions, Consumer<EvaluationAbortException> errorConsumer) {
+    public Evaluator(VM vm, Functions functions, Consumer<EvaluationAbortException> errorConsumer) {
+        this.vm = vm;
         this.functions = functions;
         this.errorConsumer = errorConsumer;
     }
@@ -296,7 +294,7 @@ public class Evaluator {
                     public Value visit(FunctionCall functionCall) {
                         return functions
                                 .getFunction(functionCall.getFunctionName())
-                                .evaluate(
+                                .evaluate(vm,
                                         functionCall.getArguments().stream()
                                                 .map(a -> a.accept(this))
                                                 .collect(Collectors.toList()));

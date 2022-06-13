@@ -1,20 +1,21 @@
 package tunnel.synth;
 
-
+import com.sun.jdi.IntegerValue;
 import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.util.Pair;
-import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
+import lombok.*;
 import org.jetbrains.annotations.Nullable;
 import tunnel.synth.Partitioner.Partition;
+import tunnel.synth.program.Functions;
+import tunnel.synth.program.Functions.BasicValueTransformer;
+import tunnel.synth.program.Functions.Function;
 import tunnel.util.Either;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -27,30 +28,77 @@ import static jdwp.util.Pair.p;
 public class DependencyGraph {
 
     /**
-     * (atSource)=(get atTarget)  ===  (atSource)=value,
-     * connects atSource with atTarget (implicit dependsOn edge)
+     * (targetPath)=(get originPath)  ===  (targetPath)=valueAtOrigin,
+     * connects targetPath with originPath (implicit dependsOn edge)
+     * <p>
+     * if transformers are present, then (get originPath) is replaced by (transform (get originPath))
      */
     @Getter
-    @AllArgsConstructor
     @EqualsAndHashCode
-    public static class DoublyTaggedBasicValue<T extends BasicValue> {
+    public static class DoublyTaggedBasicValue<O extends BasicValue, T extends BasicValue> {
 
-        private final List<AccessPath> atSetTargets;
+        private final List<AccessPath> targetPaths;
         /**
          * first path at the origin of the value
          */
-        private final AccessPath atValueOrigin;
-        private final T value;
+        private final AccessPath originPath;
+        private final O valueAtOrigin;
+        private final T valueAtTarget;
 
-        public DoublyTaggedBasicValue(AccessPath atSetTarget, TaggedBasicValue<T> tagged) {
-            this(List.of(atSetTarget), tagged.getPath(), tagged.value);
+        private @Nullable
+        final Set<BasicValueTransformer<O>> transformers;
+
+        private DoublyTaggedBasicValue(List<AccessPath> targetPaths, AccessPath atValueOrigin, O valueAtOrigin,
+                                       T valueAtTarget, @Nullable Set<BasicValueTransformer<O>> transformers) {
+            this.targetPaths = targetPaths;
+            this.originPath = atValueOrigin;
+            this.valueAtOrigin = valueAtOrigin;
+            this.valueAtTarget = valueAtTarget;
+            this.transformers = transformers;
+            if ((transformers != null && transformers.isEmpty()) ||
+                    (transformers == null && valueAtOrigin != valueAtTarget)) {
+                throw new AssertionError();
+            }
+            assert transformers == null || transformers.stream().allMatch(t -> t.isApplicable(valueAtTarget));
+        }
+
+        public static <T extends BasicValue> DoublyTaggedBasicValue<T, T>
+        createDirect(AccessPath targetPath, TaggedBasicValue<T> taggedOrigin) {
+            return createDirect(List.of(targetPath), taggedOrigin);
+        }
+
+        public static <T extends BasicValue> DoublyTaggedBasicValue<T, T>
+        createDirect(List<AccessPath> targetPaths, TaggedBasicValue<T> taggedOrigin) {
+            return new DoublyTaggedBasicValue<>(targetPaths, taggedOrigin.getPath(), taggedOrigin.value,
+                    taggedOrigin.value, null);
+        }
+
+        public static <O extends BasicValue, T extends BasicValue> DoublyTaggedBasicValue<O, T>
+        createIndirect(List<AccessPath> targetPaths, T targetValue, TaggedBasicValue<O> taggedOrigin,
+                       Set<BasicValueTransformer<O>> transformers) {
+            return new DoublyTaggedBasicValue<>(targetPaths, taggedOrigin.getPath(), taggedOrigin.value, targetValue,
+                    transformers);
         }
 
         @Override
         public String toString() {
-            return String.format("(%s)=(get %s)=%s",
-                    atSetTargets.stream().map(AccessPath::toString).collect(Collectors.joining("; ")),
-                    atValueOrigin, value);
+            if (isDirect()) {
+                return String.format("(%s)=(get %s)=%s",
+                        targetPaths.stream().map(AccessPath::toString).collect(Collectors.joining("; ")),
+                        originPath, valueAtOrigin);
+            } else {
+                return String.format("(%s)=(%s (get %s of %s))=%s",
+                        targetPaths.stream().map(AccessPath::toString).collect(Collectors.joining("; ")),
+                        transformers.stream().map(Function::getName).collect(Collectors.toSet()), originPath,
+                        valueAtOrigin, valueAtTarget);
+            }
+        }
+
+        /**
+         * without any transformers and valueAtOrigin == valueAtTarget
+         */
+        public boolean isDirect() {
+            return transformers == null;
         }
     }
 
@@ -61,9 +109,9 @@ public class DependencyGraph {
         /**
          * order is undefined
          */
-        private final List<DoublyTaggedBasicValue<?>> usedValues;
+        private final List<DoublyTaggedBasicValue<?, ?>> usedValues;
 
-        public Edge(Node source, Node target, List<DoublyTaggedBasicValue<?>> usedValues) {
+        public Edge(Node source, Node target, List<DoublyTaggedBasicValue<?, ?>> usedValues) {
             this.source = source;
             this.target = target;
             this.usedValues = usedValues;
@@ -221,18 +269,59 @@ public class DependencyGraph {
     }
 
     /**
+     * configure the graph computation, allows to disable potentially expensive features
+     */
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @ToString
+    public static class ComputationOptions {
+        /**
+         * Use the transformers via {@link Functions#getTransformers(VM, BasicValue, BasicValue)}
+         * to check whether a transformer at an edge could produce the required value.
+         * Should be more expensive
+         */
+        @With
+        private boolean useTransformers = false;
+        @With
+        private boolean useFirstValueInTarget = true;
+        /**
+         * Check whether the access paths of origin and target are compatible, mainly used for
+         * int and byte values. Could later be replaced by adding type aliases to the spec for differentiation.
+         * <p>
+         * Important: uses domain knowledge
+         */
+        @With
+        public boolean checkPropertyNames = true;
+
+        public ComputationOptions() {
+
+        }
+    }
+
+    public static final ComputationOptions DEFAULT_OPTIONS = new ComputationOptions();
+
+    /**
+     * ... with default options
+     */
+    public static DependencyGraph compute(Partition partition) {
+        return compute(partition, new ComputationOptions());
+    }
+
+    /**
      * On multiple paths for the same value in the same object: choose the first,
      * the assumption is that this is probably the most relevant path
      * <p>
      * ... from different objects: prefer the paths of the object that is first in the partition and therefore
      * was first received and thereby typically in a lower layer
      */
-    public static DependencyGraph calculate(Partition partition) {
+    public static DependencyGraph compute(Partition partition, ComputationOptions options) {
         // collect the values
         if (partition.isEmpty()) {
             return new DependencyGraph(partition.getCause());
         }
-        ContainedValues causeValues = partition.hasCause() ? partition.getCausePacket().getContainedValues() : new ContainedValues();
+        ContainedValues causeValues = partition.hasCause() ? partition.getCausePacket().getContainedValues() :
+                new ContainedValues();
         Map<Pair<Request<?>, Reply>, Pair<ContainedValues, ContainedValues>> containedValues = new HashMap<>();
         for (Pair<Request<?>, Reply> p : partition) {
             containedValues.put(p, p(p.first.asCombined().getContainedValues(), p.second.asCombined().getContainedValues()));
@@ -247,46 +336,150 @@ public class DependencyGraph {
         // look for requests that only depend on the cause or values not in the set
         for (int i = 0; i < partition.size(); i++) {
             var origin = partition.get(i);
-            boolean isCause = i == 0 && partition.getCause() != null && origin.first().equals(partition.getCause().get());
+            boolean isCause =
+                    i == 0 && partition.getCause() != null && origin.first().equals(partition.getCause().get());
             ContainedValues requestValues = containedValues.get(origin).first; // use the request
-            Map<BasicValue, DoublyTaggedBasicValue<?>> usedCauseValues = isCause ? Map.of() :
-                    requestValues.entrySet().stream()
-                    .filter(e -> causeValues.containsBasicValue(e.getKey()))
-                    .collect(Collectors.toMap(Entry::getKey, e -> {
-                        var first = causeValues.getFirstTaggedValue(e.getKey());
-                        return new DoublyTaggedBasicValue<>(e.getValue().stream()
-                                .map(TaggedBasicValue::getPath)
-                                .collect(Collectors.toList()), first.path, e.getKey());
-                    }));
-            Map<Pair<Request<?>, Reply>, List<DoublyTaggedBasicValue<?>>> dependsOn = new HashMap<>();
-            for (var entry : requestValues.entrySet()) {
+            Map<BasicValue, DoublyTaggedBasicValue<?, ?>> usedCauseValues;
+            if (!isCause) {
+                // only check for cause values if the current request is not (!) the cause request itself
+                usedCauseValues = new HashMap<>();
+                for (Map.Entry<BasicValue, List<TaggedBasicValue<?>>> e : requestValues.entrySet()) {
+                    // for every basic value in the cause request (
+                    var matches = findMatchingValue(options, e.getKey(), e.getValue(), causeValues);
+                    if (matches.size() > 0) {
+                        usedCauseValues.put(e.getKey(), matches.get(0));
+                        break;
+                    }
+                }
+            } else {
+                usedCauseValues = Map.of();
+            }
+            Map<Pair<Request<?>, Reply>, List<DoublyTaggedBasicValue<?, ?>>> dependsOn = new HashMap<>();
+            for (var entry : requestValues.entrySet()) { // for every basic value in the request
                 var value = entry.getKey();
                 if (usedCauseValues.containsKey(value)) { // cause has the highest priority
                     continue;
                 }
                 // cannot use replies of requests that were sent after receiving origin
-                for (int j = 0; j < i; j++) {
+                for (int j = 0; j < i; j++) {  // look into every possible request in the partition
                     var other = partition.get(j);
                     var otherContainedValues = containedValues.get(other).second; // use the reply
-                    if (otherContainedValues.containsBasicValue(value)) {
-                        var first = otherContainedValues.getFirstTaggedValue(value);
-                        dependsOn.computeIfAbsent(other, v -> new ArrayList<>())
-                                .add(new DoublyTaggedBasicValue<>(entry.getValue().stream()
-                                        .map(TaggedBasicValue::getPath)
-                                        .collect(Collectors.toList()), first.path, value));
+                    var matches = findMatchingValue(options, value, entry.getValue(), otherContainedValues);
+                    if (matches.size() > 0) {
+                        dependsOn.computeIfAbsent(other, x -> new ArrayList<>()).add(matches.get(0));
                         break;
                     }
                 }
             }
-
             graph.add(origin, dependsOn, usedCauseValues.values());
         }
 
         return graph;
     }
 
-    void add(Pair<Request<?>, Reply> origin, Map<Pair<Request<?>, Reply>, List<DoublyTaggedBasicValue<?>>> dependsOn,
-             Collection<DoublyTaggedBasicValue<?>> usedCauseValues) {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static List<DoublyTaggedBasicValue<?, ?>>
+    findMatchingValue(ComputationOptions options, BasicValue targetValue, List<TaggedBasicValue<?>> targetTaggeds,
+                      ContainedValues otherContainedValues) {
+        List<DoublyTaggedBasicValue<BasicValue, BasicValue>> matches = new ArrayList<>();
+        if (otherContainedValues.containsBasicValue(targetValue)) {
+            var targetPaths = targetTaggeds.stream().map(TaggedBasicValue::getPath).collect(Collectors.toList());
+            var originValues =
+                    options.useFirstValueInTarget ? List.of(otherContainedValues.getFirstTaggedValue(targetValue)) :
+                            otherContainedValues.getTaggedValues(targetValue);
+            for (TaggedBasicValue<?> value : originValues) {
+                if (options.checkPropertyNames) {
+                    targetPaths = filterAccessPathsForCompatibility(targetPaths, value);
+                }
+                if (targetPaths.size() > 0) {
+                    matches.add((DoublyTaggedBasicValue<BasicValue, BasicValue>)
+                            DoublyTaggedBasicValue.createDirect(targetPaths, value));
+                }
+            }
+        }
+        if (options.useTransformers) {
+            for (var valueAndTags : otherContainedValues.entrySet()) {
+                var transformers = Functions.getTransformers(null, valueAndTags.getKey(), targetValue);
+                if (transformers.size() > 0) {
+                    var originValues =
+                            options.useFirstValueInTarget ? List.of(valueAndTags.getValue().get(0)) :
+                                    valueAndTags.getValue();
+                    var targetPaths =
+                            targetTaggeds.stream().map(TaggedBasicValue::getPath).collect(Collectors.toList());
+                    for (TaggedBasicValue<?> value : originValues) {
+                        if (options.checkPropertyNames) {
+                            targetPaths = filterAccessPathsForCompatibility(targetPaths, value);
+                        }
+                        if (targetPaths.size() > 0) {
+                            matches.add(DoublyTaggedBasicValue.createIndirect(targetPaths,
+                                    targetValue,
+                                    (TaggedBasicValue<BasicValue>) value,
+                                    (Set<BasicValueTransformer<BasicValue>>) (Set) transformers));
+                        }
+                    }
+                }
+            }
+        }
+        return (List<DoublyTaggedBasicValue<?, ?>>) (List) matches;
+    }
+
+    private static List<AccessPath> filterAccessPathsForCompatibility(List<AccessPath> accessPaths, TaggedBasicValue<
+            ?> value) {
+        return accessPaths.stream().filter(p -> areAccessPathsCompatible(value, p)).collect(Collectors.toList());
+    }
+
+    private static boolean areAccessPathsCompatible(TaggedBasicValue<?> first, AccessPath second) {
+        if (first.getValue() instanceof IntegerValue || first.getValue() instanceof PrimitiveValue.ByteValue) {
+            return areAccessPathsCompatible(first.getPath(), second);
+        }
+        return true;
+    }
+
+    /**
+     * Checks that the property names kind of match, should work for all int and byte values
+     * <p>
+     * Important: this contains domain specific knowledge about the property names
+     */
+    private static boolean areAccessPathsCompatible(AccessPath first, AccessPath second) {
+        String firstString = first.getLastStringElementOrEmpty();
+        String secondString = second.getLastStringElementOrEmpty();
+        return doPropertyNamesMatch(firstString, secondString);
+    }
+
+    /**
+     * Checks that the property names kind of match, should work for all int and byte values
+     * <p>
+     * Important: this contains domain specific knowledge about the property names
+     */
+    private static boolean doPropertyNamesMatch(String propertyName, String propertyName2) {
+        propertyName = normalizePropertyName(propertyName);
+        propertyName2 = normalizePropertyName(propertyName2);
+        return firstUncapitalizedPart(propertyName).equals(firstUncapitalizedPart(propertyName2)) ||
+                ((propertyName.contains("value") || propertyName.contains("Value") || propertyName.contains("arg")) &&
+                        (propertyName2.contains("value") || propertyName2.contains("Value") || propertyName2.equals(
+                                "arg")));
+    }
+
+    private static String normalizePropertyName(String propertyName) {
+        if (propertyName.equals("sigbyte")) {
+            return "refTypeTag";
+        }
+        return propertyName.replaceAll("count", "length");
+    }
+
+    private static String firstUncapitalizedPart(String propertyName) {
+        var sb = new StringBuilder();
+        for (int i : propertyName.getBytes(StandardCharsets.UTF_8)) {
+            if (i >= 'A' && i <= 'Z') {
+                return sb.toString();
+            }
+            sb.append((char) i);
+        }
+        return sb.toString();
+    }
+
+    void add(Pair<Request<?>, Reply> origin, Map<Pair<Request<?>, Reply>, List<DoublyTaggedBasicValue<?, ?>>> dependsOn,
+             Collection<DoublyTaggedBasicValue<?, ?>> usedCauseValues) {
         var node = getNode(origin);
         node.addAllDependsOn(dependsOn.entrySet().stream()
                 .map(e -> new Edge(node, getNode(e.getKey()), e.getValue())).collect(Collectors.toList()));

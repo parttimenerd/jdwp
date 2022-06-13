@@ -41,7 +41,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
 
     public static Program synthesizeProgram(Partition partition) {
         try {
-            return synthesizeProgram(DependencyGraph.calculate(partition));
+            return synthesizeProgram(DependencyGraph.compute(partition));
         } catch (AssertionError e) {
             throw new AssertionError("Failed to synthesize program for partition: " + partition.toCode(), e);
         }
@@ -95,9 +95,9 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             Map<AccessPath, FunctionCall> usedPaths = new HashMap<>();
             for (Edge edge : node.getDependsOn()) {
                 var target = get(edge.getTarget());
-                for (DoublyTaggedBasicValue<?> usedValue : edge.getUsedValues()) {
-                    FunctionCall call = Functions.createGetFunctionCall(target, usedValue.getAtValueOrigin());
-                    for (AccessPath atSetPath : usedValue.getAtSetTargets()) {
+                for (DoublyTaggedBasicValue<?, ?> usedValue : edge.getUsedValues()) {
+                    FunctionCall call = Functions.createGetFunctionCall(target, usedValue.getOriginPath());
+                    for (AccessPath atSetPath : usedValue.getTargetPaths()) {
                         assert !usedPaths.containsKey(atSetPath);
                         usedPaths.put(atSetPath, call);
                     }
@@ -264,21 +264,24 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
 
     /**
      * Idea: a common sequence of requests is the following
+     * <pre>
      * ...
-     * (= var9 (request ThreadReference Frames ("length")=(get var5 "frameCount") (
-     * "startFrame")=(wrap "int" 0) ("thread")=(get cause "events" 0 "thread")))
+     * (= var8 (request Method VariableTableWithGeneric
+     *      ("methodID")=(get cause "events" 0 "location" "methodRef")
+     *      ("refType")=(get cause "events" 0 "location" "declaringType")))
+     * # -> array of (("codeIndex")=... ("name")=... ("signature")="..." ("length")=... ("slot")=...)
+     * (= var9 (request ThreadReference Frames ("length")=(get var5 "frameCount")
+     *      ("startFrame")=(wrap "int" 0) ("thread")=(get cause "events" 0 "thread")))
      * ...
-     * (= var14 (request StackFrame GetValues ("frame")=(get var9 "frames" 0
-     * "frameID") ("thread")=(get cause "events" 0 "thread")
-     * ("slots" 0 "sigbyte")=(wrap "byte" 91) ("slots" 0 "slot")=(get var1 "slots" 0 "slot")
-     * ("slots" 1 "sigbyte")=(wrap "byte" 73) ("slots" 1 "slot")=(get var5 "frameCount")))
-     * (= var15 (request ObjectReference ReferenceType ("object")=(get var14 "values"
-     * 0)))
-     * (= var16 (request ArrayReference Length("arrayObject")=(get var14 "values" 0)
-     * )))
+     * (= var14 (request StackFrame GetValues ("frame")=(get var9 "frames" 0 "frameID")
+     *      ("thread")=(get cause "events" 0 "thread")
+     *      ("slots" 0 "sigbyte")=(wrap "byte" 91) ("slots" 0 "slot")=(get var1 "slots" 0 "slot")
+     *      ("slots" 1 "sigbyte")=(wrap "byte" 73) ("slots" 1 "slot")=(get var5 "frameCount")))
+     *      (= var15 (request ObjectReference ReferenceType ("object")=(get var14 "values" 0)))
+     *      (= var16 (request ArrayReference Length("arrayObject")=(get var14 "values" 0)))
+     * </pre>
      * <p>
-     * Two observations:
-     * 1. GetValues references
+     * This method deals with the observation that the slot parameter of GetValues consists
      */
     private static Optional<Pair<Program, Set<Node>>> isPossibleMapSourceNode(NodeNames variables, Layers layers,
                                                                               Node node) {

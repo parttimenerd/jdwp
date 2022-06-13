@@ -2,8 +2,8 @@ package jdwp;
 
 import jdwp.EventCmds.Events.EventCommon;
 import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
-import jdwp.PrimitiveValue.StringValue;
-import jdwp.Reference.ArrayReference;
+import jdwp.PrimitiveValue.*;
+import jdwp.Reference.*;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -62,6 +62,8 @@ public abstract class Value implements ToCode {
 
         protected static final Map<Class<? extends Value>, Type> classTypeMap = new HashMap<>();
 
+
+        @Getter
         final int tag;
         Type(int tag) {
             this.tag = tag;
@@ -129,6 +131,10 @@ public abstract class Value implements ToCode {
 
         public String toCode() {
             return "Type." + name();
+        }
+
+        public static Type forSignature(String signature) {
+            return forTag(new JNITypeParser(signature).jdwpTag());
         }
     }
 
@@ -628,26 +634,33 @@ public abstract class Value implements ToCode {
         }
     }
 
-    static enum BasicGroup {
-        THREAD_GROUP_REF,
-        MODULE_REF,
-        FIELD_REF,
-        FRAME_REF,
-        HEAP_REF,
-        METHOD_REF,
-        CLASSLOADER_REF,
-        THREAD_REF,
-        BYTE_LIST,
-        BOOLEAN,
-        BYTE,
-        CHAR,
-        SHORT,
-        INT,
-        LONG,
-        FLOAT,
-        DOUBLE,
-        STRING,
-        VOID
+    public static enum BasicGroup {
+        THREAD_GROUP_REF(ThreadGroupReference.class),
+        MODULE_REF(ModuleReference.class),
+        FIELD_REF(FieldReference.class),
+        FRAME_REF(FrameReference.class),
+        HEAP_REF(HeapReference.class),
+        METHOD_REF(MethodReference.class),
+        CLASSLOADER_REF(ClassLoaderReference.class),
+        THREAD_REF(ThreadReference.class),
+        BYTE_LIST(ByteList.class),
+        BOOLEAN(BooleanValue.class),
+        BYTE(ByteValue.class),
+        CHAR(CharValue.class),
+        SHORT(ShortValue.class),
+        INT(IntValue.class),
+        LONG(LongValue.class),
+        FLOAT(FloatValue.class),
+        DOUBLE(DoubleValue.class),
+        STRING(StringValue.class),
+        VOID(VoidValue.class),;
+
+        @Getter
+        private final Class<? extends Value> baseClass;
+
+        BasicGroup(Class<? extends Value> baseClass) {
+            this.baseClass = baseClass;
+        }
     }
 
     public static abstract class BasicValue extends Value {

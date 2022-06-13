@@ -265,4 +265,14 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         }
         return 0;
     }
+
+    public String getLastStringElementOrEmpty() {
+        for (int i = size() - 1; i >= 0; i--) {
+            var element = get(i);
+            if (element instanceof String) {
+                return (String) element;
+            }
+        }
+        return "";
+    }
 }

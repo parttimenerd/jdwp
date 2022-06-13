@@ -2,6 +2,9 @@ package tunnel.synth;
 
 import jdwp.*;
 import jdwp.Reference.*;
+import jdwp.StackFrameCmds.GetValuesReply;
+import jdwp.StackFrameCmds.GetValuesRequest;
+import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
 import jdwp.Value.BasicValue;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
@@ -13,6 +16,7 @@ import tunnel.synth.DependencyGraph.DoublyTaggedBasicValue;
 import tunnel.synth.DependencyGraph.Edge;
 import tunnel.synth.DependencyGraph.Node;
 import tunnel.synth.Partitioner.Partition;
+import tunnel.synth.program.Functions;
 import tunnel.util.Either;
 
 import java.util.List;
@@ -35,14 +39,14 @@ public class DependencyGraphTest {
         var end = rrpair(4, List.of(p("left", 3), p("right", 4)),
                 List.of(p("value", 5)));
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, left, right, end));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertNotEquals(graph.getCauseNode(), graph.getNode(start));
         assertNull(graph.getCauseNode().getOrigin());
         assertEquals(-1, graph.getCauseNode().getId());
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
         assertEquals(Set.of(), graph.getNode(start).getDependsOnNodes());
         assertEquals(Set.of(graph.getNode(start)), graph.getNode(left).getDependsOnNodes());
-        var e = new DoublyTaggedBasicValue<>(new AccessPath("value"),
+        var e = DoublyTaggedBasicValue.createDirect(new AccessPath("value"),
                 start.first.getContainedValues().getFirstTaggedValue(wrap(1)));
         assertEquals(new Edge(graph.getNode(left),
                         graph.getNode(start), List.of(e)),
@@ -62,7 +66,7 @@ public class DependencyGraphTest {
                         p("right", Reference.thread(1))),
                 List.of(p("value", wrap(5))));
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertNotEquals(graph.getCauseNode(), graph.getNode(start));
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
         assertEquals(Set.of(), graph.getNode(start).getDependsOnNodes());
@@ -78,7 +82,7 @@ public class DependencyGraphTest {
         var start = rrpair(1, List.of(), List.of(p("left", 1), p("right", 2)));
         var end = rrpair(4, List.of(p("left", 1), p("right", 2)), List.of());
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertNotEquals(graph.getCauseNode(), graph.getNode(start));
         assertEquals(Set.of(), graph.getCauseNode().getDependsOnNodes());
         assertEquals(Set.of(), graph.getNode(start).getDependsOnNodes());
@@ -86,7 +90,7 @@ public class DependencyGraphTest {
         assertEquals(
                 Set.of(new AccessPath("left"), new AccessPath("right")),
                 graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream()
-                        .map(v -> v.getAtSetTargets().get(0))
+                        .map(v -> v.getTargetPaths().get(0))
                         .collect(Collectors.toSet()));
         var layers = graph.computeLayers();
         assertEquals(3, layers.size());
@@ -99,11 +103,11 @@ public class DependencyGraphTest {
         var start = rrpair(1, List.of(), List.of(p("left", 2), p("right", 1)));
         var end = rrpair(4, List.of(p("left", 1), p("right", 2)), List.of());
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertEquals(
                 Set.of(new AccessPath("right"), new AccessPath("left")),
                 graph.getNode(end).getDependsOn().iterator().next().getUsedValues().stream()
-                        .map(v -> v.getAtSetTargets().get(0))
+                        .map(v -> v.getTargetPaths().get(0))
                         .collect(Collectors.toSet()));
     }
 
@@ -115,7 +119,7 @@ public class DependencyGraphTest {
         var end = rrpair(4, List.of(p("left", 3), p("right", 4)),
                 List.of(p("value", 5)));
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, left, right, end));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         var layers = graph.computeLayers();
         var comparator = layers.getNodeComparator();
         assertEquals(0, comparator.compare(graph.getNode(start), graph.getNode(start)));
@@ -130,7 +134,7 @@ public class DependencyGraphTest {
         var end = rrpair(2, 2, 3);
         // start -> end
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertEquals(Set.of(graph.getNode(end)), graph.getNode(start).getDependedByNodes());
     }
 
@@ -140,7 +144,7 @@ public class DependencyGraphTest {
         var end = rrpair(2, 2, 3);
         // start -> end
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, end));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         var startNode = graph.getNode(start);
         var endNode = graph.getNode(end);
         assertEquals(Set.of(), DependencyGraph.computeDependedByTransitive(Set.of(startNode, endNode)));
@@ -160,7 +164,7 @@ public class DependencyGraphTest {
         // start -> left -> end
         //       -> right
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start, left, right, end));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         var layers = graph.computeLayers();
         var leftNode = graph.getNode(left);
         var endNode = graph.getNode(end);
@@ -178,7 +182,7 @@ public class DependencyGraphTest {
                         new jdwp.VirtualMachineCmds.IDSizesReply(174,
                                 PrimitiveValue.wrap(8), PrimitiveValue.wrap(8), PrimitiveValue.wrap(8),
                                 PrimitiveValue.wrap(8), PrimitiveValue.wrap(8)))));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertTrue(graph.getAllNodes().stream().allMatch(Objects::nonNull),
                 "getAllNodes() should not return null values");
         assertEquals(1, graph.getAllNodesWOCause().size());
@@ -188,12 +192,12 @@ public class DependencyGraphTest {
     public void testGraphWithCauseAsEntry() {
         var start = rrpair(1, 1, 2);
         var partition = new Partitioner.Partition(Either.left(start.first), List.of(start));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertEquals(1, graph.getAllNodesWOCause().size());
     }
 
     @Test
-    public void getAllNodesWithoutDuplicates() {
+    public void testGetAllNodesWithoutDuplicates() {
         var partition = new Partition(Either.left(new jdwp.ThreadReferenceCmds.NameRequest(425824,
                 new ThreadReference(1136L))), List.of(
                 p(new jdwp.ThreadReferenceCmds.NameRequest(425824, new ThreadReference(1136L)),
@@ -213,7 +217,7 @@ public class DependencyGraphTest {
                 p(new jdwp.ThreadReferenceCmds.NameRequest(425828, new ThreadReference(1137L)),
                         new jdwp.ThreadReferenceCmds.NameReply(425828, PrimitiveValue.wrap("process reaper")))
         ));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertEquals(6, graph.getAllNodes().size());
         var layers = graph.computeLayers();
         assertEquals(6, layers.getAllNodes().size());
@@ -222,18 +226,45 @@ public class DependencyGraphTest {
 
 
     @Test
-    public void getAllNodesWithoutDuplicatesWithDuplicates() {
+    public void testGetAllNodesWithoutDuplicatesWithDuplicates() {
         Function<Integer, Pair<Request<?>, Reply>> func = id -> p(new jdwp.VirtualMachineCmds.IDSizesRequest(id),
                 new jdwp.VirtualMachineCmds.IDSizesReply(id, wrap(8), wrap(8),
                         wrap(8), wrap(8), wrap(8)));
         var partition = new Partition(Either.left(func.apply(1).first),
                 List.of(func.apply(1), func.apply(3), func.apply(4)));
-        var graph = DependencyGraph.calculate(partition);
+        var graph = DependencyGraph.compute(partition);
         assertEquals(4, graph.getAllNodes().size());
         var layers = graph.computeLayers();
         assertEquals(4, layers.getAllNodes().size());
         assertEquals(2, layers.getAllNodesWithoutDuplicates().size());
     }
+
+    @Test
+    public void testUseTransformers() {
+        Function<Integer, Pair<Request<?>, Reply>> func = id -> p(new jdwp.VirtualMachineCmds.IDSizesRequest(id),
+                new jdwp.VirtualMachineCmds.IDSizesReply(id, wrap(8), wrap(8),
+                        wrap(8), wrap(8), wrap(8)));
+        var partition = new Partition(Either.left(func.apply(1).first),
+                List.of(func.apply(1), p(new GetValuesRequest(2, Reference.thread(1L), Reference.frame(1L),
+                                new ListValue<>(new SlotInfo(wrap(1), wrap((byte) Type.INT.getTag())))),
+                        new GetValuesReply(2, new ListValue<>(Type.LIST, List.of(wrap(1)))))));
+        var graph = DependencyGraph.compute(partition,
+                DependencyGraph.DEFAULT_OPTIONS.withCheckPropertyNames(false).withUseTransformers(true));
+        var doublies =
+                graph.getNode(partition.get(1)).getDependsOn().stream().flatMap(e -> e.getUsedValues().stream()).collect(Collectors.toList());
+        assertEquals(1, doublies.size());
+        var doubly = doublies.get(0);
+        assertFalse(doubly.isDirect());
+        assertEquals(Set.of(Functions.GET_TAG_FOR_VALUE), doubly.getTransformers());
+        assertEquals(wrap(8), doubly.getValueAtOrigin());
+        assertEquals(wrap((byte) Type.INT.getTag()), doubly.getValueAtTarget());
+    }
+
+    @Test
+    public void testGetTransformers() {
+        assertEquals(1, Functions.getTransformers(new VM(0), wrap(1), wrap((byte) Type.INT.getTag())).size());
+    }
+
     static TestRequest request(int id, Value value) {
         return new TestRequest(id, p("value", value));
     }

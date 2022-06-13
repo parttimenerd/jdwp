@@ -16,7 +16,7 @@ public class Analyser<S extends Analyser<S, T>, T> {
     public static class DependencyAnalyser extends Analyser<DependencyAnalyser, DependencyGraph> implements Consumer<Partition> {
         @Override
         public void accept(Partition partition) {
-            submit(DependencyGraph.calculate(partition));
+            submit(DependencyGraph.compute(partition));
         }
 
     }

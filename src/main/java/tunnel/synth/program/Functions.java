@@ -1,22 +1,24 @@
 package tunnel.synth.program;
 
 import jdwp.*;
-import jdwp.PrimitiveValue.*;
 import jdwp.Reference.*;
-import jdwp.Value.*;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import org.jetbrains.annotations.Nullable;
+import tunnel.synth.DependencyGraph;
 import tunnel.synth.program.AST.Expression;
 import tunnel.synth.program.AST.FunctionCall;
 import tunnel.synth.program.AST.Literal;
-import tunnel.synth.program.AST.StringLiteral;
 
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static jdwp.PrimitiveValue.*;
+import static jdwp.Value.BasicGroup.BYTE;
+import static jdwp.Value.BasicGroup.STRING;
 import static jdwp.util.Pair.p;
 import static tunnel.synth.program.AST.ident;
 import static tunnel.synth.program.AST.literal;
@@ -216,11 +218,126 @@ public abstract class Functions {
             this.name = name;
         }
 
-        public StringLiteral getNameLiteral() {
-            return literal(name);
+        public Value evaluate(VM vm, List<Value> arguments) {
+            return evaluate(arguments);
         }
 
-        public abstract Value evaluate(List<Value> arguments);
+        /**
+         * do not call this method, it's called by the other evaluate method
+         */
+        protected Value evaluate(List<Value> arguments) {
+            throw new AssertionError();
+        }
+    }
+
+    /**
+     * functions with a single argument and a checked argument type
+     */
+    public static abstract class SingleArgumentFunction<T extends Value> extends Function {
+
+        protected final Class<?> expectedType;
+
+        public SingleArgumentFunction(String name, Class<T> expectedType) {
+            super(name);
+            this.expectedType = expectedType;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public Value evaluate(VM vm, List<Value> arguments) {
+            if (arguments.size() != 1) {
+                throw new AssertionError(String.format("Function %s expected one argument but got %s", this,
+                        arguments));
+            }
+            Value argument = arguments.get(0);
+            if (!expectedType.isAssignableFrom(argument.getClass())) {
+                throw new AssertionError(String.format("Function %s expected an instance of %s but got %s",
+                        this, expectedType, argument));
+            }
+            return evaluate(vm, (T) argument);
+        }
+
+        protected abstract Value evaluate(VM vm, T value);
+    }
+
+    /**
+     * (argument group, result group) -> transformer
+     */
+    private static final Map<Pair<BasicGroup, BasicGroup>, Set<BasicValueTransformer<?>>> transformersPerGroups
+            = new HashMap<>();
+    private static final Map<BasicGroup, Set<BasicValueTransformer<?>>> generalTransformersPerResultGroup = new HashMap<>();
+    public static final Map<String, BasicValueTransformer<?>> transformersPerName = new HashMap<>();
+
+    /**
+     * transforms a specific basic value into another, used to annotate edges in the
+     * {@link DependencyGraph}
+     */
+    public static abstract class BasicValueTransformer<T extends BasicValue> extends SingleArgumentFunction<T> {
+
+        private final @Nullable BasicGroup argument;
+        private final BasicGroup result;
+
+        @SuppressWarnings("unchecked")
+        public BasicValueTransformer(String name, @Nullable BasicGroup argument, BasicGroup result) {
+            super(name, argument == null ? (Class<T>) BasicValue.class : (Class<T>) argument.getBaseClass());
+            this.argument = argument;
+            this.result = result;
+            if (argument != null) {
+                transformersPerGroups.computeIfAbsent(p(argument, result), x -> new HashSet<>()).add(this);
+            } else {
+                generalTransformersPerResultGroup.computeIfAbsent(result, x -> new HashSet<>()).add(this);
+            }
+            transformersPerName.put(name, this);
+        }
+
+        public boolean isApplicable(BasicValue value) {
+            return expectedType.isAssignableFrom(value.getClass());
+        }
+
+        /**
+         * is this function applicable to multiple value types?
+         */
+        public boolean isGeneral() {
+            return argument == null;
+        }
+    }
+
+    /**
+     * signature -> tag
+     */
+    public static final BasicValueTransformer<StringValue> GET_TAG_FOR_SIGNATURE =
+            new BasicValueTransformer<>("getTagForSignature", STRING, BYTE) {
+                @Override
+                protected Value evaluate(VM vm, StringValue value) {
+                    return wrap(new JNITypeParser(value.getValue()).jdwpTag());
+                }
+            };
+
+    /**
+     * value -> tag of value
+     */
+    public static final BasicValueTransformer<BasicValue> GET_TAG_FOR_VALUE =
+            new BasicValueTransformer<>("getTagForValue", null, BYTE) {
+                @Override
+                protected Value evaluate(VM vm, BasicValue value) {
+                    return wrap((byte) value.type.getTag());
+                }
+            };
+
+    public static Set<BasicValueTransformer<?>> getTransformers(BasicGroup argument, BasicGroup result) {
+        var ret = new HashSet<>(transformersPerGroups.getOrDefault(p(argument, result), Set.of()));
+        ret.addAll(generalTransformersPerResultGroup.getOrDefault(result, Set.of()));
+        return ret;
+    }
+
+    /**
+     * return all transformers f with <pre>f(argument) == result</pre>
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<BasicValueTransformer<?>> getTransformers(VM vm, BasicValue argument, BasicValue result) {
+        return getTransformers(argument.getGroup(), result.getGroup()).stream()
+                .filter(t -> t.isApplicable(argument) && ((BasicValueTransformer<BasicValue>) t)
+                        .evaluate(vm, argument).equals(result)).collect(Collectors.toSet());
     }
 
     public Function getFunction(String name) {
@@ -232,6 +349,9 @@ public abstract class Functions {
             case WRAP:
                 return WRAP_FUNCTION;
             default:
+                if (transformersPerName.containsKey(name)) {
+                    return transformersPerName.get(name);
+                }
                 throw new AssertionError(String.format("Unknown function %s", name));
         }
     }

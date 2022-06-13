@@ -2,6 +2,10 @@ package tunnel.synth;
 
 import jdwp.*;
 import jdwp.Reference.*;
+import jdwp.ReferenceTypeCmds.ClassFileVersionReply;
+import jdwp.ReferenceTypeCmds.ClassFileVersionRequest;
+import jdwp.ReferenceTypeCmds.InstancesReply;
+import jdwp.ReferenceTypeCmds.InstancesRequest;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import jdwp.util.Pair;
@@ -177,5 +181,41 @@ public class SynthesizerTest {
         ));
 
         var program = Synthesizer.synthesizeProgram(partition);
+    }
+
+    @Test
+    public void testMultiplePathsToSameValue() {
+        Function<Integer, Pair<Request<?>, Reply>> func = id -> p(new jdwp.VirtualMachineCmds.IDSizesRequest(id),
+                new jdwp.VirtualMachineCmds.IDSizesReply(id, wrap(8), wrap(8),
+                        wrap(8), wrap(8), wrap(8)));
+        var partition = new Partition(Either.left(func.apply(1).first),
+                List.of(func.apply(1),
+                        p(new InstancesRequest(0, Reference.klass(110L), wrap(8)),
+                                new InstancesReply(0, new ListValue<>(Type.OBJECT)))));
+        var dep = DependencyGraph.compute(partition);
+        assertEquals("((= cause (request VirtualMachine IDSizes)) " +
+                        "(= var0 (request VirtualMachine IDSizes)) (= var1 " +
+                        "(request ReferenceType Instances (\"maxInstances\")=(get var0 \"fieldIDSize\") (\"refType\")" +
+                        "=(wrap \"klass\" 110))))",
+                Synthesizer.synthesizeProgram(partition).toString());
+    }
+
+    @Test
+    public void testMultiplePathsToSameValue2() {
+        Function<Integer, Pair<Request<?>, Reply>> func = id -> p(new jdwp.VirtualMachineCmds.IDSizesRequest(id),
+                new jdwp.VirtualMachineCmds.IDSizesReply(id, wrap(8), wrap(8),
+                        wrap(8), wrap(8), wrap(8)));
+        var partition = new Partition(Either.left(func.apply(1).first),
+                List.of(func.apply(1),
+                        p(new ClassFileVersionRequest(2, Reference.klass(110L)),
+                                new ClassFileVersionReply(2, wrap(8), wrap(8))),
+                        p(new InstancesRequest(3, Reference.klass(110L), wrap(8)),
+                                new InstancesReply(3, new ListValue<>(Type.OBJECT)))));
+        var dep = DependencyGraph.compute(partition);
+        assertEquals("((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)) (= var1 " +
+                        "(request ReferenceType ClassFileVersion (\"refType\")=(wrap \"klass\" 110))) (= var2 " +
+                        "(request ReferenceType Instances (\"maxInstances\")=(get var0 \"fieldIDSize\") (\"refType\")" +
+                        "=(wrap \"klass\" 110))))",
+                Synthesizer.synthesizeProgram(partition).toString());
     }
 }

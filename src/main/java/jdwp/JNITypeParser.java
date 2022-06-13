@@ -25,8 +25,6 @@
 
 package jdwp;
 
-import jdwp.JDWP;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,16 +34,16 @@ public class JNITypeParser {
     static final char SIGNATURE_FUNC = '(';
     static final char SIGNATURE_ENDFUNC = ')';
 
-    private String signature;
+    private final String signature;
     private List<String> typeNameList;
     private List<String> signatureList;
     private int currentIndex;
 
-    JNITypeParser(String signature) {
+    public JNITypeParser(String signature) {
         this.signature = signature;
     }
 
-    static String typeNameToSignature(String typeName) {
+    public static String typeNameToSignature(String typeName) {
         StringBuilder sb = new StringBuilder();
         int firstIndex = typeName.indexOf('[');
         int index = firstIndex;
@@ -90,23 +88,23 @@ public class JNITypeParser {
         return sb.toString();
     }
 
-    String typeName() {
+    public String typeName() {
         return typeNameList().get(typeNameList().size()-1);
     }
 
-    List<String> argumentTypeNames() {
+    public List<String> argumentTypeNames() {
         return typeNameList().subList(0, typeNameList().size() - 1);
     }
 
-    String signature() {
+    public String signature() {
         return signatureList().get(signatureList().size()-1);
     }
 
-    List<String> argumentSignatures() {
+    public List<String> argumentSignatures() {
         return signatureList().subList(0, signatureList().size() - 1);
     }
 
-    int dimensionCount() {
+    public int dimensionCount() {
         int count = 0;
         String signature = signature();
         while (signature.charAt(count) == '[') {
@@ -115,39 +113,39 @@ public class JNITypeParser {
         return count;
     }
 
-    byte jdwpTag() {
+    public byte jdwpTag() {
         return (byte) signature().charAt(0);
     }
 
-    String componentSignature(int level) {
+    public String componentSignature(int level) {
         assert level <= dimensionCount();
         return signature().substring(level);
     }
 
-    String componentSignature() {
+    public String componentSignature() {
         assert isArray();
         return componentSignature(1);
     }
 
-    boolean isArray() {
+    public boolean isArray() {
         return jdwpTag() == JDWP.Tag.ARRAY;
     }
 
-    boolean isVoid() {
+    public boolean isVoid() {
         return jdwpTag() == JDWP.Tag.VOID;
     }
 
-    boolean isBoolean() {
+    public boolean isBoolean() {
         return jdwpTag() == JDWP.Tag.BOOLEAN;
     }
 
-    boolean isReference() {
+    public boolean isReference() {
         byte tag = jdwpTag();
         return tag == JDWP.Tag.ARRAY ||
                 tag == JDWP.Tag.OBJECT;
     }
 
-    boolean isPrimitive() {
+    public boolean isPrimitive() {
         switch (jdwpTag()) {
             case (JDWP.Tag.BOOLEAN):
             case (JDWP.Tag.BYTE):
@@ -162,7 +160,7 @@ public class JNITypeParser {
         return false;
     }
 
-    static String convertSignatureToClassname(String classSignature) {
+    public static String convertSignatureToClassname(String classSignature) {
         assert classSignature.startsWith("L") && classSignature.endsWith(";");
 
         // trim leading "L" and trailing ";"
