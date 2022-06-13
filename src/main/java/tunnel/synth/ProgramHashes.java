@@ -20,11 +20,12 @@ import java.util.stream.Collectors;
  * Assumes that the program does not change after the analysis.
  *
  * Its hashes can be used heuristically (the collision probability of the used 64bit hashes is fairly low,
- * especially as the 16bits encode the command set and command, using the command set 0 to encode non request statements).
+ * especially as the 16bits encode the command set and command, using the command set 0 to encode non request
+ * statements).
  * Use the {@link Hashed} objects to use these hashes for all comparisons (and hashing).
  * Loops only consider there headers
  *
- * The indexes are equivalent to the line number in the linearized programs (with for loop headers taking one position).
+ * For complex statements (e.g. switch, case, loop) the hashes describe only their headers.
  */
 @Getter
 public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
@@ -269,6 +270,9 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
             }
         } catch (IllegalArgumentException e) {
             throw new AssertionError("problem with statement " + statement, e);
+        }
+        if (parentHashes != null && !(statement instanceof Body)) {
+            hashes.add(parentHashes.create(statement), 0);
         }
         statement.setHashes(hashes);
     }

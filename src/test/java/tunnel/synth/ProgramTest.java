@@ -158,7 +158,12 @@ public class ProgramTest {
                     "((for iter iterable (= iter 1) (= iter 2)))",
             "((for iter iterable (= iter 1) (for iter2 iterable2)))," +
                     "((for iter2 iterable2) (for iter iterable (= iter 2)))," +
-                    "((for iter2 iterable2) (for iter iterable (= iter 1) (for iter2 iterable2) (= iter 2)))"
+                    "((for iter2 iterable2) (for iter iterable (= iter 1) (for iter2 iterable2) (= iter 2)))",
+            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'b'))),((= x 1) (switch x (case 'a') (case 'b')))",
+            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a' (= y 1)))),((= x 1) (switch x (case 'a' (= y 1))))",
+            "((= x 1) (switch x (case 'a')) (switch (const 1) (case 'a')))," +
+                    "((= x 1) (switch x (case 'b')))," +
+                    "((= x 1) (switch x (case 'a') (case 'b')) (switch (const 1) (case 'a')))",
     })
     public void testMerge(String program1, String program2, String merge) {
         var p1 = Program.parse(merge);
@@ -495,16 +500,14 @@ public class ProgramTest {
 
     @Test
     public void testEvaluatorDiscardRequestHandling() {
-        assertThrows(EvaluationAbortException.class, () -> {
-            new Evaluator(new Functions() {
-                @Override
-                protected Value processRequest(Request<?> request) {
-                    throw new EvaluationAbortException(true);
-                }
-            }).evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
-                    "(= var0 (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a')))" +
-                    "(= var2 1))"));
-        });
+        assertThrows(EvaluationAbortException.class, () -> new Evaluator(new Functions() {
+            @Override
+            protected Value processRequest(Request<?> request) {
+                throw new EvaluationAbortException(true);
+            }
+        }).evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
+                "(= var0 (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a')))" +
+                "(= var2 1))")));
     }
 
     @Test

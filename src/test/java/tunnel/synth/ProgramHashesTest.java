@@ -1,19 +1,22 @@
 package tunnel.synth;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import tunnel.synth.program.AST.Statement;
+import tunnel.synth.program.AST.SwitchStatement;
 import tunnel.synth.program.Program;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ProgramHashesTest {
 
     @ParameterizedTest
-    @CsvSource({" (= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\")))," +
+    @CsvSource({
+            "(= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\")))," +
             "(= var0 (request ThreadReference FrameCount (\"thread\")=(get cause \"events\" 0 \"thread\"))) ",
-            "(= ret (func)),(= ret (func2))"})
+            "(= ret (func)),(= ret (func2))"
+    })
     public void testNoCollision(String first, String second) {
         ProgramHashes hashes = new ProgramHashes();
         assertNotEquals(hashes.create(Statement.parse(first)).hash(), hashes.create(Statement.parse(second)).hash());
@@ -22,12 +25,25 @@ public class ProgramHashesTest {
     @ParameterizedTest
     @CsvSource({
             "((= ret2 func)), ((= ret func))",
-            "((= ret2 func) (= y ret2)), ((= ret func) (= x ret))"
+            "((= ret2 func) (= y ret2)), ((= ret func) (= x ret))",
+            "((switch x (case \"a\"))),((switch x (case \"b\")))"
     })
     public void testHashesOfLastStatementEqual(String firstProgram, String secondProgram) {
         var first = Program.parse(firstProgram);
         var second = Program.parse(secondProgram);
         assertEquals(first.getHashes().get(first.getBody().getLastStatement()),
                 second.getHashes().get(second.getBody().getLastStatement()));
+    }
+
+    @Test
+    public void testHashesShouldContainSwitchSelf() {
+        var program = Program.parse("((= x 1) (switch x (case 'a') (case 'b')))");
+        var switchStatement = (SwitchStatement)program.getBody().getLastStatement();
+        var caseStatement = switchStatement.getCases().get(0);
+        var caseStatement2 = switchStatement.getCases().get(1);
+        assertTrue(program.getHashes().contains(switchStatement));
+        assertTrue(switchStatement.getHashes().contains(switchStatement));
+        assertTrue(caseStatement.getHashes().contains(caseStatement));
+        assertTrue(caseStatement2.getHashes().contains(caseStatement2));
     }
 }

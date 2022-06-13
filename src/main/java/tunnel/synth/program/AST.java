@@ -25,7 +25,6 @@ import java.util.*;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.wrap;
@@ -341,13 +340,6 @@ public interface AST {
                 }
             }));
             return removeStatementsTransitively(toRemove);
-        }
-
-        /**
-         * remove statements that directly contain a wrapped direct pointer
-         */
-        default T removeDirectPointerRelatedStatements() {
-            return removeStatements(getDependentStatementsAndAnchors(getDirectPointerRelatedStatements()));
         }
 
         @SuppressWarnings("unchecked")
@@ -769,20 +761,53 @@ public interface AST {
 
         @Override
         public List<SwitchStatement> merge(SwitchStatement other) {
-            throw new AssertionError("not implemented");
+            if (getHashes().get(this).equals(other.getHashes().get(other))) {
+                var newBody = mergeCaseList(other.getHashes(), other.cases);
+                if (newBody.size() > 0) {
+                    return List.of((SwitchStatement) new SwitchStatement(expression, newBody).initHashes(getHashes().getParent()));
+                }
+            }
+            return List.of(this, other);
+        }
+
+        private List<CaseStatement> mergeCaseList(ProgramHashes otherHashes, List<CaseStatement> other) {
+            // statements are order independent (but we do not guarantee, therefore use sets)
+            var newCases = new ArrayList<CaseStatement>();
+            var otherCases = other.stream()
+                    .collect(Collectors.toMap(otherHashes::get, c -> c));
+            for (CaseStatement caseStatement : cases) {
+                var caseHash = getHashes().get(caseStatement);
+                if (otherCases.containsKey(caseHash)) {
+                    newCases.addAll(caseStatement.merge(otherCases.get(caseHash)));
+                    otherCases.remove(caseHash); // remove merged case
+                } else {
+                    newCases.add(caseStatement);
+                }
+            }
+            for (CaseStatement otherCase : other) {
+                if (otherCases.containsKey(otherHashes.get(otherCase))) { // not merged?
+                    newCases.add(otherCase);
+                }
+            }
+            return newCases;
         }
 
         @Override
         public List<SwitchStatement> overlap(SwitchStatement other) {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
-                var newBody = cases.stream().filter(c -> other.getHashes().contains(getHashes().get(c)))
-                        .flatMap(c -> c.overlap((CaseStatement) other.getHashes().get(getHashes().get(c))).stream())
-                        .collect(Collectors.toList());
+                var newBody = overlapCaseList(other.getHashes(), other.cases);
                 if (newBody.size() > 0) {
-                    return List.of((SwitchStatement) new SwitchStatement(expression, newBody).initHashes(getHashes().getParent()));
+                    return List.of((SwitchStatement) new SwitchStatement(expression, newBody)
+                            .initHashes(getHashes().getParent()));
                 }
             }
             return List.of();
+        }
+
+        private List<CaseStatement> overlapCaseList(ProgramHashes otherHashes, List<CaseStatement> other) {
+            return cases.stream().filter(c -> otherHashes.contains(getHashes().get(c)))
+                    .flatMap(c -> c.overlap((CaseStatement) otherHashes.get(getHashes().get(c))).stream())
+                    .collect(Collectors.toList());
         }
 
         @Override
@@ -795,7 +820,8 @@ public interface AST {
         public SwitchStatement removeStatements(Set<Statement> statements) {
             return (SwitchStatement) new SwitchStatement(expression, cases.stream().
                     filter(statements::contains)
-                    .map(c -> c.removeStatements(statements)).collect(Collectors.toList())).initHashes(getHashes().getParent());
+                    .map(c -> c.removeStatements(statements)).collect(Collectors.toList()))
+                    .initHashes(getHashes().getParent());
         }
 
         @Override
@@ -837,14 +863,22 @@ public interface AST {
         }
 
         public List<CaseStatement> merge(CaseStatement other) {
-            throw new AssertionError("not implemented");
+            if (getHashes().get(this).equals(other.getHashes().get(other))) {
+                var newBody = body.merge(other.body);
+                if (newBody.size() > 0) {
+                    return List.of((CaseStatement) new CaseStatement(expression, newBody)
+                            .initHashes(getHashes().getParent()));
+                }
+            }
+            return List.of(this, other);
         }
 
         public List<CaseStatement> overlap(CaseStatement other) {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
                 var newBody = body.overlap(other.body);
                 if (newBody.size() > 0) {
-                    return List.of((CaseStatement) new CaseStatement(expression, newBody).initHashes(getHashes().getParent()));
+                    return List.of((CaseStatement) new CaseStatement(expression, newBody)
+                            .initHashes(getHashes().getParent()));
                 }
             }
             return List.of();
@@ -857,7 +891,8 @@ public interface AST {
 
         @Override
         public CaseStatement removeStatements(Set<Statement> statements) {
-            return (CaseStatement) new CaseStatement(expression, body.removeStatements(statements)).initHashes(getHashes().getParent());
+            return (CaseStatement) new CaseStatement(expression, body.removeStatements(statements))
+                    .initHashes(getHashes().getParent());
         }
 
         @Override
@@ -1101,26 +1136,11 @@ public interface AST {
             return false;
         }
 
-        public Map<Statement, Integer> getIndexesOfStatements() {
-            return IntStream.range(0, body.size()).boxed().collect(Collectors.toMap(body::get, i -> i));
-        }
-
-        public Map<Pair<Identifier, Expression>, List<Integer>> getLoopIndexes() {
-            return IntStream.range(0, body.size())
-                    .boxed()
-                    .filter(i -> get(i) instanceof Loop)
-                    .collect(
-                            Collectors.groupingBy(
-                                    i -> {
-                                        var loop = (Loop) get(i);
-                                        return p(loop.getIter(), loop.getIterable());
-                                    }));
-        }
-
         /**
          * Merge both programs using a simple algorithm that works if the program generation is highly
          * deterministic.
          */
+        @SuppressWarnings({"unchecked", "rawtypes"})
         public Body merge(Body other) {
             if (other.isEmpty()) {
                 return this;
@@ -1128,33 +1148,28 @@ public interface AST {
             if (isEmpty()) {
                 return other;
             }
-            var indexes = other.getIndexesOfStatements();
-            var loopIndexes = other.getLoopIndexes();
+            var otherIndexes = other.getHashes().getHashedToIndex();
+            var otherHashedToStatement = other.getHashes().getHashedToStatement();
             List<Statement> newStatements = new ArrayList<>();
             int prevIndex = 0;
             for (Statement statement : body) {
-                final var pi = prevIndex;
-                List<Integer> loopInd =
-                        statement instanceof Loop
-                                ? loopIndexes.getOrDefault(((Loop) statement).getHeader(), List.of()).stream()
-                                .filter(i -> i >= pi)
-                                .collect(Collectors.toList())
-                                : List.of();
-                if (indexes.containsKey(statement) || loopInd.size() > 0) {
-                    int sIndex;
-                    if (loopInd.size() > 0) {
-                        sIndex = loopInd.get(0);
-                    } else {
-                        sIndex = indexes.get(statement);
-                    }
+                var hashedStatement = getHashes().get(statement);
+                if (otherIndexes.containsKey(hashedStatement)) {
+                    int sIndex = otherIndexes.get(hashedStatement);
+                    // add the statements between the previous and the current statement
                     while (prevIndex < sIndex) { // prevIndex == index: we add the statement later
                         newStatements.add(other.body.get(prevIndex));
                         prevIndex++;
                     }
                     prevIndex++;
-                    if (loopInd.size() > 0) {
-                        newStatements.addAll(((Loop) statement).merge((Loop) other.body.get(sIndex)));
+                    var otherStatement = otherHashedToStatement.get(hashedStatement);
+                    assert otherStatement.getClass() == statement.getClass(); // by hash code construction
+                    // now merge the two statements
+                    if (statement instanceof PartiallyMergeable<?>) {
+                        newStatements.addAll(((PartiallyMergeable) statement)
+                                .merge((PartiallyMergeable) otherStatement));
                     } else {
+                        // this statement is atomic
                         newStatements.add(statement);
                     }
                 } else {
