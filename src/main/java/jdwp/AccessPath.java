@@ -8,7 +8,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.AbstractList;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
@@ -20,67 +19,6 @@ import java.util.stream.Stream;
  */
 @EqualsAndHashCode(callSuper = false)
 public class AccessPath extends AbstractList<Object> implements Comparable<AccessPath> {
-
-    /** AccessPath with root packet */
-    public static class TaggedAccessPath<T extends WalkableValue<?>> extends AccessPath {
-
-        private final T root;
-
-        TaggedAccessPath(T root) {
-            this.root = root;
-        }
-
-        public TaggedAccessPath(T root, Object... path) {
-            super(path);
-            this.root = root;
-        }
-
-        public TaggedAccessPath<T> appendElement(Object pathElement) {
-            return new TaggedAccessPath<>(root, super.appendElement(pathElement).path);
-        }
-
-        public Value access() {
-            return access(root);
-        }
-
-        @Override
-        public String toString() {
-            return (root instanceof AbstractParsedPacket ?
-                    ((AbstractParsedPacket) root).toShortString() : root.toString()) + Arrays.toString(path);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
-
-            TaggedAccessPath<?> that = (TaggedAccessPath<?>) o;
-
-            return Objects.equals(root, that.root);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = super.hashCode();
-            result = 31 * result + (root != null ? root.hashCode() : 0);
-            return result;
-        }
-
-        public AccessPath removeTag() {
-            return new AccessPath(path);
-        }
-
-        public TaggedAccessPath<T> subPath(int inclusiveStart, int exclusiveEnd) {
-            Object[] np = new Object[exclusiveEnd - inclusiveStart];
-            System.arraycopy(path, inclusiveStart, np, 0, exclusiveEnd - inclusiveStart);
-            return new TaggedAccessPath<>(root, np);
-        }
-
-        public TaggedAccessPath<T> dropFirstPathElement() {
-            return subPath(1, size());
-        }
-    }
 
     protected final Object[] path;
 
@@ -118,9 +56,10 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         return prepend(prefix.path);
     }
 
+    /** supports python like indexing with negative numbers */
     @Override
     public Object get(int index) {
-        return path[index];
+        return path[normalizeListIndex(index)];
     }
 
     @Override
@@ -174,10 +113,6 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         return current;
     }
 
-    public int basicHashCode() {
-        return Objects.hash(path);
-    }
-
     public boolean startsWith(AccessPath other) {
         if (other.path.length > this.path.length) {
             return false;
@@ -194,12 +129,24 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         return path[path.length - 1].equals(end);
     }
 
-    public AccessPath removeListAccesses() {
-        return new AccessPath(Arrays.stream(path).filter(e -> e instanceof String).toArray());
+    public boolean endsWith(Class<?> clazz) {
+        return clazz.isInstance(path[path.length - 1]);
     }
 
-    public boolean containsListAccesses() {
-        return Arrays.stream(path).anyMatch(e -> e instanceof Integer);
+    public boolean endsWith(Class<?>... classes) {
+        if (path.length < classes.length) {
+            return false;
+        }
+        for (int i = 0; i < classes.length; i++) {
+            if (!classes[i].isInstance(path[path.length - classes.length + i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public AccessPath removeListAccesses() {
+        return new AccessPath(Arrays.stream(path).filter(e -> e instanceof String).toArray());
     }
 
     /**
@@ -228,7 +175,14 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         return differingIndex;
     }
 
+    private int normalizeListIndex(int index) {
+        return index < 0 ? path.length + index : index;
+    }
+
+    /** */
     public AccessPath subPath(int inclusiveStart, int exclusiveEnd) {
+        inclusiveStart = normalizeListIndex(inclusiveStart);
+        exclusiveEnd = normalizeListIndex(exclusiveEnd);
         Object[] np = new Object[exclusiveEnd - inclusiveStart];
         System.arraycopy(path, inclusiveStart, np, 0, exclusiveEnd - inclusiveStart);
         return new AccessPath(np);

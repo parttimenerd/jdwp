@@ -4,6 +4,7 @@ import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ThreadReference;
+import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
 import jdwp.TunnelCmds.UpdateCacheRequest;
 import jdwp.Value.BasicValue;
 import jdwp.Value.ByteList;
@@ -18,6 +19,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import tunnel.synth.program.*;
 import tunnel.synth.program.Evaluator.EvaluationAbortException;
+import tunnel.synth.program.Evaluator.MapCallResult;
 import tunnel.synth.program.Evaluator.MapCallResultEntry;
 
 import java.util.ArrayList;
@@ -40,7 +42,7 @@ public class ProgramTest {
         vm.reset();
     }
 
-    private static class RecordingFunctions extends Functions {
+    static class RecordingFunctions extends Functions {
         final List<Request<?>> requests = new ArrayList<>();
         final List<Value> values = new ArrayList<>();
 
@@ -393,7 +395,7 @@ public class ProgramTest {
     public void testEvaluation() {
         var functions = new RecordingFunctions();
         assertEquals(new ClassesBySignatureRequest(0, wrap("test")), new Evaluator(vm, functions).evaluatePacketCall(
-                (PacketCall) PacketCall.parse(
+                PacketCall.parse(
                         "(request VirtualMachine ClassesBySignature ('signature')=(wrap 'string' 'test'))")));
         assertEquals(0, functions.requests.size());
     }
@@ -417,7 +419,7 @@ public class ProgramTest {
                 "\"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"thread\")=" +
                 "(wrap \"thread\" 0))";
         var functions = new RecordingFunctions();
-        var ev = (Events) new Evaluator(vm, functions).evaluatePacketCall((PacketCall) PacketCall.parse(events));
+        var ev = (Events) new Evaluator(vm, functions).evaluatePacketCall(PacketCall.parse(events));
         assertEquals(ev, new jdwp.EventCmds.Events(0, PrimitiveValue.wrap((byte) 2),
                 new ListValue<>(new EventCmds.Events.VMStart(PrimitiveValue.wrap(0), new ThreadReference(0L)))));
         assertEquals("(events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")=(wrap " +
@@ -476,7 +478,7 @@ public class ProgramTest {
     public void testEvaluatorArrayOutOfBounds() {
         var result = new Evaluator(vm, new RecordingFunctions())
                 .evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
-                        "(= va10 (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
+                        "(= var10 (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
                         "(= var0 (get 'programs' 0)) (= var1 (get 'programs' 1)) " +
                         "(= var2 1))"));
         assertEquals(2, result.second.size());
@@ -521,7 +523,7 @@ public class ProgramTest {
     @Test
     public void testUpdateCacheRequestEvaluation() {
         var pc = (UpdateCacheRequest) new Evaluator(vm, new RecordingFunctions())
-                .evaluatePacketCall((PacketCall) PacketCall.parse("(request Tunnel UpdateCache " +
+                .evaluatePacketCall(PacketCall.parse("(request Tunnel UpdateCache " +
                         "('programs' 0)=(wrap 'string' 'a'))"));
         assertEquals(wrap("a"), pc.programs.get(0));
     }
@@ -584,9 +586,10 @@ public class ProgramTest {
                 "1))) (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 32505856) (\"thread\")=(wrap " +
                 "\"thread\" 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 91) (\"slots\" 0 \"slot\")=(wrap \"int\" 0) " +
                 "(\"slots\" 1 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 1 \"slot\")=(wrap \"int\" 1)))\n" +
-                "(map xs (get cause 'slots') x ()=(get x 'sigbyte')))");
+                "(map xs (get cause 'slots') x ('x')=(get x 'sigbyte')))");
         var scopes = new Evaluator(vm, new RecordingFunctions()).evaluate(program).first;
-        assertEquals(new ListValue<>(wrap((byte) 91), wrap((byte) 73)), scopes.get("xs"));
+        assertEquals(new MapCallResult(List.of(new MapCallResultEntry(Map.of("x", wrap((byte) 91))),
+                new MapCallResultEntry(Map.of("x", wrap((byte) 73))))), scopes.get("xs"));
     }
 
     @Test
@@ -605,5 +608,47 @@ public class ProgramTest {
         var funcs = new RecordingFunctions();
         new Evaluator(vm, funcs).evaluate(program);
         assertEquals(List.of(), funcs.values);
+    }
+
+    @Test
+    public void testUseVariablesInCallProperties() {
+        var program = Program.parse("((= x 'a') (= var1 (request Tunnel UpdateCache ('programs' 0)=x)))");
+        var funcs = new RecordingFunctions();
+        new Evaluator(vm, funcs).evaluate(program);
+        assertEquals(List.of(new UpdateCacheRequest(0, new ListValue<>(wrap("a")))), funcs.requests);
+    }
+
+    /**
+     * evaluates the synthesis result of {@link SynthesizerTest#testMapCallSynthesisForGetValuesRequest}
+     */
+    @Test
+    public void testEvaluateMapCallGetValuesRequest() {
+        var program = Program.parse("(\n" +
+                "  (= var0 (request Method VariableTable ('methodID')=(wrap 'method' 32505856) " +
+                "     ('refType')=(wrap 'klass' 10)))\n" +
+                "  (map map0 (get var0 'slots') iter0 ('sigbyte')=(getTagForSignature (get iter0 'signature')) " +
+                "     ('slot')=(get iter0 'slot'))\n" +
+                "  (= var1 (request StackFrame GetValues ('frame')=(wrap 'frame' 1) ('slots')=map0 " +
+                "     ('thread')=(wrap 'thread' 1))))");
+        var funcs = new RecordingFunctions();
+        new Evaluator(vm, funcs).evaluate(program);
+    }
+
+
+    @Test
+    public void testEvaluatePacketCallWithNonBasicValueExpression() {
+        new Evaluator(new VM(9), new RecordingFunctions() {
+            @Override
+            public Function getFunction(String name) {
+                return name.equals("slots") ? new Function("slots") {
+                    @Override
+                    protected Value evaluate(List<Value> arguments) {
+                        return new ListValue<>(new SlotInfo(wrap(1), wrap((byte) 2)));
+                    }
+                } : super.getFunction(name);
+            }
+        }).evaluatePacketCall(new Scopes<>(), PacketCall.parse("(request StackFrame GetValues ('frame')=(wrap 'frame'" +
+                " 1) ('slots')" +
+                "=(slots) ('thread')=(wrap 'thread' 1))"));
     }
 }

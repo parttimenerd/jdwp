@@ -5,11 +5,9 @@ import jdwp.Reference.*;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import tunnel.synth.DependencyGraph;
-import tunnel.synth.program.AST.Expression;
-import tunnel.synth.program.AST.FunctionCall;
-import tunnel.synth.program.AST.Literal;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -20,8 +18,7 @@ import static jdwp.PrimitiveValue.*;
 import static jdwp.Value.BasicGroup.BYTE;
 import static jdwp.Value.BasicGroup.STRING;
 import static jdwp.util.Pair.p;
-import static tunnel.synth.program.AST.ident;
-import static tunnel.synth.program.AST.literal;
+import static tunnel.synth.program.AST.*;
 import static tunnel.synth.program.Evaluator.DEFAULT_ID;
 
 public abstract class Functions {
@@ -129,10 +126,12 @@ public abstract class Functions {
         return new FunctionCall(WRAP, WRAP_FUNCTION, List.of(literal(getWrapperName(value)), literal));
     }
 
-    /**
-     * <code>get(value, path...)</code>
-     */
-    public static final Function GET_FUNCTION = new Function(GET) {
+    public static class GetFunction extends Function {
+
+        private GetFunction() {
+            super(GET);
+        }
+
         @Override
         public Value evaluate(List<Value> arguments) {
             if (arguments.isEmpty()) {
@@ -148,17 +147,41 @@ public abstract class Functions {
             if (!(obj instanceof WalkableValue<?>)) {
                 throw new AssertionError(String.format(String.format("Base object %s is not walkable", obj)));
             }
-            var path = new AccessPath(arguments.stream().skip(1).map(s -> ((BasicScalarValue<?>)s).value).map(s -> s instanceof Long ? (int)(long)s : s).toArray());
-            return path.access((WalkableValue<?>)obj);
+            var path =
+                    new AccessPath(arguments.stream().skip(1).map(s -> ((BasicScalarValue<?>) s).value).map(s -> s instanceof Long ? (int) (long) s : s).toArray());
+            return path.access((WalkableValue<?>) obj);
         }
-    };
+
+        public FunctionCall createCall(String root, AccessPath path) {
+            List<Expression> args = new ArrayList<>();
+            args.add(ident(root));
+            path.stream().map(e -> e instanceof String ? literal((String) e) : literal((int) e)).forEach(args::add);
+            var call = new FunctionCall(getName(), args);
+            call.setFunction(this);
+            return call;
+        }
+
+        public String getAccessedVariable(FunctionCall getCall) {
+            assert getCall.getFunction() == this;
+            return ((StringLiteral) getCall.getArguments().get(0)).value;
+        }
+
+        public AccessPath getAccessPath(FunctionCall getCall) {
+            assert getCall.getFunction() == this;
+            return new AccessPath(getCall.getArguments().stream().skip(1).map(s -> ((Literal<?>) s).value)
+                    .map(s -> s instanceof IntegerLiteral ? (int) (long) s : ((StringLiteral) s).value)
+                    .toArray(Object[]::new));
+        }
+    }
 
     public static FunctionCall createGetFunctionCall(String root, AccessPath path) {
-        List<Expression> args = new ArrayList<>();
-        args.add(ident(root));
-        path.stream().map(e -> e instanceof String ? literal((String)e) : literal((int)e)).forEach(args::add);
-        return new FunctionCall(GET, args);
+        return GET_FUNCTION.createCall(root, path);
     }
+
+    /**
+     * <code>get(value, path...)</code>
+     */
+    public static final GetFunction GET_FUNCTION = new GetFunction();
 
     public static final Function CONST_FUNCTION = new Function(CONST) {
         @Override
@@ -272,16 +295,21 @@ public abstract class Functions {
      * transforms a specific basic value into another, used to annotate edges in the
      * {@link DependencyGraph}
      */
-    public static abstract class BasicValueTransformer<T extends BasicValue> extends SingleArgumentFunction<T> {
+    public static abstract class BasicValueTransformer<T extends BasicValue> extends SingleArgumentFunction<T> implements Comparable<BasicValueTransformer<?>> {
 
         private final @Nullable BasicGroup argument;
         private final BasicGroup result;
+        private final int id;
+
+        private static int normalStartId = 0;
+        private static int generalStartId = 1000;
 
         @SuppressWarnings("unchecked")
         public BasicValueTransformer(String name, @Nullable BasicGroup argument, BasicGroup result) {
             super(name, argument == null ? (Class<T>) BasicValue.class : (Class<T>) argument.getBaseClass());
             this.argument = argument;
             this.result = result;
+            this.id = argument != null ? normalStartId++ : generalStartId++;
             if (argument != null) {
                 transformersPerGroups.computeIfAbsent(p(argument, result), x -> new HashSet<>()).add(this);
             } else {
@@ -300,6 +328,22 @@ public abstract class Functions {
         public boolean isGeneral() {
             return argument == null;
         }
+
+        @Override
+        public int compareTo(@NotNull Functions.BasicValueTransformer<?> o) {
+            return Integer.compare(id, o.id);
+        }
+
+        public FunctionCall createCall(Expression argument) {
+            var call = new FunctionCall(getName(), Collections.singletonList(argument));
+            call.setFunction(this);
+            return call;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%s(%s) -> %s", getName(), argument, result);
+        }
     }
 
     /**
@@ -310,6 +354,15 @@ public abstract class Functions {
                 @Override
                 protected Value evaluate(VM vm, StringValue value) {
                     return wrap(new JNITypeParser(value.getValue()).jdwpTag());
+                }
+
+                @Override
+                public boolean isApplicable(BasicValue value) {
+                    if (!(value instanceof StringValue)) {
+                        return false;
+                    }
+                    var string = ((StringValue) value).getValue();
+                    return string.length() > 0 && JNITypeParser.getTagForFirstSignatureChar(string.charAt(0)) != -1;
                 }
             };
 
@@ -334,10 +387,10 @@ public abstract class Functions {
      * return all transformers f with <pre>f(argument) == result</pre>
      */
     @SuppressWarnings("unchecked")
-    public static Set<BasicValueTransformer<?>> getTransformers(VM vm, BasicValue argument, BasicValue result) {
+    public static List<BasicValueTransformer<?>> getTransformers(VM vm, BasicValue argument, BasicValue result) {
         return getTransformers(argument.getGroup(), result.getGroup()).stream()
                 .filter(t -> t.isApplicable(argument) && ((BasicValueTransformer<BasicValue>) t)
-                        .evaluate(vm, argument).equals(result)).collect(Collectors.toSet());
+                        .evaluate(vm, argument).equals(result)).collect(Collectors.toList());
     }
 
     public Function getFunction(String name) {

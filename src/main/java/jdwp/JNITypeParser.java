@@ -56,33 +56,44 @@ public class JNITypeParser {
             typeName = typeName.substring(0, firstIndex);
         }
 
-        if (typeName.equals("boolean")) {
-            sb.append('Z');
-        } else if (typeName.equals("byte")) {
-            sb.append('B');
-        } else if (typeName.equals("char")) {
-            sb.append('C');
-        } else if (typeName.equals("short")) {
-            sb.append('S');
-        } else if (typeName.equals("int")) {
-            sb.append('I');
-        } else if (typeName.equals("long")) {
-            sb.append('J');
-        } else if (typeName.equals("float")) {
-            sb.append('F');
-        } else if (typeName.equals("double")) {
-            sb.append('D');
-        } else {
-            sb.append('L');
-            index = typeName.indexOf("/");   // check if it's a hidden class
-            if (index < 0) {
-                sb.append(typeName.replace('.', '/'));
-            } else {
-                sb.append(typeName.substring(0, index).replace('.', '/'));
-                sb.append(".");
-                sb.append(typeName.substring(index + 1));
-            }
-            sb.append(';');
+        switch (typeName) {
+            case "boolean":
+                sb.append('Z');
+                break;
+            case "byte":
+                sb.append('B');
+                break;
+            case "char":
+                sb.append('C');
+                break;
+            case "short":
+                sb.append('S');
+                break;
+            case "int":
+                sb.append('I');
+                break;
+            case "long":
+                sb.append('J');
+                break;
+            case "float":
+                sb.append('F');
+                break;
+            case "double":
+                sb.append('D');
+                break;
+            default:
+                sb.append('L');
+                index = typeName.indexOf("/");   // check if it's a hidden class
+
+                if (index < 0) {
+                    sb.append(typeName.replace('.', '/'));
+                } else {
+                    sb.append(typeName.substring(0, index).replace('.', '/'));
+                    sb.append(".");
+                    sb.append(typeName.substring(index + 1));
+                }
+                sb.append(';');
+                break;
         }
 
         return sb.toString();
@@ -249,6 +260,25 @@ public class JNITypeParser {
                     "Invalid JNI signature character '" + key + "'");
 
         }
+    }
+
+    /** -1 if invalid */
+    public static int getTagForFirstSignatureChar(char c) {
+        switch (c) {
+            case (JDWP.Tag.ARRAY):
+            case (JDWP.Tag.OBJECT):
+            case (JDWP.Tag.VOID):
+            case (JDWP.Tag.BOOLEAN):
+            case (JDWP.Tag.BYTE):
+            case (JDWP.Tag.CHAR):
+            case (JDWP.Tag.SHORT):
+            case (JDWP.Tag.INT):
+            case (JDWP.Tag.LONG):
+            case (JDWP.Tag.FLOAT):
+            case (JDWP.Tag.DOUBLE):
+                return c;
+        }
+        return -1;
     }
 
     private String nextTypeName() {

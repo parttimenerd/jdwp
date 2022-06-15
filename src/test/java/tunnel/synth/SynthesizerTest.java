@@ -6,6 +6,9 @@ import jdwp.ReferenceTypeCmds.ClassFileVersionReply;
 import jdwp.ReferenceTypeCmds.ClassFileVersionRequest;
 import jdwp.ReferenceTypeCmds.InstancesReply;
 import jdwp.ReferenceTypeCmds.InstancesRequest;
+import jdwp.StackFrameCmds.GetValuesReply;
+import jdwp.StackFrameCmds.GetValuesRequest;
+import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import jdwp.util.Pair;
@@ -13,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import tunnel.synth.Partitioner.Partition;
+import tunnel.synth.ProgramTest.RecordingFunctions;
+import tunnel.synth.program.Evaluator;
 import tunnel.synth.program.Program;
 import tunnel.util.Either;
 
@@ -22,6 +27,8 @@ import java.util.function.Function;
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static tunnel.synth.DependencyGraph.DEFAULT_OPTIONS;
+import static tunnel.synth.DependencyGraphTest.getGetValuesRequestPartition;
 
 public class SynthesizerTest {
 
@@ -192,12 +199,12 @@ public class SynthesizerTest {
                 List.of(func.apply(1),
                         p(new InstancesRequest(0, Reference.klass(110L), wrap(8)),
                                 new InstancesReply(0, new ListValue<>(Type.OBJECT)))));
-        var dep = DependencyGraph.compute(partition);
+        var dep = DependencyGraph.compute(partition, DEFAULT_OPTIONS.withCheckPropertyNames(false));
         assertEquals("((= cause (request VirtualMachine IDSizes)) " +
                         "(= var0 (request VirtualMachine IDSizes)) (= var1 " +
                         "(request ReferenceType Instances (\"maxInstances\")=(get var0 \"fieldIDSize\") (\"refType\")" +
                         "=(wrap \"klass\" 110))))",
-                Synthesizer.synthesizeProgram(partition).toString());
+                Synthesizer.synthesizeProgram(dep).toString());
     }
 
     @Test
@@ -211,11 +218,61 @@ public class SynthesizerTest {
                                 new ClassFileVersionReply(2, wrap(8), wrap(8))),
                         p(new InstancesRequest(3, Reference.klass(110L), wrap(8)),
                                 new InstancesReply(3, new ListValue<>(Type.OBJECT)))));
-        var dep = DependencyGraph.compute(partition);
-        assertEquals("((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)) (= var1 " +
-                        "(request ReferenceType ClassFileVersion (\"refType\")=(wrap \"klass\" 110))) (= var2 " +
-                        "(request ReferenceType Instances (\"maxInstances\")=(get var0 \"fieldIDSize\") (\"refType\")" +
-                        "=(wrap \"klass\" 110))))",
-                Synthesizer.synthesizeProgram(partition).toString());
+        var dep = DependencyGraph.compute(partition, DEFAULT_OPTIONS.withCheckPropertyNames(false));
+        System.out.println(Synthesizer.synthesizeProgram(dep).toPrettyString());
+        assertEquals("((= cause (request VirtualMachine IDSizes))\n" +
+                        "  (= var0 (request VirtualMachine IDSizes))\n" +
+                        "  (= var1 (request ReferenceType ClassFileVersion (\"refType\")=(wrap \"klass\" 110)))\n" +
+                        "  (= var2 (request ReferenceType Instances (\"maxInstances\")=(get var1 \"majorVersion\") " +
+                        "(\"refType\")=(wrap \"klass\" 110))))",
+                Synthesizer.synthesizeProgram(dep).toPrettyString());
+    }
+
+    @Test
+    public void testBasicTransformerUsage() {
+        Function<Integer, Pair<Request<?>, Reply>> func = id -> p(new jdwp.VirtualMachineCmds.IDSizesRequest(id),
+                new jdwp.VirtualMachineCmds.IDSizesReply(id, wrap(8), wrap(8),
+                        wrap(8), wrap(8), wrap(8)));
+        var partition = new Partition(Either.left(func.apply(1).first),
+                List.of(func.apply(1), p(new GetValuesRequest(2, Reference.thread(1L), Reference.frame(1L),
+                                new ListValue<>(new SlotInfo(wrap(1), wrap((byte) Type.INT.getTag())))),
+                        new GetValuesReply(2, new ListValue<>(Type.LIST, List.of(wrap(1)))))));
+        var graph = DependencyGraph.compute(partition,
+                DEFAULT_OPTIONS.withCheckPropertyNames(false).withUseTransformers(true));
+        assertEquals("((= cause (request VirtualMachine IDSizes))\n" +
+                "  (= var0 (request VirtualMachine IDSizes))\n" +
+                "  (= var1 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 1) (\"thread\")=(wrap \"thread\"" +
+                " 1) (\"slots\" 0 \"sigbyte\")=(getTagForValue (get var0 \"fieldIDSize\")) (\"slots\" 0 \"slot\")=" +
+                "(wrap \"int\" 1))))", Synthesizer.synthesizeProgram(graph).toPrettyString());
+    }
+
+    /**
+     * it is kind of difficult, as all slots have the same type
+     * (see {@link DependencyGraphTest#getGetValuesRequestPartition})
+     */
+    @Test
+    public void testMapCallSynthesisForGetValuesRequest() {
+        var partition = getGetValuesRequestPartition(2);
+        var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
+        var program = Synthesizer.synthesizeProgram(graph,
+                Synthesizer.DEFAULT_OPTIONS.withMapCallStatements(true));
+        System.out.println(program.toPrettyString());
+        assertEquals(Program.parse("(\n" +
+                "  (= var0 (request Method VariableTable ('methodID')=(wrap 'method' 32505856) " +
+                "     ('refType')=(wrap 'klass' 10)))\n" +
+                "  (map map0 (get var0 'slots') iter0 ('sigbyte')=(getTagForSignature (get iter0 'signature')) " +
+                "     ('slot')=(get iter0 'slot'))\n" +
+                "  (= var1 (request StackFrame GetValues ('frame')=(wrap 'frame' 1) ('slots')=map0 " +
+                "     ('thread')=(wrap 'thread' 1))))").toPrettyString(), program.toPrettyString());
+        // now check that the evaluation works
+        var funcs = new RecordingFunctions() {
+            @Override
+            protected Value processRequest(Request<?> request) {
+                requests.add(request);
+                return partition.stream().filter(p -> p.first.equals(request)).findFirst().get().second.asCombined();
+            }
+        };
+        new Evaluator(new VM(1), funcs, Throwable::printStackTrace).evaluate(program);
+        assertEquals(List.of(partition.get(0).first, partition.get(1).first), funcs.requests);
     }
 }

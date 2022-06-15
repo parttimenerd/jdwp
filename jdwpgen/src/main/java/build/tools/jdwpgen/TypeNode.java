@@ -26,7 +26,8 @@
 package build.tools.jdwpgen;
 
 
-import java.io.*;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 interface TypeNode {
 

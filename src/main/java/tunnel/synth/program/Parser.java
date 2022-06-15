@@ -45,10 +45,6 @@ public class Parser {
         return current;
     }
 
-    private int current() {
-        return current;
-    }
-
     private boolean isEOF() {
         return current == -1;
     }
@@ -132,7 +128,7 @@ public class Parser {
         skipWhitespace();
         var ret = parseIdentifier();
         skipWhitespace();
-        var expression = parseExpression();
+        var expression = parseExpression(true);
         var statement = new AssignmentStatement(ret, expression);
         ret.setSource(statement);
         return statement;
@@ -149,9 +145,7 @@ public class Parser {
         skipWhitespace();
         var body = parseBlock();
         identifiers.pop();
-        var loop = new Loop(iter, iterable, body);
-        iter.setSource(loop);
-        return loop;
+        return new Loop(iter, iterable, body);
     }
 
     MapCallStatement parseMapCallStatement() {
@@ -166,11 +160,7 @@ public class Parser {
         skipWhitespace();
         List<CallProperty> arguments = parseCallPropertyList();
         identifiers.pop();
-        var statement = new MapCallStatement(variable, iterable, iter, arguments);
-        iter.setSource(statement);
-        iter.setMapIterableRelated(true);
-        variable.setSource(statement);
-        return statement;
+        return new MapCallStatement(variable, iterable, iter, arguments);
     }
 
     SwitchStatement parseSwitchStatement() {
@@ -204,17 +194,24 @@ public class Parser {
     }
 
     Expression parseExpression() {
+        return parseExpression(false);
+    }
+
+    Expression parseExpression(boolean allowPacketCall) {
         if (current == '(') {
-            return parseFunctionCall();
+            return parseFunctionCall(allowPacketCall);
         }
         return parsePrimitive();
     }
 
-    Expression parseFunctionCall() {
+    Expression parseFunctionCall(boolean allowPacketCall) {
         expect('(');
         skipWhitespace();
         var functionName = parseIdentifier().getName();
         if (functionName.equals("request") || functionName.equals("events")) {
+            if (!allowPacketCall) {
+                throw new SyntaxError(line, column, "request and events are not supported");
+            }
             return parsePacketCall(functionName);
         }
         skipWhitespace();
@@ -259,8 +256,7 @@ public class Parser {
     CallProperty parseCallProperty() {
         AccessPath path = parseAccessPath();
         expect('=');
-        FunctionCall accessor = (FunctionCall) parseFunctionCall();
-        return new CallProperty(path, accessor);
+        return new CallProperty(path, parseExpression());
     }
 
     public AccessPath parseAccessPath() {

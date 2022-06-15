@@ -77,10 +77,11 @@ public abstract class AbstractParsedPacket extends CombinedValue implements Pars
     }
 
     /**
-     * Create an object for a list of tagged values, inverse of {@link #getTaggedValues()}
+     * Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} (with minor conversion)
      */
     public static <T extends AbstractParsedPacket> T createForTagged(int id, Class<T> klass,
-                                                                     Stream<TaggedBasicValue<?>> taggedArguments) {
-        return CombinedValue.createForTagged(klass, taggedArguments, (k, values) -> create(id, k, values));
+                                                                     Stream<? extends TaggedValue<?>> taggedArguments) {
+        return CombinedValue.createForTagged(klass, taggedArguments,
+                (k, values) -> create(id, k, values));
     }
 }

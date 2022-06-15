@@ -69,6 +69,10 @@ public abstract class Value implements ToCode {
             this.tag = tag;
         }
 
+        public String getFirstSignatureChar() {
+            return String.valueOf((char) tag);
+        }
+
         static Type forPrimitive(byte tag) {
             switch ((int)tag) {
                 case Tag.BOOLEAN:
@@ -291,14 +295,14 @@ public abstract class Value implements ToCode {
 
         /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
         public static <T extends CombinedValue> T createForTagged(
-                Class<T> klass, Stream<TaggedBasicValue<?>> taggedArguments) {
+                Class<T> klass, Stream<? extends TaggedValue<?>> taggedArguments) {
             return CombinedValue.createForTagged(klass, taggedArguments, CombinedValue::create);
         }
 
         /** Create an object for a list of tagged values, inverse of {@link #getTaggedValues()} */
         protected static <T extends CombinedValue> T createForTagged(
                 Class<T> klass,
-                Stream<TaggedBasicValue<?>> taggedArguments,
+                Stream<? extends TaggedValue<?>> taggedArguments,
                 BiFunction<Class<T>, Map<String, Value>, T> creator) {
             return creator.apply(
                     klass,
@@ -340,10 +344,10 @@ public abstract class Value implements ToCode {
 
         private static <T> Map<T, Value> collectArguments(
                 Class<?> klass,
-                Stream<TaggedBasicValue<?>> taggedArguments,
-                BiFunction<T, List<TaggedBasicValue<?>>, Value> subCreate) {
+                Stream<? extends TaggedValue<?>> taggedArguments,
+                BiFunction<T, List<TaggedValue<?>>, Value> subCreate) {
             Map<T, Value> arguments = new HashMap<>();
-            Map<T, List<TaggedBasicValue<?>>> subValues = new HashMap<>();
+            Map<T, List<TaggedValue<?>>> subValues = new HashMap<>();
             taggedArguments.forEach(
                     tv -> {
                         var name = (T) tv.getFirstPathElement();
@@ -374,6 +378,19 @@ public abstract class Value implements ToCode {
                                 }
                             });
             return arguments;
+        }
+
+        /** does this value directly contain a ListValue? */
+        public boolean hasListValuedFields() {
+            return getValues().stream().anyMatch(p -> ListValue.class.isAssignableFrom(p.second.getClass()));
+        }
+
+        /** get the direct properties of type ListValue */
+        public List<String> getListValuedFields() {
+            return getValues().stream()
+                    .filter(p -> ListValue.class.isAssignableFrom(p.second.getClass()))
+                    .map(p -> p.first)
+                    .collect(Collectors.toList());
         }
     }
 
@@ -426,6 +443,8 @@ public abstract class Value implements ToCode {
         }
 
         public int size() { return values.size(); }
+
+        public boolean isEmpty() { return values.isEmpty(); }
 
         @Override
         public void write(PacketOutputStream ps) {
@@ -505,7 +524,7 @@ public abstract class Value implements ToCode {
         public static <T extends ListValue<? extends Value>> T createForTagged(
                 Class<T> klass,
                 Class<? extends Value> elementType, // obtain via annotation on level above
-                Stream<TaggedBasicValue<?>> taggedArguments) {
+                Stream<? extends TaggedValue<?>> taggedArguments) {
             Objects.requireNonNull(elementType);
             if (ListValue.class.isAssignableFrom(elementType)) {
                 throw new AssertionError("no nested lists supported");
@@ -528,8 +547,8 @@ public abstract class Value implements ToCode {
                                         if (elementType.equals(EventCommon.class) || elementType.equals(ModifierCommon.class)) {
                                             // handle events differently
                                             String kindClass = "";
-                                            List<TaggedBasicValue<?>> cleanedValues = new ArrayList<>();
-                                            for (TaggedBasicValue<?> value : values) {
+                                            List<TaggedValue<?>> cleanedValues = new ArrayList<>();
+                                            for (TaggedValue<?> value : values) {
                                                 if (value.getPath().get(0).equals("kind")) {
                                                     kindClass = ((StringValue)value.value).value;
                                                 } else {
@@ -801,13 +820,13 @@ public abstract class Value implements ToCode {
 
     @Getter
     @EqualsAndHashCode(callSuper = false)
-    public static class TaggedBasicValue<V extends BasicValue> extends BasicValue {
+    public static class TaggedValue<V extends Value> extends Value {
 
         @NotNull public final AccessPath path;
         @NotNull
         public final V value;
 
-        public TaggedBasicValue(AccessPath path, V value) {
+        public TaggedValue(AccessPath path, V value) {
             super(value.type);
             this.path = path;
             this.value = value;
@@ -819,6 +838,53 @@ public abstract class Value implements ToCode {
         }
 
         @Override
+        public String toCode() {
+            return String.format("new TaggedValue()"); // currently not supported
+        }
+
+        @Override
+        public String toString() {
+            return "TaggedValue{" +
+                    "path=" + path +
+                    ", value=" + value +
+                    '}';
+        }
+
+        public boolean hasSinglePath() {
+            return path.size() == 1;
+        }
+
+        /** returns the first path element, either string or int */
+        public Object getFirstPathElement() {
+            return path.get(0);
+        }
+
+        /** assumes that the path has at least size 2 and drops the first path element */
+        public TaggedValue<?> dropFirstPathElement() {
+            assert path.size() >= 2;
+            return new TaggedValue<>(path.dropFirstPathElement(), value);
+        }
+
+        public TaggedValue<V> prependPath(Object... prefix) {
+            return new TaggedValue<>(path.prepend(prefix), value);
+        }
+
+        public TaggedValue<V> prependPath(AccessPath prefix) {
+            return new TaggedValue<>(path.prepend(prefix), value);
+        }
+    }
+
+    @Getter
+    @EqualsAndHashCode(callSuper = false)
+    public static class TaggedBasicValue<V extends BasicValue> extends TaggedValue<V> {
+        @NotNull
+        public final V value;
+
+        public TaggedBasicValue(AccessPath path, V value) {
+            super(path, value);
+            this.value = value;
+        }
+
         public BasicGroup getGroup() {
             return value.getGroup();
         }
@@ -836,15 +902,6 @@ public abstract class Value implements ToCode {
                     '}';
         }
 
-        public boolean hasSinglePath() {
-            return path.size() == 1;
-        }
-
-        /** returns the first path element, either string or int */
-        public Object getFirstPathElement() {
-            return path.get(0);
-        }
-
         /** assumes that the path has at least size 2 and drops the first path element */
         public TaggedBasicValue<?> dropFirstPathElement() {
             assert path.size() >= 2;
@@ -859,7 +916,6 @@ public abstract class Value implements ToCode {
             return new TaggedBasicValue<>(path.prepend(prefix), value);
         }
 
-        @Override
         public boolean isDirectPointer() {
             return value.isDirectPointer();
         }

@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.wrap;
+import static jdwp.Value.Type.OBJECT;
 import static jdwp.util.Pair.p;
 import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
@@ -29,7 +30,7 @@ public class Evaluator {
         private final Map<String, Value> entries;
 
         public MapCallResultEntry(Map<String, Value> entries) {
-            super(Type.OBJECT);
+            super(OBJECT);
             this.entries = entries;
         }
 
@@ -46,6 +47,33 @@ public class Evaluator {
         @Override
         public Value get(String key) {
             return entries.get(key);
+        }
+
+        @Override
+        public String toString() {
+            return entries.toString();
+        }
+
+        public List<TaggedValue<?>> toTaggedValues(AccessPath basePath) {
+            return entries.entrySet().stream()
+                    .map(e -> new TaggedValue<>(basePath.append(e.getKey()), e.getValue()))
+                    .collect(Collectors.toList());
+        }
+    }
+
+    /**
+     * list stored by an evaluation of {@link MapCallStatement}
+     */
+    public static class MapCallResult extends ListValue<MapCallResultEntry> {
+
+        public MapCallResult(List<MapCallResultEntry> values) {
+            super(OBJECT, values);
+        }
+
+        public List<TaggedValue<?>> toTaggedValues(AccessPath basePath) {
+            return getValues().stream()
+                    .flatMap(e -> ((MapCallResultEntry) e.second).toTaggedValues(basePath.append(e.first)).stream())
+                    .collect(Collectors.toList());
         }
     }
 
@@ -210,7 +238,7 @@ public class Evaluator {
                             throw new EvaluationAbortException(false,
                                     String.format("Iterable %s not walkable in map %s", iterable, mapCall));
                         }
-                        ListValue<Value> result;
+                        MapCallResult result;
                         scope.push();
                         try {
                             var vals = ((WalkableValue<?>) iterable).getValues().stream()
@@ -220,7 +248,8 @@ public class Evaluator {
                                             try {
                                                 scope.push();
                                                 scope.put(mapCall.getIter().getName(), p.second);
-                                                return evaluate(scope, firstArgument.getAccessor());
+                                                return new MapCallResultEntry(Map.of("", evaluate(scope,
+                                                        firstArgument.getAccessor())));
                                             } finally {
                                                 scope.pop();
                                             }
@@ -237,7 +266,7 @@ public class Evaluator {
                                         }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
                                     })
                                     .collect(Collectors.toList());
-                            result = new ListValue<>(vals.isEmpty() ? Type.OBJECT : vals.get(0).type, vals);
+                            result = new MapCallResult(vals);
                         } catch (AssertionError | Exception e) {
                             e.printStackTrace();
                             addToNotEvaluated(mapCall);
@@ -271,7 +300,8 @@ public class Evaluator {
                                     } catch (AssertionError | Exception e) {
                                         addToNotEvaluated(s);
                                         throw new EvaluationAbortException(
-                                                e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
+                                                e instanceof EvaluationAbortException &&
+                                                        ((EvaluationAbortException) e).discard,
                                                 "switch case expression evaluation failed", e);
                                     }
                                 }, s -> s));
@@ -334,7 +364,7 @@ public class Evaluator {
 
     @SuppressWarnings("unchecked")
     public AbstractParsedPacket evaluatePacketCall(Scopes<Value> scope, PacketCall packetCall) {
-        Stream<TaggedBasicValue<?>> values =
+        Stream<TaggedValue<?>> values =
                 evaluateValues(scope, packetCall);
         var name = packetCall instanceof RequestCall ?
                 String.format("jdwp.%sCmds$%sRequest", packetCall.getCommandSet(),
@@ -352,15 +382,15 @@ public class Evaluator {
     }
 
     @NotNull
-    private Stream<TaggedBasicValue<?>> evaluateValues(Scopes<Value> scope, PacketCall packetCall) {
+    private Stream<TaggedValue<?>> evaluateValues(Scopes<Value> scope, PacketCall packetCall) {
         return packetCall.getProperties().stream()
-                .map(
+                .flatMap(
                         p -> {
                             var value = evaluate(scope, p.getAccessor());
-                            if (!(value instanceof BasicValue)) {
-                                throw new AssertionError();
+                            if (value instanceof MapCallResult) {
+                                return ((MapCallResult) value).toTaggedValues(p.getPath()).stream();
                             }
-                            return new TaggedBasicValue<>(p.getPath(), (BasicValue) value);
+                            return Stream.of(new TaggedValue<>(p.getPath(), value));
                         });
     }
 

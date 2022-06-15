@@ -32,10 +32,6 @@ public class ContainedValues {
         this.map = map;
     }
 
-    public ContainedValues(ContainedValues parent) {
-        this(parent, new HashMap<>());
-    }
-
     public void add(TaggedBasicValue<?> value) {
         put(value.value, value);
     }
@@ -66,11 +62,6 @@ public class ContainedValues {
         assert containsBasicValue(value);
         return map.get(value);
     }
-
-    public Collection<BasicValue> getBasicValues() {
-        return map.keySet();
-    }
-
     public Collection<Entry<BasicValue, List<TaggedBasicValue<?>>>> entrySet() {
         return map.entrySet();
     }
@@ -81,5 +72,9 @@ public class ContainedValues {
             return String.format("ContainedValues{%s; %s}", parent, map);
         }
         return String.format("ContainedValues{%s}", map);
+    }
+
+    public boolean isEmpty() {
+        return map.isEmpty();
     }
 }

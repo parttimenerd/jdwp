@@ -116,6 +116,16 @@ internal object CodeGeneration {
             this
         }
 
+        `public`(TypeName.BOOLEAN, "hasListValuedFields") {
+            `@Override`()
+            _return(fields.any { f -> f is RepeatNode }.L)
+        }
+
+        `public`(pt("List", "String"), "getListValuedFields") {
+            `@Override`()
+            _return("List.of(${fields.filterIsInstance<RepeatNode>().joinToString(", ") { f -> f.name().S }})")
+        }
+
         genVisitorAccept(allVisitorName)
 
         return this
@@ -667,7 +677,7 @@ internal object CodeGeneration {
         this
     }
 
-    public fun typeNameToParameterName(typeName: String) = typeName.split(".").last().lowercaseFirstCharacter()
+    private fun typeNameToParameterName(typeName: String) = typeName.split(".").last().lowercaseFirstCharacter()
 
     fun String.lowercaseFirstCharacter() = this[0].lowercase() + substring(1, length)
 

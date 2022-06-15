@@ -47,8 +47,9 @@ public interface AST {
     }
 
     abstract class Expression implements AST {
-        public static Expression parse(String input) {
-            return new Parser(input).parseExpression();
+        @SuppressWarnings("unckecked")
+        public static <T extends Expression> T parse(String input) {
+            return (T) new Parser(input).parseExpression(true);
         }
 
         public abstract void accept(ExpressionVisitor visitor);
@@ -609,7 +610,8 @@ public interface AST {
 
         private Set<String> getKinds() {
             return getProperties().stream().filter(p -> p.getPath().endsWith("kind"))
-                    .map(p -> ((StringLiteral) p.getAccessor().arguments.get(1)).value).collect(Collectors.toSet());
+                    .map(p -> ((StringLiteral) ((FunctionCall) p.getAccessor()).arguments.get(1)).value)
+                    .collect(Collectors.toSet());
         }
     }
 
@@ -621,7 +623,7 @@ public interface AST {
     @EqualsAndHashCode(callSuper = false)
     class CallProperty extends Expression {
         private final AccessPath path;
-        private final FunctionCall accessor;
+        private final Expression accessor;
 
         @Override
         public String toString() {
@@ -656,11 +658,18 @@ public interface AST {
 
     @Getter
     @EqualsAndHashCode(callSuper = false)
-    @AllArgsConstructor
     class Loop extends Statement implements CompoundStatement<Loop>, PartiallyMergeable<Loop> {
         private final Identifier iter;
         private final Expression iterable;
         private final Body body;
+
+        public Loop(Identifier iter, Expression iterable, Body body) {
+            this.iter = iter;
+            this.iterable = iterable;
+            this.body = body;
+            iter.setSource(this);
+            iter.setLoopIterableRelated(true);
+        }
 
         public Loop(Identifier iter, Expression iterable, List<Statement> body) {
             this(iter, iterable, new Body(body));
@@ -920,6 +929,9 @@ public interface AST {
             this.iterable = iterable;
             this.iter = iter;
             this.arguments = arguments;
+            iter.setSource(this);
+            iter.setMapIterableRelated(true);
+            variable.setSource(this);
             checkArguments();
         }
 

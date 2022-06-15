@@ -1,6 +1,5 @@
 package tunnel.synth;
 
-import com.sun.jdi.IntegerValue;
 import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.Value.BasicValue;
@@ -46,10 +45,10 @@ public class DependencyGraph {
         private final T valueAtTarget;
 
         private @Nullable
-        final Set<BasicValueTransformer<O>> transformers;
+        final List<BasicValueTransformer<O>> transformers;
 
         private DoublyTaggedBasicValue(List<AccessPath> targetPaths, AccessPath atValueOrigin, O valueAtOrigin,
-                                       T valueAtTarget, @Nullable Set<BasicValueTransformer<O>> transformers) {
+                                       T valueAtTarget, @Nullable List<BasicValueTransformer<O>> transformers) {
             this.targetPaths = targetPaths;
             this.originPath = atValueOrigin;
             this.valueAtOrigin = valueAtOrigin;
@@ -59,7 +58,7 @@ public class DependencyGraph {
                     (transformers == null && valueAtOrigin != valueAtTarget)) {
                 throw new AssertionError();
             }
-            assert transformers == null || transformers.stream().allMatch(t -> t.isApplicable(valueAtTarget));
+            assert transformers == null || transformers.stream().allMatch(t -> t.isApplicable(valueAtOrigin));
         }
 
         public static <T extends BasicValue> DoublyTaggedBasicValue<T, T>
@@ -75,7 +74,7 @@ public class DependencyGraph {
 
         public static <O extends BasicValue, T extends BasicValue> DoublyTaggedBasicValue<O, T>
         createIndirect(List<AccessPath> targetPaths, T targetValue, TaggedBasicValue<O> taggedOrigin,
-                       Set<BasicValueTransformer<O>> transformers) {
+                       List<BasicValueTransformer<O>> transformers) {
             return new DoublyTaggedBasicValue<>(targetPaths, taggedOrigin.getPath(), taggedOrigin.value, targetValue,
                     transformers);
         }
@@ -99,6 +98,14 @@ public class DependencyGraph {
          */
         public boolean isDirect() {
             return transformers == null;
+        }
+
+        public BasicValueTransformer<?> getSingleTransformer() {
+            assert transformers != null;
+            if (transformers.size() == 1) {
+                return transformers.iterator().next();
+            }
+            return transformers.stream().min(Comparator.naturalOrder()).get();
         }
     }
 
@@ -215,6 +222,22 @@ public class DependencyGraph {
             return dependedBy.stream().map(Edge::getTarget).collect(Collectors.toSet());
         }
 
+        public List<DoublyTaggedBasicValue<?, ?>> getDoublyTaggedValuesForField(AccessPath targetPathPrefix) {
+            return dependsOn.stream().filter(e -> e.usedValues.stream()
+                            .anyMatch(v -> v.targetPaths.stream().anyMatch(t -> t.startsWith(targetPathPrefix))))
+                    .map(Edge::getUsedValues).flatMap(List::stream).collect(Collectors.toList());
+        }
+
+        /**
+         * @return [(doubly, origin node)]
+         */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        public List<Pair<DoublyTaggedBasicValue<?, ?>, Node>> getDoublyTaggedValuesAndNodesForField(AccessPath targetPathPrefix) {
+            return (List<Pair<DoublyTaggedBasicValue<?, ?>, Node>>) (List) dependsOn.stream().filter(e -> e.usedValues.stream()
+                            .anyMatch(v -> v.targetPaths.stream().anyMatch(t -> t.startsWith(targetPathPrefix))))
+                    .flatMap(e -> e.getUsedValues().stream().map(d -> p(d, e.getTarget()))).collect(Collectors.toList());
+        }
+
         public @Nullable Pair<Request<?>, Reply> getOrigin() {
             return origin;
         }
@@ -271,10 +294,9 @@ public class DependencyGraph {
     /**
      * configure the graph computation, allows to disable potentially expensive features
      */
-    @Getter
-    @Setter
+    @Data
     @AllArgsConstructor
-    @ToString
+    @NoArgsConstructor
     public static class ComputationOptions {
         /**
          * Use the transformers via {@link Functions#getTransformers(VM, BasicValue, BasicValue)}
@@ -282,9 +304,13 @@ public class DependencyGraph {
          * Should be more expensive
          */
         @With
-        private boolean useTransformers = false;
+        private boolean useTransformers = true;
+        /**
+         * reduce complexity by just using the first matching value, should decrease the possibilities of the
+         * synthesizers to synthesize more complex control structures
+         */
         @With
-        private boolean useFirstValueInTarget = true;
+        private boolean useFirstValueInTarget = false;
         /**
          * Check whether the access paths of origin and target are compatible, mainly used for
          * int and byte values. Could later be replaced by adding type aliases to the spec for differentiation.
@@ -293,13 +319,10 @@ public class DependencyGraph {
          */
         @With
         public boolean checkPropertyNames = true;
-
-        public ComputationOptions() {
-
-        }
     }
 
     public static final ComputationOptions DEFAULT_OPTIONS = new ComputationOptions();
+    public static final ComputationOptions MINIMAL_OPTIONS = new ComputationOptions(false, true, false);
 
     /**
      * ... with default options
@@ -366,8 +389,10 @@ public class DependencyGraph {
                     var otherContainedValues = containedValues.get(other).second; // use the reply
                     var matches = findMatchingValue(options, value, entry.getValue(), otherContainedValues);
                     if (matches.size() > 0) {
-                        dependsOn.computeIfAbsent(other, x -> new ArrayList<>()).add(matches.get(0));
-                        break;
+                        dependsOn.computeIfAbsent(other, x -> new ArrayList<>()).addAll(matches);
+                        if (options.useFirstValueInTarget) {
+                            break;
+                        }
                     }
                 }
             }
@@ -381,19 +406,26 @@ public class DependencyGraph {
     private static List<DoublyTaggedBasicValue<?, ?>>
     findMatchingValue(ComputationOptions options, BasicValue targetValue, List<TaggedBasicValue<?>> targetTaggeds,
                       ContainedValues otherContainedValues) {
+        if (otherContainedValues.isEmpty()) {
+            return List.of();
+        }
         List<DoublyTaggedBasicValue<BasicValue, BasicValue>> matches = new ArrayList<>();
         if (otherContainedValues.containsBasicValue(targetValue)) {
-            var targetPaths = targetTaggeds.stream().map(TaggedBasicValue::getPath).collect(Collectors.toList());
+            var targetPaths = targetTaggeds.stream()
+                    .map(TaggedBasicValue::getPath).collect(Collectors.toList());
             var originValues =
-                    options.useFirstValueInTarget ? List.of(otherContainedValues.getFirstTaggedValue(targetValue)) :
+                    options.useFirstValueInTarget && !options.checkPropertyNames ?
+                            List.of(otherContainedValues.getFirstTaggedValue(targetValue)) :
                             otherContainedValues.getTaggedValues(targetValue);
             for (TaggedBasicValue<?> value : originValues) {
-                if (options.checkPropertyNames) {
-                    targetPaths = filterAccessPathsForCompatibility(targetPaths, value);
-                }
-                if (targetPaths.size() > 0) {
+                var paths = options.checkPropertyNames ?
+                        filterAccessPathsForCompatibility(targetPaths, value) : targetPaths;
+                if (paths.size() > 0) {
                     matches.add((DoublyTaggedBasicValue<BasicValue, BasicValue>)
-                            DoublyTaggedBasicValue.createDirect(targetPaths, value));
+                            DoublyTaggedBasicValue.createDirect(paths, value));
+                    if (options.useFirstValueInTarget) {
+                        break;
+                    }
                 }
             }
         }
@@ -414,7 +446,7 @@ public class DependencyGraph {
                             matches.add(DoublyTaggedBasicValue.createIndirect(targetPaths,
                                     targetValue,
                                     (TaggedBasicValue<BasicValue>) value,
-                                    (Set<BasicValueTransformer<BasicValue>>) (Set) transformers));
+                                    (List<BasicValueTransformer<BasicValue>>) (List) transformers));
                         }
                     }
                 }
@@ -429,7 +461,7 @@ public class DependencyGraph {
     }
 
     private static boolean areAccessPathsCompatible(TaggedBasicValue<?> first, AccessPath second) {
-        if (first.getValue() instanceof IntegerValue || first.getValue() instanceof PrimitiveValue.ByteValue) {
+        if (first.getValue() instanceof PrimitiveValue.IntValue || first.getValue() instanceof PrimitiveValue.ByteValue) {
             return areAccessPathsCompatible(first.getPath(), second);
         }
         return true;
