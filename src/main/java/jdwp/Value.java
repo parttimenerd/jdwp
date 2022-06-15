@@ -46,7 +46,7 @@ public abstract class Value implements ToCode {
         BYTE(Tag.BYTE),
         CHAR(Tag.CHAR),
         OBJECT(Tag.OBJECT),
-        FLOAT(Tag.OBJECT),
+        FLOAT(Tag.FLOAT),
         DOUBLE(Tag.DOUBLE),
         INT(Tag.INT),
         LONG(Tag.LONG),

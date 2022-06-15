@@ -22,6 +22,7 @@ import tunnel.synth.program.Functions;
 import tunnel.synth.program.Program;
 import tunnel.util.Either;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -331,6 +332,30 @@ public class DependencyGraphTest {
                         "  ('slots' 0 'sigbyte')=(getTagForSignature (get var0 'slots' 0 'signature'))" +
                         "  ('slots' 0 'slot')=(get var0 'slots' 0 'slot'))))").toPrettyString(),
                 program.toPrettyString());
+    }
+
+    @Test
+    public void testSortWithDifferentOrderInPartition() {
+        var pair1 =
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(5, new ClassTypeReference(3L)),
+                        new jdwp.ClassTypeCmds.SuperclassReply(5, new ClassTypeReference(4L)));
+        var pair2 =
+                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(2, new ArrayReference(1L)),
+                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(2, PrimitiveValue.wrap((byte) 91),
+                                new ClassReference(3L)));
+        var partition1 = new Partition(null, List.of(pair1, pair2));
+        var partition2 = new Partition(null, List.of(pair2, pair1));
+        var dep1 = DependencyGraph.compute(partition1);
+        var layers1 = dep1.computeLayers();
+        assertEquals(2, layers1.size());
+        var nodes1 = new ArrayList<>(layers1.getAllNodes());
+        nodes1.sort(layers1.getNodeComparator());
+        var dep2 = DependencyGraph.compute(partition2);
+        var layers2 = dep2.computeLayers();
+        assertEquals(2, layers1.size());
+        var nodes2 = new ArrayList<>(layers2.getAllNodes());
+        nodes2.sort(layers2.getNodeComparator());
+        assertEquals(nodes1.toString(), nodes2.toString());
     }
 
     static TestRequest request(int id, Value value) {

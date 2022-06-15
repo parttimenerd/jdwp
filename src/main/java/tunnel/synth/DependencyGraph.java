@@ -107,6 +107,10 @@ public class DependencyGraph {
             }
             return transformers.stream().min(Comparator.naturalOrder()).get();
         }
+
+        public DoublyTaggedBasicValue<O, T> withNewTargetPaths(List<AccessPath> newPaths) {
+            return new DoublyTaggedBasicValue<>(newPaths, originPath, valueAtOrigin, valueAtTarget, transformers);
+        }
     }
 
     @Getter
@@ -228,6 +232,12 @@ public class DependencyGraph {
                     .map(Edge::getUsedValues).flatMap(List::stream).collect(Collectors.toList());
         }
 
+        public List<Edge> getDependedByField(AccessPath fieldPath) {
+            return dependedBy.stream().filter(e -> e.usedValues.stream()
+                            .anyMatch(v -> v.originPath.startsWith(fieldPath)))
+                    .collect(Collectors.toList());
+        }
+
         /**
          * @return [(doubly, origin node)]
          */
@@ -338,7 +348,8 @@ public class DependencyGraph {
      * ... from different objects: prefer the paths of the object that is first in the partition and therefore
      * was first received and thereby typically in a lower layer
      */
-    public static DependencyGraph compute(Partition partition, ComputationOptions options) {
+    public static DependencyGraph compute(Partition _partition, ComputationOptions options) {
+        var partition = _partition.sorted();
         // collect the values
         if (partition.isEmpty()) {
             return new DependencyGraph(partition.getCause());
@@ -347,7 +358,8 @@ public class DependencyGraph {
                 new ContainedValues();
         Map<Pair<Request<?>, Reply>, Pair<ContainedValues, ContainedValues>> containedValues = new HashMap<>();
         for (Pair<Request<?>, Reply> p : partition) {
-            containedValues.put(p, p(p.first.asCombined().getContainedValues(), p.second.asCombined().getContainedValues()));
+            containedValues.put(p, p(p.first.asCombined().getContainedValues(),
+                    p.second.asCombined().getContainedValues()));
         }
         DependencyGraph graph = new DependencyGraph(partition.getCause());
 
@@ -555,9 +567,14 @@ public class DependencyGraph {
      * <a href="https://git.scc.kit.edu/IPDSnelting/summary_cpp/-/blob/master/src/graph.hpp#L873">...</a>
      */
     public Layers computeLayers() {
+        return computeLayers(this, new HashSet<>(nodes.values()));
+    }
+
+    public static Layers computeLayers(@Nullable DependencyGraph graph, Set<Node> nodes) {
         List<Set<Node>> layers = new ArrayList<>();
-        Set<Node> activeNodes = new HashSet<>(nodes.values());
+        Set<Node> activeNodes = new HashSet<>(nodes);
         Set<Node> deadNodes = new HashSet<>();
+        Node causeNode = graph == null ? null : graph.causeNode;
         if (causeNode != null) {
             activeNodes.remove(causeNode);
             deadNodes.add(causeNode);
@@ -569,11 +586,12 @@ public class DependencyGraph {
             deadNodes.addAll(layer);
             layers.add(layer);
         }
-        return new Layers(this, layers);
+        return new Layers(graph, layers);
     }
 
-    Set<Node> findNodesWithOnlyDeadDependsOn(Set<Node> nodes, Set<Node> assumeDead) {
-        return nodes.stream().filter(n -> n.dependsOn.stream().allMatch(d -> assumeDead.contains(d.target)))
+    static Set<Node> findNodesWithOnlyDeadDependsOn(Set<Node> nodes, Set<Node> assumeDead) {
+        return nodes.stream().filter(n ->
+                        n.dependsOn.stream().allMatch(d -> assumeDead.contains(d.target) || !nodes.contains(d.target)))
                 .collect(Collectors.toSet());
     }
 
@@ -584,11 +602,11 @@ public class DependencyGraph {
     @Getter
     public static class Layers extends AbstractList<Set<Node>> {
 
-        private final DependencyGraph graph;
+        private final @Nullable DependencyGraph graph;
         private final List<Set<Node>> layers; // higher depend on lower
         private final Map<Node, Integer> nodeToLayerIndex;
 
-        public Layers(DependencyGraph graph, List<Set<Node>> layers) {
+        public Layers(@Nullable DependencyGraph graph, List<Set<Node>> layers) {
             this.graph = graph;
             this.layers = layers;
             this.nodeToLayerIndex = IntStream.range(0, layers.size()).boxed()
@@ -650,11 +668,11 @@ public class DependencyGraph {
             if (nodeComparator == null) {
                 nodeComparator = (left, right) -> {
                     assert left != null && right != null;
-                    if ((left.isCauseNode() || (graph.hasCauseNode() &&
+                    if ((left.isCauseNode() || (graph != null && graph.hasCauseNode() &&
                             left.origin.first.getId() == graph.cause.<ParsedPacket>get().getId())) && left.id != right.id) {
                         return -1;
                     }
-                    if ((right.isCauseNode() || (graph.hasCauseNode() &&
+                    if ((right.isCauseNode() || (graph != null && graph.hasCauseNode() &&
                             right.origin.first.getId() == graph.cause.<ParsedPacket>get().getId())) && left.id != right.id) {
                         return 1;
                     }

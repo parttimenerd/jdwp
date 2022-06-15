@@ -276,7 +276,7 @@ public class ProgramTest {
 
     @Test
     public void testParseEscapedString() {
-        assertEquals("\"", ((StringLiteral)Expression.parse("\"\\\"\"")).get());
+        assertEquals("\"", ((StringLiteral) Expression.parse("\"\\\"\"")).get());
     }
 
     @Test
@@ -284,8 +284,16 @@ public class ProgramTest {
         assertEquals("(get x 1 \"a\" 2)", Functions.createGetFunctionCall("x", new AccessPath(1, "a", 2)).toString());
     }
 
+    @Test
+    public void testParseGetFunctionWithExpression() {
+        assertEquals(
+                FunctionCall.<FunctionCall>parse("(get (get x 1) 1 \"a\" 2)"),
+                Functions.GET_FUNCTION.createCall(Functions.GET_FUNCTION.createCall("x", new AccessPath(1)),
+                        new AccessPath(1, "a", 2)));
+    }
+
     private static Object[][] requestParsingTestSource() {
-        return new Object[][] {
+        return new Object[][]{
                 {
                         new RequestCall(
                                 "VirtualMachine",

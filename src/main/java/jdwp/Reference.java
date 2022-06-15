@@ -295,8 +295,8 @@ public abstract class Reference extends BasicScalarValue<Long> {
         }
     }
 
-    public static class ArrayReference extends HeapReference {
-        ArrayReference(long val) {
+    public static class ArrayReference extends ObjectReference {
+        public ArrayReference(long val) {
             super(Type.ARRAY, val);
         }
 

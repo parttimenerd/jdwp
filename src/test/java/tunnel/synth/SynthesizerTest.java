@@ -1,11 +1,14 @@
 package tunnel.synth;
 
+import jdwp.ArrayReferenceCmds.LengthReply;
+import jdwp.ArrayReferenceCmds.LengthRequest;
+import jdwp.ClassTypeCmds.SuperclassReply;
+import jdwp.ClassTypeCmds.SuperclassRequest;
 import jdwp.*;
+import jdwp.ObjectReferenceCmds.ReferenceTypeReply;
+import jdwp.ObjectReferenceCmds.ReferenceTypeRequest;
 import jdwp.Reference.*;
-import jdwp.ReferenceTypeCmds.ClassFileVersionReply;
-import jdwp.ReferenceTypeCmds.ClassFileVersionRequest;
-import jdwp.ReferenceTypeCmds.InstancesReply;
-import jdwp.ReferenceTypeCmds.InstancesRequest;
+import jdwp.ReferenceTypeCmds.*;
 import jdwp.StackFrameCmds.GetValuesReply;
 import jdwp.StackFrameCmds.GetValuesRequest;
 import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
@@ -22,7 +25,9 @@ import tunnel.synth.program.Program;
 import tunnel.util.Either;
 
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
@@ -274,5 +279,56 @@ public class SynthesizerTest {
         };
         new Evaluator(new VM(1), funcs, Throwable::printStackTrace).evaluate(program);
         assertEquals(List.of(partition.get(0).first, partition.get(1).first), funcs.requests);
+    }
+
+    @Test
+    public void testTypeSwitchLoopSynthesis() {
+        /*
+        Idea: introduce type switch statements in the following program:
+
+  (= var14 (request StackFrame GetValues ("frame")=(get var10 "frames" 0 "frameID")
+    ("thread")=(get cause "events" 0 "thread")
+    ("slots" 0 "sigbyte")=(wrap "byte" 91) ("slots" 0 "slot")=(get var8 "slots" 0 "slot")
+    ("slots" 1 "sigbyte")=(wrap "byte" 76) ("slots" 1 "slot")=(get var6 "frameCount")
+    ("slots" 2 "sigbyte")=(wrap "byte" 73)
+    ("slots" 2 "slot")=(get var8 "slots" 2 "slot")))
+  (= var15 (request ObjectReference ReferenceType ("object")=(get var14 "values" 0)))
+  (= var16 (request ObjectReference ReferenceType ("object")=(get var14 "values" 1)))
+  (= var17 (request ArrayReference Length ("arrayObject")=(get var14 "values" 0)))
+  (= var18 (request ClassType Superclass ("clazz")=(get var16 "typeID")))
+  (= var19 (request ReferenceType Interfaces ("refType")=(get var16 "typeID")))
+  (= var20 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 4)))
+  (= var21 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 3)))
+         */
+        var arrayReference = Reference.array(1L);
+        var objectReference = Reference.object(2L);
+        var partition = new Partition(null, List.of(
+                p(new GetValuesRequest(1, Reference.thread(1L), Reference.frame(1L),
+                                new ListValue<>(new SlotInfo(wrap(1), wrap((byte) Type.INT.getTag())))),
+                        new GetValuesReply(1, new ListValue<>(Type.LIST, List.of(wrap(1), wrap(2),
+                                arrayReference, objectReference)))),
+                p(new ReferenceTypeRequest(2, arrayReference),
+                        new ReferenceTypeReply(2, wrap((byte) '['), Reference.klass(3L))),
+                p(new ReferenceTypeRequest(3, objectReference),
+                        new ReferenceTypeReply(3, wrap((byte) 'L'), Reference.klass(3L))),
+                p(new LengthRequest(4, arrayReference), new LengthReply(4, wrap(0))),
+                p(new SuperclassRequest(5, Reference.classType(3L)), new SuperclassReply(5, Reference.classType(4L)))
+        ));
+        var program = Synthesizer.synthesizeProgram(partition, Synthesizer.DEFAULT_OPTIONS);
+        assertEquals("(\n" +
+                "  (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 1) (\"thread\")=(wrap \"thread\"" +
+                " 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 0 \"slot\")=(wrap \"int\" 1)))\n" +
+                "  (for iter0 (get var0 \"values\") \n" +
+                "    (switch (getTagForValue iter0)\n" +
+                "      (case (wrap \"byte\" 76)\n" +
+                "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                "        (= var2 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\"))))\n" +
+                "      (case (wrap \"byte\" 91)\n" +
+                "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                "        (= var2 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
+                "        (= var3 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
+                program.toPrettyString());
+        // can we parse it?
+        Program.parse(program.toPrettyString());
     }
 }

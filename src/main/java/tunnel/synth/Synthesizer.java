@@ -17,6 +17,7 @@ import tunnel.synth.DependencyGraph.Edge;
 import tunnel.synth.DependencyGraph.Layers;
 import tunnel.synth.DependencyGraph.Node;
 import tunnel.synth.Partitioner.Partition;
+import tunnel.synth.program.AST;
 import tunnel.synth.program.Functions;
 import tunnel.synth.program.Functions.BasicValueTransformer;
 import tunnel.synth.program.Program;
@@ -25,14 +26,15 @@ import tunnel.util.Either;
 
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
 import static tunnel.synth.program.AST.*;
-import static tunnel.synth.program.Functions.GET_FUNCTION;
-import static tunnel.synth.program.Functions.createWrapperFunctionCall;
+import static tunnel.synth.program.Functions.*;
 
 /**
  * Transforms a dependency graph into a program.
@@ -50,17 +52,32 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
          * This synthesis is rather expensive.
          */
         @With
-        private boolean mapCallStatements = false;
+        private boolean mapCallStatements = true;
 
         /**
          * Minimal number of items in a list for a list to be considered in map call synthesis.
          */
         @With
         private int mapCallStatementsMinListSize = 2;
+
+        @With
+        private boolean loops = true;
+        /**
+         * Minimal number of lsit items have nodes that depend on them, for a list valued node to be considered
+         * a loop header node in loop synthesis
+         */
+        @With
+        private int loopMinListSize = 2;
+        /**
+         * synthesize switch cases in loops to distinguish between types
+         */
+        @With
+        private boolean switchCaseInLoop = true;
     }
 
     public final static SynthesizerOptions DEFAULT_OPTIONS = new SynthesizerOptions();
-    public final static SynthesizerOptions MINIMAL_OPTIONS = new SynthesizerOptions(false, 2);
+    public final static SynthesizerOptions MINIMAL_OPTIONS =
+            new SynthesizerOptions(false, 2, false, 2, false);
 
     @Override
     public void accept(Partition partition) {
@@ -73,6 +90,10 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
     public static final String ITER_NAME_PREFIX = "iter";
 
     public static Program synthesizeProgram(Partition partition) {
+        return synthesizeProgram(partition, DEFAULT_OPTIONS);
+    }
+
+    public static Program synthesizeProgram(Partition partition, SynthesizerOptions options) {
         try {
             return synthesizeProgram(DependencyGraph.compute(partition));
         } catch (AssertionError e) {
@@ -89,7 +110,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         // below the loop source
         Layers layers = graph.computeLayers();
         var names = new NodeNames(options);
-        var program = processNodes(names, layers, layers.getAllNodesWithoutDuplicates(), 2).first;
+        var program = processNodes(names, layers, layers.getAllNodesWithoutDuplicates()).first;
         return new Program(graph.hasCauseNode() ?
                 names.createPacketCauseCall(graph.getCause()) : null, program.getBody());
     }
@@ -101,6 +122,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         private final Set<String> mapCallNames;
         private int nameCount;
         private int iterNameCount;
+        private final Map<Integer, Map<AccessPath, Expression>> preHandledAccessPaths;
 
         public NodeNames(SynthesizerOptions options) {
             this.options = options;
@@ -108,6 +130,15 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             this.mapCallNames = new HashSet<>();
             this.nameCount = 0;
             this.iterNameCount = 0;
+            this.preHandledAccessPaths = new HashMap<>();
+        }
+
+        private boolean hasPrehandledAccessPaths(Node node) {
+            return preHandledAccessPaths.containsKey(node.getId());
+        }
+
+        private boolean isPrehandledAccessPath(Node node, AccessPath accessPath) {
+            return preHandledAccessPaths.get(node.getId()).containsKey(accessPath);
         }
 
         public String createNewName() {
@@ -161,6 +192,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
          * slot property of the VariableTableWithGeneric reply
          */
         private Map<AccessPath, MapCallStatement> searchForMapCalls(Node node) {
+            assert !hasPrehandledAccessPaths(node);
             var origin = node.getOrigin();
             assert origin != null;
             var request = origin.first.asCombined();
@@ -202,7 +234,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             return null; // we cannot work with types like lists (nested lists would fairly complicate things)
         }
 
-        @Value
+        @lombok.Value
         private static class TaggedFunctionCall {
             Node originNode;
             AccessPath accessPath;
@@ -214,7 +246,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             }
         }
 
-        @Value
+        @lombok.Value
         private static class TaggedFunctionCallOrBasicValue {
             TaggedFunctionCall taggedFunctionCall;
             BasicValue basicValue;
@@ -456,6 +488,25 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                     .collect(Collectors.toList());
         }
 
+        /**
+         * takes care of the handling of {@link #preHandledAccessPaths}
+         */
+        private Expression createGetFunctionCall(Node node, AccessPath path) {
+            if (preHandledAccessPaths.containsKey(node.getId())) {
+                for (Entry<AccessPath, Expression> e :
+                        preHandledAccessPaths.get(node.getId()).entrySet()) {
+                    if (path.equals(e.getKey())) {
+                        return e.getValue();
+                    }
+                    if (path.startsWith(e.getKey())) {
+                        return Functions.GET_FUNCTION.createCall(e.getValue(), path.subPath(e.getKey().size(),
+                                path.size()));
+                    }
+                }
+            }
+            return Functions.GET_FUNCTION.createCall(get(node), path);
+        }
+
         private List<Statement> createRequestCallStatements(Node node) {
             var statements = new ArrayList<Statement>();
             var origin = node.getOrigin();
@@ -476,7 +527,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 for (DoublyTaggedBasicValue<?, ?> usedValue : edge.getUsedValues().stream()
                         .sorted(Comparator.comparing(DoublyTaggedBasicValue::getOriginPath))
                         .collect(Collectors.toList())) {
-                    FunctionCall call = Functions.createGetFunctionCall(target, usedValue.getOriginPath());
+                    Expression call = createGetFunctionCall(edge.getTarget(), usedValue.getOriginPath());
                     if (!usedValue.isDirect()) {
                         call = usedValue.getSingleTransformer().createCall(call);
                     }
@@ -509,147 +560,317 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         private PacketCall createPacketCauseCall(Either<Request<?>, Events> call) {
             return call.isLeft() ? RequestCall.create(call.getLeft()) : EventsCall.create(call.getRight());
         }
+
+        @lombok.Value
+        private static class LoopIterationNodes {
+            Node loopHeader;
+            int iteration;
+            /**
+             * directly depend on the loop header node
+             */
+            Set<Node> innerHeader;
+            Map<Node, List<Edge>> innerHeaderWithValidEdges;
+            /**
+             * only depend on the inner header and on nodes in levels above the loop header
+             */
+            Set<Node> otherNodes;
+            Map<Node, List<Edge>> otherNodesWithValidEdges;
+
+            /**
+             * do all requests have the same type as the loop header request?
+             */
+            boolean isSingleRequest() {
+                var expectedClass = loopHeader.getOrigin().first.getClass();
+                return Stream.concat(innerHeader.stream(), otherNodes.stream())
+                        .allMatch(n -> n.getOrigin().first.getClass().equals(expectedClass));
+            }
+
+            Set<Node> getAllNodesWithValidEdges() {
+                var all = new HashMap<>(innerHeaderWithValidEdges);
+                all.putAll(otherNodesWithValidEdges);
+                return cloneNodesWithValidEdgesOnly(all);
+            }
+
+            Set<Node> getAllNodes() {
+                return Stream.concat(innerHeader.stream(), otherNodes.stream())
+                        .collect(Collectors.toSet());
+            }
+        }
+
+        private Pair<List<Statement>, Set<Node>> findLoopsWithNodeAsHeader(Node node, Layers layers,
+                                                                           Set<Node> usableNodes) {
+            // is NameVariables the right place? probably not, but here we are
+            if (!options.loops) {
+                return p(List.of(), Set.of());
+            }
+            assert node.getOrigin() != null;
+            var headerValue = node.getOrigin().second.asCombined();
+            if (!headerValue.hasListValuedFields()) { // no support for nested lists (or lists nested deeper in object)
+                return p(List.of(), Set.of());
+            }
+            if (node.getDependedByNodes().isEmpty()) {
+                return p(List.of(), Set.of());
+            }
+            Set<Node> alreadyCapturedNodes = new HashSet<>(); // used to ensure that nodes do only depend on single
+            // index of a single list valued field
+            List<Statement> producedStatements = new ArrayList<>();
+            Set<Node> usedNodes = new HashSet<>();
+            for (var field : headerValue.getListValuedFields()) {
+                var fieldValue = (ListValue<?>) headerValue.get(field);
+                // find now all nodes directly dependent to every index of the list
+                // every of these nodes can only depend on a single index of the list
+                Map<Integer, LoopIterationNodes> loopIterationBodies = new HashMap<>();
+                var skipOuter = false;
+                for (int i = 0; i < fieldValue.size(); i++) {
+                    var innerHeader = new HashSet<Node>();
+                    var currentPath = new AccessPath(field, i);
+                    for (Edge edge : node.getDependedByField(currentPath)) {
+                        if (alreadyCapturedNodes.contains(edge.getTarget())) {
+                            skipOuter = true;
+                            break;
+                        }
+                        alreadyCapturedNodes.add(edge.getTarget());
+                        innerHeader.add(edge.getTarget());
+                    }
+                    if (skipOuter) {
+                        break;
+                    }
+                    if (innerHeader.isEmpty()) {
+                        continue;
+                    }
+                    var innerHeaderWithValidEdges = findValidLoopNodes(node, currentPath, layers, Set.of(),
+                            innerHeader);
+                    if (innerHeaderWithValidEdges == null) {
+                        skipOuter = true;
+                        break;
+                    }
+                    // we extend now the collected list of nodes to include all depending nodes (transitive closure)
+                    // invalid assumption: the closures have to be disjunctive and form the bodies of every iteration
+                    var otherNodes = DependencyGraph.computeDependedByTransitive(innerHeader);
+                    var otherNodesWithValidEdges = findValidLoopNodes(node, currentPath, layers, innerHeader,
+                            otherNodes);
+                    if (otherNodesWithValidEdges == null) {
+                        skipOuter = true;
+                        break;
+                    }
+                    alreadyCapturedNodes.addAll(otherNodes);
+                    loopIterationBodies.put(i, new LoopIterationNodes(node, i,
+                            innerHeader, innerHeaderWithValidEdges,
+                            otherNodes, otherNodesWithValidEdges));
+                }
+                if (skipOuter || loopIterationBodies.size() < options.loopMinListSize) {
+                    continue; // too small
+                }
+                Statement loop;
+                if (loopIterationBodies.values().stream().allMatch(LoopIterationNodes::isSingleRequest)) {
+                    loop = handleSingleRequestLoop(node, new AccessPath(field), loopIterationBodies);
+                } else {
+                    loop = handleRegularLoop(node, new AccessPath(field), loopIterationBodies);
+                }
+                if (loop != null) {
+                    producedStatements.add(loop);
+                    usedNodes.addAll(loopIterationBodies.values().stream().flatMap(b -> b.getAllNodes().stream())
+                            .collect(Collectors.toSet()));
+                }
+            }
+            return p(producedStatements, usedNodes);
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private static Set<Node> cloneNodesWithValidEdgesOnly(Map<Node, List<Edge>> nodes) {
+            Map<Node, Node> newNodesForOld = new HashMap<>();
+            BiFunction<BiFunction, Node, Node> get = (getFunc, oldNode) -> {
+                if (!nodes.containsKey(oldNode)) {
+                    return oldNode;
+                }
+                if (!newNodesForOld.containsKey(oldNode)) {
+                    Node newNode = new Node(oldNode.getId(), oldNode.getOrigin());
+                    for (Edge edge : nodes.get(oldNode)) {
+                        newNode.addDependsOn(new Edge(newNode,
+                                ((BiFunction<BiFunction, Node, Node>) getFunc).apply(getFunc, edge.getTarget()),
+                                edge.getUsedValues()));
+                    }
+                    newNodesForOld.put(oldNode, newNode);
+                }
+                return newNodesForOld.get(oldNode);
+            };
+            return nodes.keySet().stream().map(n -> get.apply(get, n)).collect(Collectors.toSet());
+        }
+
+        private @Nullable Map<Node, List<Edge>> findValidLoopNodes(Node headerNode, AccessPath currentListItemPath,
+                                                                   Layers layers, Set<Node> miscNodes,
+                                                                   Set<Node> nodes) {
+            Map<Node, List<Edge>> nodesWithValidEdges = new HashMap<>();
+            for (Node otherNode : nodes) {
+                var layer = layers.getLayerIndex(headerNode);
+                List<Edge> validEdges = new ArrayList<>();
+                // paths that have an edge that points to the currentListItemPath
+                Set<AccessPath> pathsThatPointToLoopHeader = new HashSet<>();
+                // paths ... to any other valid node
+                Set<AccessPath> pathsThatPointToLoopBody = new HashSet<>();
+                for (Edge e : otherNode.getDependsOn()) {
+                    Stream<AccessPath> validPaths;
+                    if (e.getTarget().equals(headerNode)) {
+                        e.getUsedValues().stream()
+                                .filter(d -> d.getOriginPath().startsWith(currentListItemPath))
+                                .flatMap(d -> d.getTargetPaths().stream()).forEach(pathsThatPointToLoopHeader::add);
+                    } else if (miscNodes.contains(e.getTarget()) || nodes.contains(e.getTarget())) {
+                        e.getUsedValues().stream().flatMap(d -> d.getTargetPaths().stream())
+                                .forEach(pathsThatPointToLoopBody::add);
+                    }
+                }
+                Set<AccessPath> allCollectedAccessPaths = new HashSet<>();
+                for (Edge edge : otherNode.getDependsOn()) {
+                    var n2 = edge.getTarget();
+                    allCollectedAccessPaths.addAll(edge.getUsedValues().stream()
+                            .flatMap(d -> d.getTargetPaths().stream()).collect(Collectors.toSet()));
+                    var valid = layers.getLayerIndex(n2) < layer ||
+                            n2.equals(headerNode) || miscNodes.contains(n2) || nodes.contains(n2);
+                    if (!valid) {
+                        continue;
+                    }
+                    var isLoopHeader = n2.equals(headerNode);
+                    var newEdge = new Edge(otherNode, edge.getTarget(), edge.getUsedValues().stream().map(d -> {
+                        var newPaths = d.getTargetPaths().stream().filter(p -> {
+                            if (isLoopHeader) {
+                                if (pathsThatPointToLoopHeader.contains(p)) {
+                                    return true;
+                                }
+                            }
+                            return true;
+                        }).collect(Collectors.toList());
+                        if (newPaths.isEmpty()) {
+                            return null;
+                        }
+                        return d.withNewTargetPaths(newPaths);
+                    }).filter(Objects::nonNull).collect(Collectors.toList()));
+                    if (!allCollectedAccessPaths.stream()
+                            .allMatch(p -> pathsThatPointToLoopHeader.contains(p) ||
+                                    pathsThatPointToLoopBody.contains(p))) {
+                        continue;
+                    }
+                    if (newEdge.getUsedValues().size() > 0) {
+                        validEdges.add(newEdge);
+                    }
+                }
+                if (validEdges.isEmpty()) {
+                    return null;
+                }
+                nodesWithValidEdges.put(otherNode, validEdges);
+            }
+            return nodesWithValidEdges;
+        }
+
+        private Statement handleSingleRequestLoop(Node node, AccessPath field,
+                                                  Map<Integer, LoopIterationNodes> loopIterationBodies) {
+            // single request loop like
+            //  (= var19 (request ReferenceType Interfaces ("refType")=(get var16 "typeID")))
+            //  (= var22 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 2)))
+            //  (= var23 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 1)))
+            //  (= var24 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 0))))
+            System.out.println("do later");
+            return null;
+        }
+
+        private @Nullable Loop handleRegularLoop(Node node, AccessPath field,
+                                                 Map<Integer, LoopIterationNodes> loopIterationBodies) {
+            String iter = createNewIterName();
+            String nodeName = get(node);
+            // make programs out of the loop iterations
+            // replacing `(get node field index)` with `iter`
+            Map<Integer, Body> iterationBodies = new HashMap<>();
+            for (LoopIterationNodes iteration : loopIterationBodies.values()) {
+                var currentPath = field.append(iteration.iteration);
+                var nodes = iteration.getAllNodesWithValidEdges();
+                var layers = DependencyGraph.computeLayers(null, nodes);
+                var nodeNames = new NodeNames(options);
+                nodeNames.names.put(node, nodeName);
+                nodeNames.nameCount = nameCount;
+                nodeNames.preHandledAccessPaths.putAll(preHandledAccessPaths);
+                nodeNames.preHandledAccessPaths.computeIfAbsent(node.getId(), x -> new HashMap<>())
+                        .put(currentPath, AST.ident(iter));
+                iterationBodies.put(iteration.iteration, processNodes(nodeNames, layers, nodes).first.getBody());
+            }
+            // find a field that is used in all iterations
+            // iteration -> field (relative to list item), path might be empty -> value
+            Map<Integer, Map<AccessPath, jdwp.Value>> fieldUsedFromList = new HashMap<>();
+            for (LoopIterationNodes iteration : loopIterationBodies.values()) {
+                AccessPath currentPath = field.append(iteration.iteration);
+                Map<AccessPath, jdwp.Value> fieldUsedFromListIteration =
+                        iteration.getInnerHeader().stream()
+                                .flatMap(h -> h.getDependsOn().stream()
+                                        .flatMap(e -> e.getTarget().equals(node) ?
+                                                e.getUsedValues().stream()
+                                                        .filter(d -> d.getOriginPath().startsWith(currentPath))
+                                                        .map(d -> Map.entry(d.getOriginPath().subPath(currentPath.size(),
+                                                                d.getOriginPath().size()),
+                                                                (jdwp.Value) d.getValueAtOrigin()))
+                                                : Stream.empty()))
+                                .distinct().collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+                fieldUsedFromList.put(iteration.iteration, fieldUsedFromListIteration);
+            }
+            // find fields that is used in all iterations, check whether type tag is unequal
+            // field -> type tags -> bodys // TODO: extend to more or use transformers
+            Map<AccessPath, Map<Integer, List<Body>>> commonFields = null;
+            for (var entry : fieldUsedFromList.entrySet()) {
+                var fieldsToValue = entry.getValue();
+                var body = iterationBodies.get(entry.getKey());
+                var tags = fieldsToValue.entrySet().stream()
+                        .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().type.getTag()));
+                if (commonFields == null) {
+                    commonFields = new HashMap<>();
+                    for (Entry<AccessPath, Integer> e : tags.entrySet()) {
+                        Map<Integer, List<Body>> map = new HashMap<>();
+                        map.put(e.getValue(), new ArrayList<>(List.of(body)));
+                        commonFields.put(e.getKey(), map);
+                    }
+                } else {
+                    for (AccessPath path : tags.keySet()) {
+                        if (commonFields.containsKey(path)) {
+                            commonFields.get(path).computeIfAbsent(tags.get(path), x -> new ArrayList<>()).add(body);
+                        }
+                    }
+                }
+            }
+            // now choose the field with the most diversity
+            var possibleField = commonFields.entrySet().stream()
+                    .max(Comparator.comparingInt(e -> e.getValue().size())).map(Entry::getKey);
+            if (possibleField.isEmpty()) {
+                return null;
+            }
+            Body loopBody;
+            if (!options.switchCaseInLoop || (commonFields.get(possibleField.get()).size() == 1 &&
+                    loopIterationBodies.size() == ((ListValue<?>) field.access(node.getOrigin().second.asCombined())).size())) {
+                // not enough diversity: neither enough different types, nor missing iterations which might be explained
+                // with different types
+                // but: we can just merge all iterations into one (hopefully without crashing the JVM)
+                loopBody = mergeBodies(iterationBodies.keySet().stream()
+                        .sorted().map(iterationBodies::get).collect(Collectors.toList()));
+            } else {
+                var switchExpression =
+                        GET_TAG_FOR_VALUE.createCall(possibleField.get().size() > 0 ?
+                                GET_FUNCTION.createCall(ident(iter), possibleField.get()) : ident(iter));
+                // create a switch case over the type and merge all bodies for the same type
+                Map<Integer, List<Body>> bodiesPerType = commonFields.get(possibleField.get());
+                loopBody = new Body(List.of(new SwitchStatement(switchExpression, bodiesPerType.entrySet().stream()
+                        .sorted(Comparator.comparingInt(Entry::getKey))
+                        .map(e -> new CaseStatement(Functions.createWrapperFunctionCall(wrap((byte) (int) e.getKey())),
+                                mergeBodies(e.getValue())))
+                        .collect(Collectors.toList()))));
+            }
+            return new Loop(ident(iter), GET_FUNCTION.createCall(nodeName, field), loopBody);
+        }
+
+        private Body mergeBodies(List<Body> bodies) {
+            var body = bodies.get(0);
+            for (var i = 1; i < bodies.size(); i++) {
+                body = body.merge(bodies.get(i));
+            }
+            return body;
+        }
     }
 
-    // draft of loop detection code
-    /*private static Optional<Pair<Program, Set<Node>>> isPossibleLoopSourceNode(NodeNames variables, Layers layers,
-    Node node, int minSize) {
-        assert minSize >= 2;
-        var currentLayer = layers.get(layers.getLayerIndex(node));
-        var layerBelow = layers.getOrEmpty(layers.getLayerIndex(node) + 1);
-        if (node.getDependedBy().isEmpty()) { // no node depends on it
-            return Optional.empty();
-        }
-        Set<Edge> connectionsToBelow = node.getDependedBy().stream()
-                .filter(e -> layerBelow.contains(e.getTarget())).collect(Collectors.toSet());
-        if (connectionsToBelow.isEmpty()) { // no connections to the nodes below
-            return Optional.empty();
-        }
-        if (connectionsToBelow.stream().map(Edge::getTarget)
-                .anyMatch(n -> n.getDependsOn().stream().map(Edge::getTarget)
-                        .anyMatch(n2 -> n2 != node && currentLayer.contains(n2)))) {
-            return Optional.empty(); // dependent nodes depend on other nodes of the current layer, possibly mixing
-            two loops
-        }
-
-        // now find all paths that only differ in an index
-
-        // first collect all paths (and the nodes that depend on them)
-        Map<AccessPath, Set<Node>> pathToNodes = new HashMap<>();
-        for (Edge edge : connectionsToBelow) {
-            for (TaggedBasicValue<?> usedValue : edge.getUsedValues()) {
-                var path = usedValue.path.removeTag();
-                pathToNodes.computeIfAbsent(path, p -> new HashSet<>()).add(edge.getTarget());
-            }
-        }
-
-        // keep in mind: nodes below might also depend on non list entries
-
-        // find paths that are similar if we ignore the list accesses in the path
-        // but only consider paths that contain list accesses
-        Map<AccessPath, List<AccessPath>> fieldOnlyToRegularPaths =
-                pathToNodes.keySet().stream().filter(AccessPath::containsListAccesses)
-                        .collect(Collectors.groupingBy(AccessPath::removeListAccesses));
-        if (fieldOnlyToRegularPaths.isEmpty()) {
-            return Optional.empty();
-        }
-        // now check that each group only differs in one location
-        // as lists in lists are harder and not supported
-        // the groups do not have duplicates by design
-        int differingIndex = -2; // differing index for all groups
-        for (var accessPathListEntry : fieldOnlyToRegularPaths.entrySet()) {
-            var group = accessPathListEntry.getValue();
-            if (group.size() < minSize) { // ignore if size is too small
-                return Optional.empty(); // simplification
-            }
-            if (differingIndex == -2) { // compute the differing index for the first time
-                differingIndex = group.get(0).onlyDifferingIndex(group.get(1));
-                if (differingIndex == -1) {
-                    return Optional.empty();
-                }
-            }
-            final int d = differingIndex;
-            // check that the differing index is valid for all groups
-            if (group.stream().anyMatch(p -> group.get(0).onlyDifferingIndex(p) != d)) {
-                return Optional.empty(); // simplification
-            }
-        }
-        final int finalDifferingIndex = differingIndex;
-        // we now know that all paths differ only at a given index in their group
-        // we now check all access paths are the same considering only path elements before the differing index
-        AccessPath prefix = fieldOnlyToRegularPaths.entrySet().iterator().next().getValue().get(0)
-                .subPath(0, differingIndex); // we made enough checks before, so this is ok
-        if (fieldOnlyToRegularPaths.keySet().stream().anyMatch(p -> !p.startsWith(prefix))) {
-            return Optional.empty(); // at least one path did not start with the prefix
-        }
-        // now we know that all paths have the structure "[prefix].[differing].[group appendix]"
-        // we have to find
-
-        // collect preliminary headers
-        Map<Integer, List<AccessPath>> headerPathsPerIndex = new HashMap<>();
-        for (Entry<AccessPath, List<AccessPath>> entry : fieldOnlyToRegularPaths.entrySet()) {
-            for (AccessPath path : entry.getValue()) {
-                var index = (Integer)path.get(differingIndex); // ok by construction
-                headerPathsPerIndex.computeIfAbsent(index, p -> new ArrayList<>()).add(path);
-            }
-        }
-        Map<Integer, Set<Node>> headersPerIndex = new HashMap<>();
-        Map<Integer, Set<Node>> fullBodyPerIndex = new HashMap<>();
-        for (Entry<Integer, List<AccessPath>> entry : headerPathsPerIndex.entrySet()) {
-            var headers = entry.getValue().stream().flatMap(p -> pathToNodes.get(p).stream()).collect(Collectors
-            .toSet());
-            headersPerIndex.put(entry.getKey(), headers);
-            Set<Node> body = layers.computeDominatedNodes(headers);
-            if (body == null) { // dominated nodes might depend on nodes in upper layers
-                return Optional.empty();
-            }
-            // check that all body nodes do not depend on other list items
-            if (body.stream().anyMatch(n -> n.getDependsOn().stream().anyMatch(e -> {
-                if (e.getTarget().equals(node)) { // loop source node?
-                    return e.getUsedValues().stream().anyMatch(t -> t.path.startsWith(prefix)
-                            && finalDifferingIndex < t.path.size() && t.path.get(finalDifferingIndex) != entry.getKey
-                            ());
-                }
-                return false;
-            }))) {
-                return Optional.empty();
-            }
-            Set<Node> fullBody;
-            if (body.isEmpty()) {
-                fullBody = headers;
-            } else {
-                fullBody = new HashSet<>(body);
-                fullBody.addAll(headers);
-            }
-            fullBodyPerIndex.put(entry.getKey(), fullBody);
-        }
-        List<Statement> finishedStatements = new ArrayList<>();
-        // mark node.prefix as the iteration variable
-        var iterableNameAndCall = variables.createGetCallIfNeeded(node, prefix);
-        iterableNameAndCall.second.ifPresent(finishedStatements::add);
-        var iterNameAndCall = variables.markIterPath(node, prefix);
-        iterNameAndCall.second.ifPresent(finishedStatements::add);
-        // we now have the full bodies, but they might contain loops too
-        Set<Node> processedNodes = new HashSet<>();
-        Program merged = null;
-        for (Entry<Integer, Set<Node>> fullBodyEntry : fullBodyPerIndex.entrySet()) {
-            var fullBody = fullBodyEntry.getValue();
-            var bodyProgram = processNodes(variables.child(), layers, fullBody, minSize).first;
-            if (merged == null) {
-                merged = bodyProgram;
-            } else {
-                merged = merged.merge(bodyProgram); // maybe include some heuristic here
-            }
-            processedNodes.addAll(fullBody);
-        }
-        finishedStatements.add(new Loop(AST.ident(iterNameAndCall.first), AST.ident(iterableNameAndCall.first),
-        merged.getBody()));
-        variables.unmarkIterPath(node, prefix);
-        return Optional.of(p(new Program(finishedStatements), processedNodes));
-    }*/
-
-    private static Pair<Program, Set<Node>> processNodes(NodeNames variables, Layers layers, Set<Node> fullBody,
-                                                         int minSize) {
+    private static Pair<Program, Set<Node>> processNodes(NodeNames variables, Layers layers, Set<Node> fullBody) {
         var fullBodySorted = new ArrayList<>(fullBody);
         fullBodySorted.sort(layers.getNodeComparator()); // makes the statement order deterministic
         List<Statement> statements = new ArrayList<>();
@@ -662,11 +883,12 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 continue;
             }
             statements.addAll(variables.createRequestCallStatements(node));
-            /*var loopRes = isPossibleLoopSourceNode(variables.child(), layers, node, minSize);
-            loopRes.ifPresent(programSetPair -> {
-                statements.addAll(programSetPair.first.getBody());
-                ignoredNodes.addAll(loopRes.get().second);
-            });*/
+            var foundLoops = variables.findLoopsWithNodeAsHeader(node, layers,
+                    fullBody.stream().filter(n -> !ignoredNodes.contains(n)).collect(Collectors.toSet()));
+            if (!foundLoops.first.isEmpty()) {
+                ignoredNodes.addAll(foundLoops.second);
+                statements.addAll(foundLoops.first);
+            }
         }
         return p(new Program(statements), fullBody);
     }

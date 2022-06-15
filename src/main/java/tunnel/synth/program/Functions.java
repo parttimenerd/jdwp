@@ -153,8 +153,12 @@ public abstract class Functions {
         }
 
         public FunctionCall createCall(String root, AccessPath path) {
+            return createCall(ident(root), path);
+        }
+
+        public FunctionCall createCall(Expression root, AccessPath path) {
             List<Expression> args = new ArrayList<>();
-            args.add(ident(root));
+            args.add(root);
             path.stream().map(e -> e instanceof String ? literal((String) e) : literal((int) e)).forEach(args::add);
             var call = new FunctionCall(getName(), args);
             call.setFunction(this);

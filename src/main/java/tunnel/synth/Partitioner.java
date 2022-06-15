@@ -21,6 +21,7 @@ import tunnel.util.ToCode;
 import java.time.Clock;
 import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -226,6 +227,20 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         public @Nullable AbstractParsedPacket getCausePacket() {
             return cause != null ? cause.get() : null;
         }
+
+        /**
+         * return a sorted version, sorted by request id (but the cause request is sorted to the start)
+         */
+        public Partition sorted() {
+            return new Partition(cause, items.stream()
+                    .sorted(Comparator.comparing(l -> {
+                        if (cause != null && cause.isLeft() && cause.getLeft().equals(l.first)) {
+                            return -1; // keep invariant
+                        }
+                        return l.first.getId();
+                    }))
+                    .collect(Collectors.toList()));
+        }
     }
 
     private static final Integer DEFAULT_TIMINGS_FACTOR = 100;
@@ -276,7 +291,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             if (currentPartition != null) {
                 submit(currentPartition);
             }
-            logSplitReason(String.format("Received EvaluateProgramRequest", request));
+            logSplitReason(String.format("Received EvaluateProgramRequest %s", request));
             currentPartition = null;
             return;
         }
