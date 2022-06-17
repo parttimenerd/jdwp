@@ -113,6 +113,14 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         return current;
     }
 
+    public Value access(Value root) {
+        if (path.length == 0) {
+            return root;
+        }
+        assert root instanceof WalkableValue;
+        return access((WalkableValue<?>)root);
+    }
+
     public boolean startsWith(AccessPath other) {
         if (other.path.length > this.path.length) {
             return false;

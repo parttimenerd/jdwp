@@ -14,6 +14,13 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static jdwp.PrimitiveValue.BasicGroup;
+import static jdwp.PrimitiveValue.BasicScalarValue;
+import static jdwp.PrimitiveValue.BasicValue;
+import static jdwp.PrimitiveValue.ByteList;
+import static jdwp.PrimitiveValue.TaggedBasicValue;
+import static jdwp.PrimitiveValue.Type;
+import static jdwp.PrimitiveValue.WalkableValue;
 import static jdwp.PrimitiveValue.*;
 import static jdwp.Value.BasicGroup.BYTE;
 import static jdwp.Value.BasicGroup.STRING;
@@ -293,49 +300,30 @@ public abstract class Functions {
     private static final Map<Pair<BasicGroup, BasicGroup>, Set<BasicValueTransformer<?>>> transformersPerGroups
             = new HashMap<>();
     private static final Map<BasicGroup, Set<BasicValueTransformer<?>>> generalTransformersPerResultGroup = new HashMap<>();
-    public static final Map<String, BasicValueTransformer<?>> transformersPerName = new HashMap<>();
 
-    /**
-     * transforms a specific basic value into another, used to annotate edges in the
-     * {@link DependencyGraph}
-     */
-    public static abstract class BasicValueTransformer<T extends BasicValue> extends SingleArgumentFunction<T> implements Comparable<BasicValueTransformer<?>> {
+    public static final Map<String, BasicValueTransformer<?>> basicTransformersPerName = new HashMap<>();
 
-        private final @Nullable BasicGroup argument;
-        private final BasicGroup result;
-        private final int id;
+    public static abstract class ValueTransformer<T extends Value> extends SingleArgumentFunction<T>
+            implements Comparable<ValueTransformer<?>> {
+        final int id;
+        static int normalStartId = 0;
+        static int generalStartId = 1000;
+        public ValueTransformer(String name, Class<T> expectedType, int id) {
+            super(name, expectedType);
+            this.id = id;
+        }
 
-        private static int normalStartId = 0;
-        private static int generalStartId = 1000;
+        public boolean isBasic() {
+            return false;
+        }
 
-        @SuppressWarnings("unchecked")
-        public BasicValueTransformer(String name, @Nullable BasicGroup argument, BasicGroup result) {
-            super(name, argument == null ? (Class<T>) BasicValue.class : (Class<T>) argument.getBaseClass());
-            this.argument = argument;
-            this.result = result;
-            this.id = argument != null ? normalStartId++ : generalStartId++;
-            if (argument != null) {
-                transformersPerGroups.computeIfAbsent(p(argument, result), x -> new HashSet<>()).add(this);
-            } else {
-                generalTransformersPerResultGroup.computeIfAbsent(result, x -> new HashSet<>()).add(this);
-            }
-            transformersPerName.put(name, this);
+        @Override
+        public int compareTo(@NotNull ValueTransformer<?> o) {
+            return Integer.compare(id, o.id);
         }
 
         public boolean isApplicable(BasicValue value) {
             return expectedType.isAssignableFrom(value.getClass());
-        }
-
-        /**
-         * is this function applicable to multiple value types?
-         */
-        public boolean isGeneral() {
-            return argument == null;
-        }
-
-        @Override
-        public int compareTo(@NotNull Functions.BasicValueTransformer<?> o) {
-            return Integer.compare(id, o.id);
         }
 
         public FunctionCall createCall(Expression argument) {
@@ -346,7 +334,49 @@ public abstract class Functions {
 
         @Override
         public String toString() {
+            return String.format("%s(%s) -> Value", getName(), expectedType.getSimpleName());
+        }
+    }
+
+    /**
+     * transforms a specific basic value into another, used to annotate edges in the
+     * {@link DependencyGraph}
+     */
+    public static abstract class BasicValueTransformer<T extends BasicValue> extends ValueTransformer<T> {
+
+        private final @Nullable BasicGroup argument;
+        private final BasicGroup result;
+
+        @SuppressWarnings("unchecked")
+        public BasicValueTransformer(String name, @Nullable BasicGroup argument, BasicGroup result) {
+            super(name, argument == null ? (Class<T>) BasicValue.class : (Class<T>) argument.getBaseClass(),
+                    argument != null ? normalStartId++ : generalStartId++);
+            this.argument = argument;
+            this.result = result;
+            if (argument != null) {
+                transformersPerGroups.computeIfAbsent(p(argument, result), x -> new HashSet<>()).add(this);
+            } else {
+                generalTransformersPerResultGroup.computeIfAbsent(result, x -> new HashSet<>()).add(this);
+            }
+            basicTransformersPerName.put(name, this);
+        }
+
+
+
+        /**
+         * is this function applicable to multiple value types?
+         */
+        public boolean isGeneral() {
+            return argument == null;
+        }
+
+        @Override
+        public String toString() {
             return String.format("%s(%s) -> %s", getName(), argument, result);
+        }
+
+        public BasicValue transform(VM vm, BasicValue value) {
+            return (BasicValue)evaluate(vm, List.of(value));
         }
     }
 
@@ -387,6 +417,18 @@ public abstract class Functions {
         return ret;
     }
 
+    public static Set<BasicValueTransformer<?>> getTransformers(BasicGroup argument) {
+        return basicTransformersPerName.values().stream()
+                .filter(t -> t.argument == null || t.argument == argument)
+                .collect(Collectors.toSet());
+    }
+
+    public static Set<BasicValueTransformer<?>> getTransformers(BasicValue argument) {
+        return basicTransformersPerName.values().stream()
+                .filter(t -> t.isApplicable(argument))
+                .collect(Collectors.toSet());
+    }
+
     /**
      * return all transformers f with <pre>f(argument) == result</pre>
      */
@@ -406,8 +448,8 @@ public abstract class Functions {
             case WRAP:
                 return WRAP_FUNCTION;
             default:
-                if (transformersPerName.containsKey(name)) {
-                    return transformersPerName.get(name);
+                if (basicTransformersPerName.containsKey(name)) {
+                    return basicTransformersPerName.get(name);
                 }
                 throw new AssertionError(String.format("Unknown function %s", name));
         }

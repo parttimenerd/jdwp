@@ -316,17 +316,18 @@ public class SynthesizerTest {
         ));
         var program = Synthesizer.synthesizeProgram(partition, Synthesizer.DEFAULT_OPTIONS);
         assertEquals("(\n" +
-                "  (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 1) (\"thread\")=(wrap \"thread\"" +
-                " 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 0 \"slot\")=(wrap \"int\" 1)))\n" +
-                "  (for iter0 (get var0 \"values\") \n" +
-                "    (switch (getTagForValue iter0)\n" +
-                "      (case (wrap \"byte\" 76)\n" +
-                "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
-                "        (= var2 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\"))))\n" +
-                "      (case (wrap \"byte\" 91)\n" +
-                "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
-                "        (= var2 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
-                "        (= var3 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
+                        "  (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 1) (\"thread\")=(wrap " +
+                        "\"thread\" 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 0 \"slot\")=(wrap " +
+                        "\"int\" 1)))\n" +
+                        "  (for iter0 (get var0 \"values\") \n" +
+                        "    (switch (getTagForValue iter0)\n" +
+                        "      (case (wrap \"byte\" 91)\n" +
+                        "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var2 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
+                        "        (= var3 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\"))))\n" +
+                        "      (case (wrap \"byte\" 76)\n" +
+                        "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var2 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
                 program.toPrettyString());
         // can we parse it?
         Program.parse(program.toPrettyString());

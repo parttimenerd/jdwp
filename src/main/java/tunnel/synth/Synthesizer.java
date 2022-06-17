@@ -19,10 +19,10 @@ import tunnel.synth.DependencyGraph.Node;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.program.AST;
 import tunnel.synth.program.Functions;
-import tunnel.synth.program.Functions.BasicValueTransformer;
 import tunnel.synth.program.Program;
 import tunnel.util.Box;
 import tunnel.util.Either;
+import tunnel.util.Util;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -803,62 +803,141 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                                                 e.getUsedValues().stream()
                                                         .filter(d -> d.getOriginPath().startsWith(currentPath))
                                                         .map(d -> Map.entry(d.getOriginPath().subPath(currentPath.size(),
-                                                                d.getOriginPath().size()),
+                                                                        d.getOriginPath().size()),
                                                                 (jdwp.Value) d.getValueAtOrigin()))
                                                 : Stream.empty()))
                                 .distinct().collect(Collectors.toMap(Entry::getKey, Entry::getValue));
                 fieldUsedFromList.put(iteration.iteration, fieldUsedFromListIteration);
             }
-            // find fields that is used in all iterations, check whether type tag is unequal
-            // field -> type tags -> bodys // TODO: extend to more or use transformers
-            Map<AccessPath, Map<Integer, List<Body>>> commonFields = null;
-            for (var entry : fieldUsedFromList.entrySet()) {
-                var fieldsToValue = entry.getValue();
-                var body = iterationBodies.get(entry.getKey());
-                var tags = fieldsToValue.entrySet().stream()
-                        .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().type.getTag()));
-                if (commonFields == null) {
-                    commonFields = new HashMap<>();
-                    for (Entry<AccessPath, Integer> e : tags.entrySet()) {
-                        Map<Integer, List<Body>> map = new HashMap<>();
-                        map.put(e.getValue(), new ArrayList<>(List.of(body)));
-                        commonFields.put(e.getKey(), map);
-                    }
-                } else {
-                    for (AccessPath path : tags.keySet()) {
-                        if (commonFields.containsKey(path)) {
-                            commonFields.get(path).computeIfAbsent(tags.get(path), x -> new ArrayList<>()).add(body);
-                        }
-                    }
-                }
-            }
+
             // now choose the field with the most diversity
-            var possibleField = commonFields.entrySet().stream()
-                    .max(Comparator.comparingInt(e -> e.getValue().size())).map(Entry::getKey);
-            if (possibleField.isEmpty()) {
-                return null;
-            }
+            var switchExpression =
+                    options.switchCaseInLoop ?
+                            findSuitableSwitchExpression(iter,
+                                    (ListValue<?>) field.access(node.getOrigin().second.asCombined()),
+                                    fieldUsedFromList.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
+                                            e -> e.getValue().keySet())))
+                            : null;
             Body loopBody;
-            if (!options.switchCaseInLoop || (commonFields.get(possibleField.get()).size() == 1 &&
-                    loopIterationBodies.size() == ((ListValue<?>) field.access(node.getOrigin().second.asCombined())).size())) {
+            if (!options.switchCaseInLoop || switchExpression == null) {
                 // not enough diversity: neither enough different types, nor missing iterations which might be explained
                 // with different types
                 // but: we can just merge all iterations into one (hopefully without crashing the JVM)
                 loopBody = mergeBodies(iterationBodies.keySet().stream()
                         .sorted().map(iterationBodies::get).collect(Collectors.toList()));
             } else {
-                var switchExpression =
-                        GET_TAG_FOR_VALUE.createCall(possibleField.get().size() > 0 ?
-                                GET_FUNCTION.createCall(ident(iter), possibleField.get()) : ident(iter));
-                // create a switch case over the type and merge all bodies for the same type
-                Map<Integer, List<Body>> bodiesPerType = commonFields.get(possibleField.get());
-                loopBody = new Body(List.of(new SwitchStatement(switchExpression, bodiesPerType.entrySet().stream()
-                        .sorted(Comparator.comparingInt(Entry::getKey))
-                        .map(e -> new CaseStatement(Functions.createWrapperFunctionCall(wrap((byte) (int) e.getKey())),
-                                mergeBodies(e.getValue())))
-                        .collect(Collectors.toList()))));
+                loopBody = new Body(List.of(new SwitchStatement(switchExpression.switchExpression,
+                        switchExpression.iterationsPerSwitchExpression.entrySet().stream()
+                                .sorted(Comparator.comparing(e -> e.getValue().stream().mapToInt(x -> x).max().orElse(0)))
+                                .map(e -> new CaseStatement(e.getKey(), mergeBodies(e.getValue().stream()
+                                        .map(iterationBodies::get).collect(Collectors.toList()))))
+                                .collect(Collectors.toList()))));
             }
             return new Loop(ident(iter), GET_FUNCTION.createCall(nodeName, field), loopBody);
+        }
+
+        @Value
+        private static class FoundSwitchVariable {
+            Expression switchExpression;
+            Map<Expression, List<Integer>> iterationsPerSwitchExpression;
+        }
+
+        /**
+         * @param iter               iterable variable
+         * @param iterableFieldValue value of the field to iterate over
+         * @param fieldUsedFromList  iteration -> [fields used in every list item]
+         * @return switch expression + case expressions
+         */
+        @SuppressWarnings("unchecked")
+        private @Nullable FoundSwitchVariable
+        findSuitableSwitchExpression(String iter, ListValue<?> iterableFieldValue,
+                                     Map<Integer, Collection<AccessPath>> fieldUsedFromList) {
+            // access path -> optional transformer -> value -> bodies with this value
+            Map<AccessPath, Map<Optional<BasicValueTransformer<?>>, Map<BasicValue, List<Integer>>>> commonFields =
+                    new HashMap<>();
+            var isFirstIteration = true;
+            // field the commonFields value
+            for (var entry : fieldUsedFromList.entrySet()) {
+                var accessPaths = entry.getValue();
+                var iteration = entry.getKey();
+                for (var accessPath : accessPaths) {
+                    if (isFirstIteration) {
+                        commonFields.put(accessPath, new HashMap<>());
+                    } else {
+                        if (!commonFields.containsKey(accessPath)) {
+                            continue; // field not found in non first iteration
+                        }
+                    }
+                    Map<Optional<BasicValueTransformer<?>>, Map<BasicValue, List<Integer>>> valuesPerTransformer =
+                            commonFields.get(accessPath);
+                    jdwp.Value fieldValue = accessPath.access(iterableFieldValue.get(iteration));
+                    assert fieldValue instanceof BasicValue;
+                    var basicFieldValue = (BasicValue) fieldValue;
+                    var transformers = Stream.concat(Stream.of(
+                                            Optional.<BasicValueTransformer<?>>empty()),
+                                    Functions.getTransformers(basicFieldValue).stream().map(Optional::of))
+                            .map(v -> (Optional<BasicValueTransformer<?>>) v)
+                            .collect(Collectors.toList());
+                    for (Optional<BasicValueTransformer<?>> transformer : transformers) {
+                        if (!isFirstIteration && !valuesPerTransformer.containsKey(transformer)) {
+                            continue; // transformer not found in non first iteration
+                        }
+                        BasicValue resultingValue = transformer.map(t -> t.transform(null, basicFieldValue))
+                                .orElse(basicFieldValue);
+                        valuesPerTransformer.computeIfAbsent(transformer, x -> new HashMap<>())
+                                .computeIfAbsent(resultingValue, x -> new ArrayList<>())
+                                .add(iteration);
+                    }
+                }
+                isFirstIteration = false;
+            }
+            // choose the field + transformer combo with the most diversity deterministically
+            if (commonFields.isEmpty()) {
+                return null; // we found no fields common to all iterations
+            }
+            // (field, transformer) -> entropy
+            Map<Pair<AccessPath, Optional<BasicValueTransformer<?>>>, Double> diversityMap =
+                    commonFields.entrySet().stream().flatMap(e -> e.getValue().entrySet().stream()
+                                    .filter(e2 -> e2.getValue().size() != 1 ||
+                                            iterableFieldValue.size() != e2.getValue().values().stream()
+                                                    .mapToInt(List::size).sum())
+                                    .map(e2 -> Map.entry(p(e.getKey(), e2.getKey()), entropy(e2.getValue()))))
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (diversityMap.isEmpty()) {
+                return null; // we found no field + transformer combos with enough body groups
+            }
+            var best =
+                    diversityMap.keySet().stream().max((x, y) -> {
+                        var xEntropy = diversityMap.get(x);
+                        var yEntropy = diversityMap.get(y);
+                        var comp = Double.compare(xEntropy, yEntropy);
+                        if (comp == 0) {
+                            comp = x.first.compareTo(y.first);
+                            return comp == 0 ? Util.compareOptionals(x.second, y.second) : comp;
+                        }
+                        return comp;
+                    }).get();
+            var switchExpression =
+                    GET_TAG_FOR_VALUE.createCall(best.first.size() > 0 ?
+                            GET_FUNCTION.createCall(ident(iter), best.first) : ident(iter));
+            return new FoundSwitchVariable(switchExpression,
+                    commonFields.get(best.first).get(best.second).entrySet().stream()
+                            .collect(Collectors.toMap(e -> Functions.createWrapperFunctionCall(e.getKey()),
+                                    Entry::getValue)));
+        }
+
+        /**
+         * shannon entropy of a map based on the number of items in each map entry,
+         * gives a measure of diversity
+         * <p>
+         * See https://en.wikipedia.org/wiki/Entropy_(information_theory)
+         */
+        private static <X, Y> double entropy(Map<X, List<Y>> map) {
+            double entryCount = map.values().stream().mapToInt(List::size).sum();
+            return -map.values().stream().mapToDouble(ys -> {
+                double p = ys.size() / entryCount;
+                return p * Math.log(p);
+            }).sum();
         }
 
         private Body mergeBodies(List<Body> bodies) {
