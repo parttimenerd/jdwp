@@ -38,6 +38,8 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
     private final byte SWITCH = 4;
     private final byte CASE = 5;
     private final byte BODY = 6;
+    private final byte RECURSION = 7;
+    private final byte REC_CALL = 8;
     private final byte OTHER = 100;
 
     private final ProgramHashes parent;
@@ -73,6 +75,13 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
         return Objects.requireNonNull(statementToHashed.get(statement));
     }
 
+    public Hashed<Statement> getOrCompute(Statement statement) {
+        if (!statementToHashed.containsKey(statement)) {
+            return create(statement);
+        }
+        return Objects.requireNonNull(statementToHashed.get(statement));
+    }
+
     private Hashed<Statement> getOrParent(Statement statement) {
         if (!statementToHashed.containsKey(statement)) {
             if (parent != null) {
@@ -87,7 +96,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
      * Used for reporting collisions, a collision happened if the hashed objects are equal, but the objects are not.
      * This works only if both statement are in the same programs.
      */
-    private Hashed<Statement> getCollission(Hashed<Statement> hashed) {
+    private Hashed<Statement> getCollision(Hashed<Statement> hashed) {
         return hashedToIndex.keySet().stream()
                 .filter(h -> h.hashCode() == hashed.hashCode() && h.equals(hashed)).findFirst().get();
     }
@@ -129,7 +138,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
         if (contains(hashed) && !contains(hashed.get())) {
             throw new AssertionError(String.format("hash collision: %s (%d) and %s (%d), " +
                             "maybe two similar statements in the same program", hashed.get(), hashed.hash(),
-                    getCollission(hashed).get(), hashed.hash()));
+                    getCollision(hashed).get(), hashed.hash()));
         }
         statementToHashed.put(hashed.get(), hashed);
         hashedToStatement.put(hashed, hashed.get());
@@ -234,6 +243,17 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
             @Override
             public Hashed<Statement> visit(CaseStatement caseStatement) {
                 return Hashed.create(caseStatement, 0, CASE, hash(caseStatement.getExpression()));
+            }
+
+            @Override
+            public Hashed<Statement> visit(Recursion recursion) {
+                return Hashed.create(recursion, 0, RECURSION, hash(recursion.getRequest()));
+            }
+
+            @Override
+            public Hashed<Statement> visit(RecRequestCall recCall) {
+                return Hashed.create(recCall, 0, REC_CALL,
+                        recCall.getName().getSource().accept(this).hash());
             }
         });
     }

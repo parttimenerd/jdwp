@@ -21,12 +21,14 @@ public class Parser {
     private int line = 1;
     private int column = 1;
     private final Scopes<Identifier> identifiers;
+    private final Scopes<Identifier> currentRecs;
 
     @SneakyThrows
     private Parser(InputStream stream) {
         this.stream = stream;
         this.current = stream.read();
         this.identifiers = new Scopes<>();
+        this.currentRecs = new Scopes<>();
     }
 
     public Parser(String input) {
@@ -116,6 +118,9 @@ public class Parser {
             case 's':
                 ret = parseSwitchStatement();
                 break;
+            case 'r':
+                ret = parseRecursionRelated();
+                break;
             default:
                 throw new SyntaxError(line, column, String.format("Unexpected %s", (char) current));
         }
@@ -126,7 +131,7 @@ public class Parser {
     AssignmentStatement parseAssignment() {
         expect("= ");
         skipWhitespace();
-        var ret = parseIdentifier();
+        var ret = parseIdentifierAndRecord();
         skipWhitespace();
         var expression = parseExpression(true);
         var statement = new AssignmentStatement(ret, expression);
@@ -138,7 +143,7 @@ public class Parser {
         identifiers.push();
         expect("for ");
         skipWhitespace();
-        var iter = parseIdentifier();
+        var iter = parseIdentifierAndRecord();
         skipWhitespace();
         var iterable = parseExpression();
         iter.setLoopIterableRelated(true);
@@ -148,10 +153,54 @@ public class Parser {
         return new Loop(iter, iterable, body);
     }
 
+    Statement parseRecursionRelated() {
+        switch (parseIdentifier().getName()) {
+            case "rec":
+                return parseRecursion();
+            case "reccall":
+                return parseRecCall();
+            default:
+                throw new SyntaxError(line, column, String.format("Unexpected %s", (char) current));
+        }
+    }
+
+    Recursion parseRecursion() {
+        skipWhitespace();
+        var name = parseIdentifier();
+        skipWhitespace();
+        int maxRec = (int) (long) parseInteger().value;
+        identifiers.push();
+        skipWhitespace();
+        var requestVariable = parseIdentifierAndRecord();
+        skipWhitespace();
+        var request = parseFunctionCall(true);
+        if (!(request instanceof RequestCall)) {
+            throw new SyntaxError(line, column, "Expected request call in rec");
+        }
+        skipWhitespace();
+        currentRecs.push();
+        currentRecs.put(name.toString(), name);
+        var body = parseBlock();
+        currentRecs.pop();
+        identifiers.pop();
+        return new Recursion(name, maxRec, requestVariable, (RequestCall) request, new Body(body));
+    }
+
+    RecRequestCall parseRecCall() {
+        skipWhitespace();
+        var name = parseIdentifier();
+        if (!currentRecs.contains(name.getName())) {
+            throw new SyntaxError(line, column, "Unknown recursion " + name);
+        }
+        skipWhitespace();
+        List<CallProperty> arguments = parseCallPropertyList();
+        return new RecRequestCall(name, arguments);
+    }
+
     MapCallStatement parseMapCallStatement() {
         expect("map ");
         skipWhitespace();
-        var variable = parseIdentifier();
+        var variable = parseIdentifierAndRecord();
         skipWhitespace();
         var iterable = parseExpression();
         skipWhitespace();
@@ -243,6 +292,7 @@ public class Parser {
         }
     }
 
+
     @NotNull
     private List<CallProperty> parseCallPropertyList() {
         List<CallProperty> arguments = new ArrayList<>();
@@ -272,6 +322,15 @@ public class Parser {
                 path.stream()
                         .map(l -> l.value instanceof Long ? ((Long) l.value).intValue() : l.value)
                         .toArray());
+    }
+
+    Identifier parseIdentifierAndRecord() {
+        Identifier identifier = parseIdentifier();
+        if (identifiers.contains(identifier.getName())) {
+            return identifiers.get(identifier.getName());
+        }
+        identifiers.put(identifier.getName(), identifier);
+        return identifier;
     }
 
     Identifier parseIdentifier() {
@@ -330,7 +389,7 @@ public class Parser {
 
     Primitive parsePrimitive() {
         if (Character.isAlphabetic(current)) {
-            return parseIdentifier();
+            return parseIdentifierAndRecord();
         }
         return parseLiteral();
     }

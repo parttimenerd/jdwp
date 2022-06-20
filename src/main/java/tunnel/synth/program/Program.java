@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
@@ -174,5 +175,11 @@ public class Program extends Statement implements CompoundStatement<Program> {
         newBody.replaceSource(firstStatement, newFirstStatement);
         newBody.replaceSource(getCauseStatement(), newCauseStatement);
         return new Program(packet, newBody);
+    }
+
+    @Override
+    public AST replaceIdentifiers(Function<Identifier, Identifier> identifierReplacer) {
+        return new Program(cause == null ? null : cause.replaceIdentifiersConv(identifierReplacer),
+                body.replaceIdentifiersConv(identifierReplacer));
     }
 }

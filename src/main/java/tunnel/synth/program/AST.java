@@ -46,8 +46,15 @@ public interface AST {
         return new Identifier(identifier);
     }
 
+    @SuppressWarnings("unchecked")
+    default <T> T replaceIdentifiersConv(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+        return (T) replaceIdentifiers(identifierReplacer);
+    }
+
+    AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer);
+
     abstract class Expression implements AST {
-        @SuppressWarnings("unckecked")
+        @SuppressWarnings("unchecked")
         public static <T extends Expression> T parse(String input) {
             return (T) new Parser(input).parseExpression(true);
         }
@@ -102,6 +109,11 @@ public interface AST {
         @Override
         public List<Expression> getSubExpressions() {
             return List.of();
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return this;
         }
     }
 
@@ -206,6 +218,15 @@ public interface AST {
         public boolean doesDependOnStatement(Statement other) {
             return source != null && source.equals(other);
         }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return identifierReplacer.apply(this);
+        }
+
+        public Identifier copy() {
+            return new Identifier(name);
+        }
     }
 
     abstract class Statement implements AST {
@@ -218,9 +239,10 @@ public interface AST {
             return this;
         }
 
-        public Statement initHashes(@Nullable ProgramHashes parentHash) {
+        @SuppressWarnings("unchecked")
+        public <T extends Statement> T initHashes(@Nullable ProgramHashes parentHash) {
             ProgramHashes.setInStatement(parentHash, this);
-            return this;
+            return (T) this;
         }
 
         public abstract void accept(StatementVisitor visitor);
@@ -263,13 +285,24 @@ public interface AST {
             return getSubExpressions().stream().anyMatch(Expression::isDirectPointerRelated) ||
                     getSubStatements().stream().anyMatch(Statement::isDirectPointerRelated);
         }
+
+        void checkEveryIdentifierHasASource() {
+            this.accept(new RecursiveASTVisitor() {
+                @Override
+                public void visit(Identifier identifier) {
+                    if (identifier.getSource() == null) {
+                        throw new AssertionError(String.format("Identifier %s has no source", identifier));
+                    }
+                }
+            });
+        }
     }
 
     interface CompoundStatement<T extends Statement> extends AST {
 
         List<Statement> getSubStatements();
 
-        T removeStatements(Set<Statement> statements);
+        @Nullable T removeStatements(Set<Statement> statements);
 
         default T removeStatementsTransitively(Set<Statement> statements) {
             return removeStatements(getDependentStatementsAndAnchors(statements));
@@ -353,18 +386,53 @@ public interface AST {
         }
     }
 
-    interface PartiallyMergeable<T extends PartiallyMergeable<T>> extends AST {
-        List<T> merge(T other);
+    /**
+     * passed through the merges to collect changing identifiers
+     */
+    @Getter
+    class CollectedInfoDuringMerge implements java.util.function.Function<Identifier, Identifier> {
+        private final IdentityHashMap<Identifier, Identifier> oldIdentifierToNew = new IdentityHashMap<>();
+
+        void put(Identifier newIdentifier, Identifier... oldIdentifiers) {
+            for (Identifier oldIdentifier : oldIdentifiers) {
+                oldIdentifierToNew.put(oldIdentifier, newIdentifier);
+            }
+        }
+
+        @Override
+        public Identifier apply(Identifier identifier) {
+            return oldIdentifierToNew.getOrDefault(identifier, identifier);
+        }
+    }
+
+    interface PartiallyMergeable<T extends Statement & PartiallyMergeable<T>> extends AST {
+
+        default List<T> merge(T other) {
+            var res = merge(new CollectedInfoDuringMerge(), other);
+            res.forEach(x -> x.initHashes(((Statement) this).getHashes().getParent()));
+            return res;
+        }
+
+        /**
+         * don't forget to call {@link Statement#initHashes(ProgramHashes)} on the results
+         */
+        List<T> merge(CollectedInfoDuringMerge collected, T other);
 
         List<T> overlap(T other);
     }
 
     @Getter
-    @AllArgsConstructor
     @EqualsAndHashCode(callSuper = false)
     class AssignmentStatement extends Statement {
         private final Identifier variable;
         private final Expression expression;
+
+        public AssignmentStatement(Identifier variable, Expression expression) {
+            this.variable = variable;
+            variable.setSource(this);
+            this.expression = expression;
+        }
+
 
         @Override
         public void accept(StatementVisitor visitor) {
@@ -388,6 +456,14 @@ public interface AST {
 
         public boolean isCause() {
             return variable.name.equals(Synthesizer.CAUSE_NAME);
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new AssignmentStatement(
+                    identifierReplacer.apply(variable),
+                    expression.replaceIdentifiersConv(identifierReplacer)
+            );
         }
     }
 
@@ -437,6 +513,13 @@ public interface AST {
                         ((IntegerLiteral) arguments.get(1)).get()).isDirectPointer();
             }
             return arguments.stream().anyMatch(Expression::isDirectPointerRelated);
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new FunctionCall(functionName,
+                    arguments.stream().map(e -> e.<Expression>replaceIdentifiersConv(identifierReplacer))
+                            .collect(Collectors.toList()));
         }
     }
 
@@ -496,12 +579,23 @@ public interface AST {
             return compareProperties(getProperties(), other.getProperties());
         }
 
-        /** returns a value >= 0 which is larger for more similar property lists */
+        /**
+         * returns a value >= 0 which is larger for more similar property lists
+         */
         static float compareProperties(List<CallProperty> props1, List<CallProperty> props2) {
             // compute the percentage of equal props
             Set<CallProperty> props2Set = new HashSet<>(props2);
-            return (float)props1.stream().mapToDouble(p -> props2Set.contains(p) ? 1 : 0).sum();
+            return (float) props1.stream().mapToDouble(p -> props2Set.contains(p) ? 1 : 0).sum();
         }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return create(getCommandSet(), getCommand(), getProperties().stream()
+                    .map(p -> p.<CallProperty>replaceIdentifiersConv(identifierReplacer))
+                    .collect(Collectors.toList()));
+        }
+
+        abstract AST create(String commandSet, String command, List<CallProperty> properties);
     }
 
     class RequestCall extends PacketCall {
@@ -558,6 +652,11 @@ public interface AST {
             return JDWP.getCost(JDWP.getCommandSetByte(getCommandSet()),
                     JDWP.getCommandByte(getCommandSet(), getCommand()));
         }
+
+        @Override
+        RequestCall create(String commandSet, String command, List<CallProperty> properties) {
+            return new RequestCall(commandSet, command, properties);
+        }
     }
 
     class EventsCall extends PacketCall {
@@ -613,6 +712,11 @@ public interface AST {
                     .map(p -> ((StringLiteral) ((FunctionCall) p.getAccessor()).arguments.get(1)).value)
                     .collect(Collectors.toSet());
         }
+
+        @Override
+        AST create(String commandSet, String command, List<CallProperty> properties) {
+            return new EventsCall(commandSet, command, properties);
+        }
     }
 
     /**
@@ -654,6 +758,11 @@ public interface AST {
         public List<Expression> getSubExpressions() {
             return List.of(accessor);
         }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new CallProperty(path, accessor.replaceIdentifiersConv(identifierReplacer));
+        }
     }
 
     @Getter
@@ -661,7 +770,7 @@ public interface AST {
     class Loop extends Statement implements CompoundStatement<Loop>, PartiallyMergeable<Loop> {
         private final Identifier iter;
         private final Expression iterable;
-        private final Body body;
+        private Body body;
 
         public Loop(Identifier iter, Expression iterable, Body body) {
             this.iter = iter;
@@ -697,11 +806,15 @@ public interface AST {
         }
 
         @Override
-        public List<Loop> merge(Loop other) {
+        public List<Loop> merge(CollectedInfoDuringMerge collected, Loop other) {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
-                return List.of((Loop) new Loop(iter, iterable, body.merge(other.body)).initHashes(getHashes().getParent()));
+                var newLoop = new Loop(iter.copy(), iterable.replaceIdentifiersConv(collected),
+                        new Body(new ArrayList<>()));
+                collected.put(newLoop.iter, iter, other.iter);
+                newLoop.body = body.merge(collected, other.body);
+                return List.of(newLoop);
             }
-            return List.of(this, other);
+            return List.of(this.replaceIdentifiersConv(collected), other.replaceIdentifiersConv(collected));
         }
 
         @Override
@@ -709,7 +822,7 @@ public interface AST {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
                 var newBody = body.overlap(other.body);
                 if (newBody.size() > 0) {
-                    return List.of((Loop) new Loop(iter, iterable, newBody).initHashes(getHashes().getParent()));
+                    return List.of(new Loop(iter, iterable, newBody).initHashes(getHashes().getParent()));
                 }
             }
             return List.of();
@@ -726,12 +839,158 @@ public interface AST {
 
         @Override
         public Loop removeStatements(Set<Statement> statements) {
-            return (Loop) new Loop(iter, iterable, body.removeStatements(statements)).initHashes(getHashes().getParent());
+            return new Loop(iter, iterable, body.removeStatements(statements)).initHashes(getHashes().getParent());
         }
 
         @Override
         public List<Expression> getSubExpressions() {
             return List.of(iter, iterable);
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new Loop(
+                    identifierReplacer.apply(iter),
+                    iterable.replaceIdentifiersConv(identifierReplacer),
+                    body.replaceIdentifiersConv(identifierReplacer));
+        }
+    }
+
+    @Getter
+    @EqualsAndHashCode(callSuper = false)
+    class Recursion extends Statement
+            implements CompoundStatement<Recursion>, PartiallyMergeable<Recursion> {
+        private final Identifier name;
+        /**
+         * maximum number of recursive calls
+         */
+        private final int maxNumberOfCalls;
+        private final Identifier requestVariable;
+        private final RequestCall request;
+        private Body body;
+
+        public Recursion(Identifier name, int maxNumberOfCalls,
+                         Identifier requestVariable, RequestCall request, Body body) {
+            this.name = name;
+            this.maxNumberOfCalls = maxNumberOfCalls;
+            this.requestVariable = requestVariable;
+            this.request = request;
+            this.body = body;
+            this.name.setSource(this);
+        }
+
+
+        @Override
+        public void accept(StatementVisitor visitor) {
+            visitor.visit(this);
+        }
+
+        @Override
+        public <R> R accept(ReturningStatementVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        public String toPrettyString(String indent, String innerIndent) {
+            String subIndent = innerIndent + indent;
+            return String.format(
+                    "%s(rec %s %d %s %s%s%s)",
+                    indent,
+                    name,
+                    maxNumberOfCalls,
+                    requestVariable,
+                    request,
+                    innerIndent.isEmpty() ? " " : "\n",
+                    body.toPrettyString(subIndent, innerIndent));
+        }
+
+        @Override
+        public List<Recursion> merge(CollectedInfoDuringMerge collected, Recursion other) {
+            if (getHashes().get(this).equals(other.getHashes().get(other))) {
+                var rec = new Recursion(name.copy(), Math.max(maxNumberOfCalls, other.getMaxNumberOfCalls()),
+                        requestVariable.copy(), request.replaceIdentifiersConv(collected), new Body());
+                collected.put(rec.name, name, other.name);
+                collected.put(rec.requestVariable, requestVariable, other.requestVariable);
+                rec.body = body.merge(collected, other.body);
+                return List.of(rec);
+            }
+            return List.of(this.replaceIdentifiersConv(collected), other.replaceIdentifiersConv(collected));
+        }
+
+        @Override
+        public List<Recursion> overlap(Recursion other) {
+            if (getHashes().get(this).equals(other.getHashes().get(other))) {
+                var newBody = body.overlap(other.body);
+                if (newBody.size() > 0) {
+                    return List.of(
+                            new Recursion(name, Math.min(maxNumberOfCalls, other.getMaxNumberOfCalls()),
+                                    requestVariable, request, newBody).initHashes(getHashes().getParent()));
+                }
+            }
+            return List.of();
+        }
+
+        @Override
+        public List<Statement> getSubStatements() {
+            return List.of(body);
+        }
+
+        @Override
+        public @Nullable Recursion removeStatements(Set<Statement> statements) {
+            return new Recursion(name, maxNumberOfCalls, requestVariable, request,
+                    body.removeStatements(statements)).initHashes(getHashes().getParent());
+        }
+
+        @Override
+        public List<Expression> getSubExpressions() {
+            return List.of(request);
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new Recursion(
+                    identifierReplacer.apply(name),
+                    maxNumberOfCalls,
+                    identifierReplacer.apply(requestVariable),
+                    request.replaceIdentifiersConv(identifierReplacer),
+                    body.replaceIdentifiersConv(identifierReplacer));
+        }
+    }
+
+    @Getter
+    @EqualsAndHashCode(callSuper = false)
+    class RecRequestCall extends Statement {
+
+        private final Identifier name;
+        private final List<CallProperty> arguments;
+
+        public RecRequestCall(Identifier name, List<CallProperty> arguments) {
+            this.name = name;
+            this.arguments = arguments;
+        }
+
+        @Override
+        public void accept(StatementVisitor visitor) {
+            visitor.visit(this);
+        }
+
+        @Override
+        public <R> R accept(ReturningStatementVisitor<R> visitor) {
+            return visitor.visit(this);
+        }
+
+        @Override
+        public String toPrettyString(String indent, String innerIndent) {
+            return String.format("%s(reccall %s%s%s)", indent, name,
+                    arguments.isEmpty() ? "" : " ",
+                    arguments.stream().map(CallProperty::toString).collect(Collectors.joining(" ")));
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new RecRequestCall(
+                    identifierReplacer.apply(name),
+                    arguments.stream().map(a -> a.<CallProperty>replaceIdentifiersConv(identifierReplacer))
+                            .collect(Collectors.toList()));
         }
     }
 
@@ -769,17 +1028,18 @@ public interface AST {
         }
 
         @Override
-        public List<SwitchStatement> merge(SwitchStatement other) {
+        public List<SwitchStatement> merge(CollectedInfoDuringMerge collected, SwitchStatement other) {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
-                var newBody = mergeCaseList(other.getHashes(), other.cases);
+                var newBody = mergeCaseList(collected, other.getHashes(), other.cases);
                 if (newBody.size() > 0) {
-                    return List.of((SwitchStatement) new SwitchStatement(expression, newBody).initHashes(getHashes().getParent()));
+                    return List.of(new SwitchStatement(expression.replaceIdentifiersConv(collected), newBody));
                 }
             }
-            return List.of(this, other);
+            return List.of(this.replaceIdentifiersConv(collected), other.replaceIdentifiersConv(collected));
         }
 
-        private List<CaseStatement> mergeCaseList(ProgramHashes otherHashes, List<CaseStatement> other) {
+        private List<CaseStatement> mergeCaseList(CollectedInfoDuringMerge collected,
+                                                  ProgramHashes otherHashes, List<CaseStatement> other) {
             // statements are order independent (but we do not guarantee, therefore use sets)
             var newCases = new ArrayList<CaseStatement>();
             var otherCases = other.stream()
@@ -787,15 +1047,15 @@ public interface AST {
             for (CaseStatement caseStatement : cases) {
                 var caseHash = getHashes().get(caseStatement);
                 if (otherCases.containsKey(caseHash)) {
-                    newCases.addAll(caseStatement.merge(otherCases.get(caseHash)));
+                    newCases.addAll(caseStatement.merge(collected, otherCases.get(caseHash)));
                     otherCases.remove(caseHash); // remove merged case
                 } else {
-                    newCases.add(caseStatement);
+                    newCases.add(caseStatement.replaceIdentifiersConv(collected));
                 }
             }
             for (CaseStatement otherCase : other) {
                 if (otherCases.containsKey(otherHashes.get(otherCase))) { // not merged?
-                    newCases.add(otherCase);
+                    newCases.add(otherCase.replaceIdentifiersConv(collected));
                 }
             }
             return newCases;
@@ -806,7 +1066,7 @@ public interface AST {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
                 var newBody = overlapCaseList(other.getHashes(), other.cases);
                 if (newBody.size() > 0) {
-                    return List.of((SwitchStatement) new SwitchStatement(expression, newBody)
+                    return List.of(new SwitchStatement(expression, newBody)
                             .initHashes(getHashes().getParent()));
                 }
             }
@@ -827,7 +1087,7 @@ public interface AST {
 
         @Override
         public SwitchStatement removeStatements(Set<Statement> statements) {
-            return (SwitchStatement) new SwitchStatement(expression, cases.stream().
+            return new SwitchStatement(expression, cases.stream().
                     filter(statements::contains)
                     .map(c -> c.removeStatements(statements)).collect(Collectors.toList()))
                     .initHashes(getHashes().getParent());
@@ -836,6 +1096,14 @@ public interface AST {
         @Override
         public List<Expression> getSubExpressions() {
             return List.of(expression);
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new SwitchStatement(
+                    expression.replaceIdentifiersConv(identifierReplacer),
+                    cases.stream().map(c -> c.<CaseStatement>replaceIdentifiersConv(identifierReplacer))
+                            .collect(Collectors.toList()));
         }
     }
 
@@ -871,22 +1139,21 @@ public interface AST {
                     body.toPrettyString(subIndent, innerIndent));
         }
 
-        public List<CaseStatement> merge(CaseStatement other) {
+        public List<CaseStatement> merge(CollectedInfoDuringMerge collected, CaseStatement other) {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
-                var newBody = body.merge(other.body);
+                var newBody = body.merge(collected, other.body);
                 if (newBody.size() > 0) {
-                    return List.of((CaseStatement) new CaseStatement(expression, newBody)
-                            .initHashes(getHashes().getParent()));
+                    return List.of(new CaseStatement(expression.replaceIdentifiersConv(collected), newBody));
                 }
             }
-            return List.of(this, other);
+            return List.of(this.replaceIdentifiersConv(collected), other.replaceIdentifiersConv(collected));
         }
 
         public List<CaseStatement> overlap(CaseStatement other) {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
                 var newBody = body.overlap(other.body);
                 if (newBody.size() > 0) {
-                    return List.of((CaseStatement) new CaseStatement(expression, newBody)
+                    return List.of(new CaseStatement(expression, newBody)
                             .initHashes(getHashes().getParent()));
                 }
             }
@@ -900,13 +1167,20 @@ public interface AST {
 
         @Override
         public CaseStatement removeStatements(Set<Statement> statements) {
-            return (CaseStatement) new CaseStatement(expression, body.removeStatements(statements))
+            return new CaseStatement(expression, body.removeStatements(statements))
                     .initHashes(getHashes().getParent());
         }
 
         @Override
         public List<Expression> getSubExpressions() {
             return List.of(expression);
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new CaseStatement(
+                    expression.replaceIdentifiersConv(identifierReplacer),
+                    body.replaceIdentifiersConv(identifierReplacer));
         }
     }
 
@@ -972,6 +1246,16 @@ public interface AST {
         public List<Expression> getSubExpressions() {
             return Lists.asList(iter, iterable, arguments.toArray(new CallProperty[0]));
         }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new MapCallStatement(
+                    identifierReplacer.apply(variable),
+                    iterable.replaceIdentifiersConv(identifierReplacer),
+                    identifierReplacer.apply(iter),
+                    arguments.stream().map(p -> p.<CallProperty>replaceIdentifiersConv(identifierReplacer))
+                            .collect(Collectors.toList()));
+        }
     }
 
 
@@ -1009,6 +1293,10 @@ public interface AST {
 
         public Body(List<Statement> body) {
             this.body = body;
+        }
+
+        public Body(Statement... body) {
+            this.body = List.of(body);
         }
 
         @Override
@@ -1055,13 +1343,13 @@ public interface AST {
 
         @NotNull
         @Override
-        public Object[] toArray() {
+        public Object @NotNull [] toArray() {
             return body.toArray();
         }
 
         @NotNull
         @Override
-        public <T> T[] toArray(@NotNull T[] a) {
+        public <T> T @NotNull [] toArray(@NotNull T @NotNull [] a) {
             return body.toArray(a);
         }
 
@@ -1148,18 +1436,23 @@ public interface AST {
             return false;
         }
 
+        public Body merge(Body other) {
+            return merge(new CollectedInfoDuringMerge(), other).initHashes(getHashes().getParent());
+        }
+
         /**
          * Merge both programs using a simple algorithm that works if the program generation is highly
          * deterministic.
          */
         @SuppressWarnings({"unchecked", "rawtypes"})
-        public Body merge(Body other) {
+        public Body merge(CollectedInfoDuringMerge collected, Body other) {
             if (other.isEmpty()) {
                 return this;
             }
             if (isEmpty()) {
                 return other;
             }
+            // old statement (of both bodies) -> new statements
             var otherIndexes = other.getHashes().getHashedToIndex();
             var otherHashedToStatement = other.getHashes().getHashedToStatement();
             List<Statement> newStatements = new ArrayList<>();
@@ -1170,7 +1463,7 @@ public interface AST {
                     int sIndex = otherIndexes.get(hashedStatement);
                     // add the statements between the previous and the current statement
                     while (prevIndex < sIndex) { // prevIndex == index: we add the statement later
-                        newStatements.add(other.body.get(prevIndex));
+                        newStatements.add(other.body.get(prevIndex).replaceIdentifiersConv(collected));
                         prevIndex++;
                     }
                     prevIndex++;
@@ -1178,27 +1471,38 @@ public interface AST {
                     assert otherStatement.getClass() == statement.getClass(); // by hash code construction
                     // now merge the two statements
                     if (statement instanceof PartiallyMergeable<?>) {
-                        newStatements.addAll(((PartiallyMergeable) statement)
-                                .merge((PartiallyMergeable) otherStatement));
+                        var news = ((PartiallyMergeable) statement)
+                                .merge(collected, otherStatement);
+                        newStatements.addAll(news);
                     } else {
                         // this statement is atomic
-                        newStatements.add(statement);
+                        Statement newStatement = statement.replaceIdentifiersConv(collected);
+                        newStatements.add(newStatement);
+                        if (statement instanceof AssignmentStatement) {
+                            // collect the identifier set by this assignment
+                            // assignments as parts of other structures are hidden and therefore not a problem
+                            AssignmentStatement assignment = (AssignmentStatement) statement;
+                            AssignmentStatement otherAssignment = (AssignmentStatement) otherStatement;
+                            AssignmentStatement newAssignment = (AssignmentStatement) newStatement;
+                            collected.put(newAssignment.getVariable(),
+                                    assignment.getVariable(), otherAssignment.getVariable());
+                        }
                     }
                 } else {
                     newStatements.add(statement);
                 }
             }
             while (prevIndex < other.body.size()) {
-                newStatements.add(other.body.get(prevIndex));
+                newStatements.add(other.body.get(prevIndex).replaceIdentifiersConv(collected));
                 prevIndex++;
             }
-            return (Body) new Body(newStatements).initHashes(getHashes().getParent());
+            return new Body(newStatements);
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         public Body overlap(Body other) {
             if (isEmpty() || other.isEmpty()) {
-                return (Body) new Body(List.of()).initHashes(getHashes().getParent());
+                return new Body(List.of()).initHashes(getHashes().getParent());
             }
             var startIndex = getHashes().getIndex(body.get(0));
             List<Statement> newStatements = new ArrayList<>();
@@ -1209,7 +1513,7 @@ public interface AST {
                     var pm = (PartiallyMergeable<?>) statement;
                     if (getHashes().contains(hashedStatement)) {
                         var index = getHashes().getIndex(hashedStatement);
-                        newStatements.addAll(((PartiallyMergeable) get(index - startIndex)).overlap(pm));
+                        newStatements.addAll(((PartiallyMergeable) get(index - startIndex)).overlap((Statement) pm));
                         lastIndex = index;
                     }
                 } else if (getHashes().contains(hashedStatement)) {
@@ -1220,7 +1524,7 @@ public interface AST {
                     }
                 }
             }
-            return (Body) new Body(newStatements).initHashes(getHashes().getParent());
+            return new Body(newStatements).initHashes(getHashes().getParent());
         }
 
         @Override
@@ -1244,9 +1548,10 @@ public interface AST {
         }
 
         public Body removeStatements(Set<Statement> statements) {
-            return (Body) new Body(body.stream().filter(s -> !statements.contains(s))
+            return new Body(body.stream().filter(s -> !statements.contains(s))
                     .map(s -> s instanceof CompoundStatement<?> ?
                             ((CompoundStatement<?>) s).removeStatements(statements) : s)
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList())).initHashes(getHashes().getParent());
         }
 
@@ -1259,6 +1564,12 @@ public interface AST {
                     }
                 }
             });
+        }
+
+        @Override
+        public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
+            return new Body(body.stream().map(s -> s.<Statement>replaceIdentifiersConv(identifierReplacer))
+                    .collect(Collectors.toList()));
         }
     }
 }

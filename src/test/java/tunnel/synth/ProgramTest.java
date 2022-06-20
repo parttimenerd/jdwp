@@ -1,9 +1,11 @@
 package tunnel.synth;
 
 import jdwp.*;
+import jdwp.ClassTypeCmds.SuperclassRequest;
 import jdwp.EventCmds.Events;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ThreadReference;
+import jdwp.ReferenceTypeCmds.InterfacesRequest;
 import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
 import jdwp.TunnelCmds.UpdateCacheRequest;
 import jdwp.Value.BasicValue;
@@ -29,6 +31,7 @@ import java.util.Map;
 import static jdwp.PrimitiveValue.wrap;
 import static org.junit.jupiter.api.Assertions.*;
 import static tunnel.synth.program.AST.*;
+import static tunnel.synth.program.Functions.GET_FUNCTION;
 
 /**
  * Test for {@link Program}, {@link Evaluator} and {@link Functions}.
@@ -169,17 +172,30 @@ public class ProgramTest {
             "((for iter iterable (= iter 1) (for iter2 iterable2)))," +
                     "((for iter2 iterable2) (for iter iterable (= iter 2)))," +
                     "((for iter2 iterable2) (for iter iterable (= iter 1) (for iter2 iterable2) (= iter 2)))",
-            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'b'))),((= x 1) (switch x (case 'a') (case 'b')))",
-            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a' (= y 1)))),((= x 1) (switch x (case 'a' (= y 1))))",
+            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'b'))),((= x 1) (switch x (case 'a') (case 'b')" +
+                    "))",
+            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a' (= y 1)))),((= x 1) (switch x (case 'a' (= " +
+                    "y 1))))",
             "((= x 1) (switch x (case 'a')) (switch (const 1) (case 'a')))," +
                     "((= x 1) (switch x (case 'b')))," +
-                    "((= x 1) (switch x (case 'a') (case 'b')) (switch (const 1) (case 'a')))",
+                    "((= x 1) (switch x (case 'a') (case 'b')) (switch (const 1) (case 'a'))) ",
+            "((rec r 10 var100 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10)) " +
+                    "(= y (request ReferenceType Interfaces ('refType')=(wrap 'klass' 11))) " +
+                    "(reccall r ('clazz')=(get var100 'superclass'))))," +
+                    "((rec r 10 var101 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10))" +
+                    "(= y (request ReferenceType Interfaces ('refType')=(get var101 'superclass')))" +
+                    "(reccall r ('clazz')=(get var101 'superclass'))))," +
+                    "((rec r 10 var100 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10)) " +
+                    "(= y (request ReferenceType Interfaces ('refType')=(wrap 'klass' 11))) " +
+                    "(= y (request ReferenceType Interfaces ('refType')=(get var100 'superclass')))" +
+                    "(reccall r ('clazz')=(get var100 'superclass')))),"
+
     })
     public void testMerge(String program1, String program2, String merge) {
         var p1 = Program.parse(merge);
         var p2 = Program.parse(program1);
         var p3 = Program.parse(program2);
-        assertEquals(p1, p2.merge(p3));
+        assertEquals(p1.toPrettyString(), p2.merge(p3).toPrettyString());
     }
 
     @ParameterizedTest
@@ -288,7 +304,7 @@ public class ProgramTest {
     public void testParseGetFunctionWithExpression() {
         assertEquals(
                 FunctionCall.<FunctionCall>parse("(get (get x 1) 1 \"a\" 2)"),
-                Functions.GET_FUNCTION.createCall(Functions.GET_FUNCTION.createCall("x", new AccessPath(1)),
+                GET_FUNCTION.createCall(GET_FUNCTION.createCall("x", new AccessPath(1)),
                         new AccessPath(1, "a", 2)));
     }
 
@@ -658,5 +674,28 @@ public class ProgramTest {
         }).evaluatePacketCall(new Scopes<>(), PacketCall.parse("(request StackFrame GetValues ('frame')=(wrap 'frame'" +
                 " 1) ('slots')" +
                 "=(slots) ('thread')=(wrap 'thread' 1))"));
+    }
+
+    @Test
+    public void testParseRecursionStatement() {
+        var name = ident("r");
+        var requestVar = ident("var100");
+        var recursion = (Recursion) new Recursion(name, 10, requestVar,
+                RequestCall.create(new SuperclassRequest(0, Reference.classType(10))), new Body(
+                new AssignmentStatement(ident("y"), RequestCall.create(new InterfacesRequest(1,
+                        Reference.klass(11)))),
+                new RecRequestCall(name, List.of(new CallProperty(new AccessPath("clazz"),
+                        GET_FUNCTION.createCall(requestVar, new AccessPath("superclass")))))
+        )).initHashes(null);
+        assertEquals("(rec r 10 var100 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 10))\n" +
+                "  (= y (request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 11)))\n" +
+                "  (reccall r (\"clazz\")=(get var100 \"superclass\")))", recursion.toPrettyString());
+        assertEquals(recursion, Recursion.parse(recursion.toPrettyString()));
+    }
+
+    @Test
+    public void testMergeWithDifferentNames() {
+        assertEquals("((= x 1) (= z x))", Program.parse("((= x 1))")
+                .merge(Program.parse("((= y 1) (= z y))")).toString());
     }
 }

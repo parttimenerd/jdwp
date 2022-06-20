@@ -38,6 +38,14 @@ public interface Visitors {
         default void visit(CaseStatement caseStatement) {
             visit((Statement) caseStatement);
         }
+
+        default void visit(Recursion recursion) {
+            visit((Statement) recursion);
+        }
+
+        default void visit(RecRequestCall recCall) {
+            visit((Statement) recCall);
+        }
     }
 
     interface ReturningStatementVisitor<R> {
@@ -68,6 +76,14 @@ public interface Visitors {
 
         default R visit(CaseStatement caseStatement) {
             return visit((Statement) caseStatement);
+        }
+
+        default R visit(Recursion recursion) {
+            return visit((Statement) recursion);
+        }
+
+        default R visit(RecRequestCall recCall) {
+            return visit((Statement) recCall);
         }
     }
 
