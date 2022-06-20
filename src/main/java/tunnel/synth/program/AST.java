@@ -657,6 +657,10 @@ public interface AST {
         RequestCall create(String commandSet, String command, List<CallProperty> properties) {
             return new RequestCall(commandSet, command, properties);
         }
+
+        public RequestCall withProperties(List<CallProperty> newProperties) {
+            return new RequestCall(getCommandSet(), getCommand(), newProperties);
+        }
     }
 
     class EventsCall extends PacketCall {

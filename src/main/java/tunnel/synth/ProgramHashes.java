@@ -253,7 +253,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
             @Override
             public Hashed<Statement> visit(RecRequestCall recCall) {
                 return Hashed.create(recCall, 0, REC_CALL,
-                        recCall.getName().getSource().accept(this).hash());
+                        recCall.getName().getSource() != null ? recCall.getName().getSource().accept(this).hash() : 0);
             }
         });
     }

@@ -1,10 +1,12 @@
 package tunnel.synth;
 
 import jdwp.*;
+import jdwp.ClassTypeCmds.SuperclassReply;
 import jdwp.ClassTypeCmds.SuperclassRequest;
 import jdwp.EventCmds.Events;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ThreadReference;
+import jdwp.ReferenceTypeCmds.InterfacesReply;
 import jdwp.ReferenceTypeCmds.InterfacesRequest;
 import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
 import jdwp.TunnelCmds.UpdateCacheRequest;
@@ -14,21 +16,27 @@ import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import jdwp.VirtualMachineCmds.ClassesBySignatureRequest;
 import jdwp.VirtualMachineCmds.DisposeObjectsRequest;
+import jdwp.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.program.*;
 import tunnel.synth.program.Evaluator.EvaluationAbortException;
 import tunnel.synth.program.Evaluator.MapCallResult;
 import tunnel.synth.program.Evaluator.MapCallResultEntry;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static jdwp.PrimitiveValue.wrap;
+import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.*;
 import static tunnel.synth.program.AST.*;
 import static tunnel.synth.program.Functions.GET_FUNCTION;
@@ -45,7 +53,8 @@ public class ProgramTest {
         vm.reset();
     }
 
-    static class RecordingFunctions extends Functions {
+    static class
+    RecordingFunctions extends Functions {
         final List<Request<?>> requests = new ArrayList<>();
         final List<Value> values = new ArrayList<>();
 
@@ -691,6 +700,57 @@ public class ProgramTest {
                 "  (= y (request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 11)))\n" +
                 "  (reccall r (\"clazz\")=(get var100 \"superclass\")))", recursion.toPrettyString());
         assertEquals(recursion, Recursion.parse(recursion.toPrettyString()));
+    }
+
+    private static RecordingFunctions createRecordingFunctions(Partition partition) {
+        return new RecordingFunctions() {
+            @Override
+            protected Value processRequest(Request<?> request) {
+                super.processRequest(request);
+                return partition.stream().filter(p -> p.first.equals(request))
+                        .map(p -> p.second).findFirst().get().asCombined();
+            }
+        };
+    }
+
+    @Test
+    public void testEvaluateRecursionWithLoop() {
+        var program = Program.parse("(\n" +
+                "  (rec recursion0 1000 var0 (request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 1))\n" +
+                "    (for iter0 (get var0 \"interfaces\") \n" +
+                "      (reccall recursion0 (\"refType\")=iter0))))");
+        BiFunction<Integer, List<Long>, Pair<InterfacesRequest, InterfacesReply>> interfacesCreator = (id,
+                                                                                                       interfaces) ->
+                p(new InterfacesRequest(id, Reference.klass(id)),
+                        new InterfacesReply(id, new ListValue<>(Type.OBJECT,
+                                interfaces.stream().map(Reference::interfaceType).collect(Collectors.toList()))));
+        var partition = new Partition(null, List.of(
+                interfacesCreator.apply(1, List.of(2L, 3L, 4L, 5L)),
+                interfacesCreator.apply(2, List.of(6L)),
+                interfacesCreator.apply(3, List.of()),
+                interfacesCreator.apply(4, List.of()),
+                interfacesCreator.apply(5, List.of()),
+                interfacesCreator.apply(6, List.of())));
+        var funcs = createRecordingFunctions(partition);
+        new Evaluator(vm, funcs).evaluate(program);
+        assertEquals(partition.stream().map(p -> p.first).collect(Collectors.toSet()), new HashSet<>(funcs.requests));
+    }
+
+    @Test
+    public void testEvaluateRecursionWithoutLoop() {
+        var program = Program.parse("(\n" +
+                "  (rec recursion0 1000 var0 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 1))\n" +
+                "    (reccall recursion0 (\"clazz\")=(get var0 \"superclass\"))))");
+        BiFunction<Integer, Long, Pair<SuperclassRequest, SuperclassReply>> interfacesCreator = (id, superClass) ->
+                p(new SuperclassRequest(id, Reference.classType(id)), new SuperclassReply(id,
+                        Reference.classType(superClass)));
+        var partition = new Partition(null, List.of(
+                interfacesCreator.apply(1, 2L),
+                interfacesCreator.apply(2, 3L),
+                interfacesCreator.apply(3, 0L)));
+        var funcs = createRecordingFunctions(partition);
+        new Evaluator(vm, funcs).evaluate(program);
+        assertEquals(partition.stream().map(p -> p.first).collect(Collectors.toList()), funcs.requests);
     }
 
     @Test

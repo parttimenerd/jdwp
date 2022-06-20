@@ -272,6 +272,25 @@ public class DependencyGraph {
             return nodes;
         }
 
+        public Set<Node> computeDependedByTransitive(Set<Node> possibleNodes, Set<Node> doNotCross) {
+            Set<Node> nodes = new HashSet<>();
+            Stack<Node> stack = new Stack<>();
+            stack.push(this);
+            while (!stack.isEmpty()) {
+                var current = stack.pop();
+                for (Edge edge : current.dependedBy) {
+                    var other = edge.target;
+                    if (!nodes.contains(other) && possibleNodes.contains(other)) {
+                        if (!doNotCross.contains(other)) {
+                            stack.push(other);
+                        }
+                        nodes.add(other);
+                    }
+                }
+            }
+            return nodes;
+        }
+
         public void addAllDependsOn(Collection<Edge> edges) {
             edges.forEach(this::addDependsOn);
         }
@@ -756,6 +775,28 @@ public class DependencyGraph {
                 var other = edge.target;
                 if (!nodes.contains(other) && !start.contains(other)) {
                     stack.push(other);
+                    nodes.add(other);
+                }
+            }
+        }
+        return nodes;
+    }
+
+    public static Set<Node> computeDependedByTransitive(Set<Node> start, Set<Node> possibleNodes,
+                                                        Set<Node> doNotCross) {
+        Set<Node> nodes = new HashSet<>();
+        Stack<Node> stack = new Stack<>();
+        for (Node node : start) {
+            stack.push(node);
+        }
+        while (!stack.isEmpty()) {
+            var current = stack.pop();
+            for (Edge edge : current.dependedBy) {
+                var other = edge.target;
+                if (!nodes.contains(other) && possibleNodes.contains(other)) {
+                    if (!doNotCross.contains(other)) {
+                        stack.push(other);
+                    }
                     nodes.add(other);
                 }
             }

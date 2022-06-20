@@ -282,6 +282,51 @@ public class SynthesizerTest {
     }
 
     @Test
+    public void testRecursionWithLoopSynthesis() {
+        /*
+        Idea: introduce loop in the following program:
+  (= var19 (request ReferenceType Interfaces ("refType")=(get var16 "typeID")))
+  (= var20 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 4)))
+  (= var21 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 3)))
+  (= var22 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 2)))
+  (= var23 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 1)))
+  (= var24 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 0))))
+         */
+        BiFunction<Integer, List<Long>, Pair<InterfacesRequest, InterfacesReply>> interfacesCreator = (id,
+                                                                                                       interfaces) ->
+                p(new InterfacesRequest(id, Reference.klass(id)),
+                        new InterfacesReply(id, new ListValue<>(Type.OBJECT,
+                                interfaces.stream().map(Reference::interfaceType).collect(Collectors.toList()))));
+        var partition = new Partition(null, List.of(
+                interfacesCreator.apply(1, List.of(2L, 3L, 4L, 5L)),
+                interfacesCreator.apply(2, List.of(6L)),
+                interfacesCreator.apply(3, List.of()),
+                interfacesCreator.apply(4, List.of()),
+                interfacesCreator.apply(5, List.of()),
+                interfacesCreator.apply(6, List.of())));
+        var program = Synthesizer.synthesizeProgram(partition, Synthesizer.DEFAULT_OPTIONS);
+        assertEquals("(\n" +
+                "  (rec recursion0 1000 var0 (request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 1))\n" +
+                "    (for iter0 (get var0 \"interfaces\") \n" +
+                "      (reccall recursion0 (\"refType\")=iter0))))", program.toPrettyString());
+    }
+
+    @Test
+    public void testRecursionSynthesis() {
+        BiFunction<Integer, Long, Pair<SuperclassRequest, SuperclassReply>> interfacesCreator = (id, superClass) ->
+                p(new SuperclassRequest(id, Reference.classType(id)), new SuperclassReply(id,
+                        Reference.classType(superClass)));
+        var partition = new Partition(null, List.of(
+                interfacesCreator.apply(1, 2L),
+                interfacesCreator.apply(2, 3L),
+                interfacesCreator.apply(3, 0L)));
+        var program = Synthesizer.synthesizeProgram(partition, Synthesizer.DEFAULT_OPTIONS);
+        assertEquals("(\n" +
+                "  (rec recursion0 1000 var0 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 1))\n" +
+                "    (reccall recursion0 (\"clazz\")=(get var0 \"superclass\"))))", program.toPrettyString());
+    }
+
+    @Test
     public void testTypeSwitchLoopSynthesis() {
         /*
         Idea: introduce type switch statements in the following program:

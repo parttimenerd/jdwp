@@ -17,6 +17,7 @@ import tunnel.synth.DependencyGraph.Edge;
 import tunnel.synth.DependencyGraph.Layers;
 import tunnel.synth.DependencyGraph.Node;
 import tunnel.synth.Partitioner.Partition;
+import tunnel.synth.Synthesizer.NodeNames.SynthResult;
 import tunnel.synth.program.AST;
 import tunnel.synth.program.Functions;
 import tunnel.synth.program.Program;
@@ -28,6 +29,8 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -73,11 +76,19 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
          */
         @With
         private boolean switchCaseInLoop = true;
+
+        private boolean recursion = true;
+
+        /**
+         * maximum number of recursive calls for a recursion, a precaution to prevent the hanging of the evaluation
+         */
+        @With
+        public int maxNumberOfRecCalls = 1000;
     }
 
     public final static SynthesizerOptions DEFAULT_OPTIONS = new SynthesizerOptions();
     public final static SynthesizerOptions MINIMAL_OPTIONS =
-            new SynthesizerOptions(false, 2, false, 2, false);
+            new SynthesizerOptions(false, 2, false, 2, false, false, 2);
 
     @Override
     public void accept(Partition partition) {
@@ -88,6 +99,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
     public static final String NAME_PREFIX = "var";
     public static final String MAP_CALL_NAME_PREFIX = "map";
     public static final String ITER_NAME_PREFIX = "iter";
+    public static final String RECURSION_NAME_PREFIX = "recursion";
 
     public static Program synthesizeProgram(Partition partition) {
         return synthesizeProgram(partition, DEFAULT_OPTIONS);
@@ -118,19 +130,30 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
     @Getter
     static class NodeNames {
         private final SynthesizerOptions options;
-        private final Map<Node, String> names;
-        private final Set<String> mapCallNames;
-        private int nameCount;
-        private int iterNameCount;
+        private Map<Node, String> names;
+        private Map<String, Integer> nameCounts;
         private final Map<Integer, Map<AccessPath, Expression>> preHandledAccessPaths;
+        private final Map<Class<? extends Request<?>>,
+                Function<List<CallProperty>, ? extends Statement>> preHandledRequestClasses;
 
         public NodeNames(SynthesizerOptions options) {
             this.options = options;
             this.names = new HashMap<>();
-            this.mapCallNames = new HashSet<>();
-            this.nameCount = 0;
-            this.iterNameCount = 0;
+            this.nameCounts = new HashMap<>();
             this.preHandledAccessPaths = new HashMap<>();
+            this.preHandledRequestClasses = new HashMap<>();
+        }
+
+        public <T> T resetNamesOnNull(Supplier<T> supplier) {
+            var oldNames = new HashMap<>(names);
+            var oldNameCounts = new HashMap<>(nameCounts);
+            var supply = supplier.get();
+            if (supply != null) {
+                return supply;
+            }
+            names = oldNames;
+            nameCounts = oldNameCounts;
+            return null;
         }
 
         private boolean hasPrehandledAccessPaths(Node node) {
@@ -141,23 +164,27 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             return preHandledAccessPaths.get(node.getId()).containsKey(accessPath);
         }
 
-        public String createNewName() {
-            var name = NAME_PREFIX + nameCount;
-            nameCount++;
-            return name;
+        public String createNewNodeName() {
+            return createNewName(NAME_PREFIX);
         }
 
-        public String createNewIterName() {
-            var name = ITER_NAME_PREFIX + iterNameCount;
-            iterNameCount++;
-            return name;
+        public String createNewName(String prefix) {
+            var count = nameCounts.getOrDefault(prefix, 0);
+            nameCounts.put(prefix, count + 1);
+            return prefix + count;
         }
 
         public String get(Node node) {
             if (node.isCauseNode()) {
                 return CAUSE_NAME;
             }
-            return names.computeIfAbsent(node, n -> createNewName());
+            return names.computeIfAbsent(node, n -> createNewNodeName());
+        }
+
+        public void copyPreHandledAndNameCounts(NodeNames other) {
+            this.preHandledAccessPaths.putAll(other.preHandledAccessPaths);
+            this.preHandledRequestClasses.putAll(other.preHandledRequestClasses);
+            this.nameCounts.putAll(other.nameCounts);
         }
 
         /**
@@ -344,7 +371,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             //   3. basic values
             Box<Pair<Node, AccessPath>> indexedOriginNode = new Box<>(null); // origin node, base path
             Map<String, CallProperty> propertyToCallProperty = new HashMap<>();
-            var iterName = ITER_NAME_PREFIX + mapCallNames.size();
+            var iterName = createNewName(ITER_NAME_PREFIX);
             for (var property : properties) {
                 var accessors = propertyToAccessors.get(property).stream()
                         .filter(p -> !p.first || indexedOriginNode.get() == null || // check for same origin if needed
@@ -404,8 +431,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                     return null;
                 }
             }
-            String mapCallName = MAP_CALL_NAME_PREFIX + mapCallNames.size();
-            mapCallNames.add(mapCallName);
+            String mapCallName = createNewName(MAP_CALL_NAME_PREFIX);
             return new MapCallStatement(ident(mapCallName),
                     Functions.GET_FUNCTION.createCall(
                             get(indexedOriginNode.get().first),
@@ -550,10 +576,15 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                             createWrapperFunctionCall(wrap(modifier.getClass().getSimpleName())));
                 }
             }
-            var requestCall = new RequestCall(request.getCommandSetName(), request.getCommandName(),
-                    usedPaths.keySet().stream().sorted().map(p -> new CallProperty(p, usedPaths.get(p)))
-                            .collect(Collectors.toList()));
-            statements.add(new AssignmentStatement(ident(get(node)), requestCall));
+            var props = usedPaths.keySet().stream().sorted().map(p -> new CallProperty(p, usedPaths.get(p)))
+                    .collect(Collectors.toList());
+            if (preHandledRequestClasses.containsKey(origin.first.getClass())) {
+                var preHandled = preHandledRequestClasses.get(origin.first.getClass());
+                statements.add(preHandled.apply(props));
+            } else {
+                statements.add(new AssignmentStatement(ident(get(node)),
+                        new RequestCall(request.getCommandSetName(), request.getCommandName(), props)));
+            }
             return statements;
         }
 
@@ -561,7 +592,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             return call.isLeft() ? RequestCall.create(call.getLeft()) : EventsCall.create(call.getRight());
         }
 
-        @lombok.Value
+        @Value
         private static class LoopIterationNodes {
             Node loopHeader;
             int iteration;
@@ -576,15 +607,6 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             Set<Node> otherNodes;
             Map<Node, List<Edge>> otherNodesWithValidEdges;
 
-            /**
-             * do all requests have the same type as the loop header request?
-             */
-            boolean isSingleRequest() {
-                var expectedClass = loopHeader.getOrigin().first.getClass();
-                return Stream.concat(innerHeader.stream(), otherNodes.stream())
-                        .allMatch(n -> n.getOrigin().first.getClass().equals(expectedClass));
-            }
-
             Set<Node> getAllNodesWithValidEdges() {
                 var all = new HashMap<>(innerHeaderWithValidEdges);
                 all.putAll(otherNodesWithValidEdges);
@@ -597,20 +619,27 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             }
         }
 
-        private Pair<List<Statement>, Set<Node>> findLoopsWithNodeAsHeader(Node node, Layers layers,
-                                                                           Set<Node> usableNodes) {
+        @Value
+        static class SynthResult {
+            List<Statement> createdStatements;
+            Set<Node> usedNodes;
+        }
+
+        private @Nullable SynthResult findLoopsWithNodeAsHeader(Node node, Layers layers,
+                                                                Set<Node> usableNodes) {
             // is NameVariables the right place? probably not, but here we are
             if (!options.loops) {
-                return p(List.of(), Set.of());
+                return null;
             }
             assert node.getOrigin() != null;
             var headerValue = node.getOrigin().second.asCombined();
             if (!headerValue.hasListValuedFields()) { // no support for nested lists (or lists nested deeper in object)
-                return p(List.of(), Set.of());
+                return null;
             }
             if (node.getDependedByNodes().isEmpty()) {
-                return p(List.of(), Set.of());
+                return null;
             }
+            int shouldAddRequestCall = -1;
             Set<Node> alreadyCapturedNodes = new HashSet<>(); // used to ensure that nodes do only depend on single
             // index of a single list valued field
             List<Statement> producedStatements = new ArrayList<>();
@@ -619,61 +648,85 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 var fieldValue = (ListValue<?>) headerValue.get(field);
                 // find now all nodes directly dependent to every index of the list
                 // every of these nodes can only depend on a single index of the list
-                Map<Integer, LoopIterationNodes> loopIterationBodies = new HashMap<>();
-                var skipOuter = false;
-                for (int i = 0; i < fieldValue.size(); i++) {
-                    var innerHeader = new HashSet<Node>();
-                    var currentPath = new AccessPath(field, i);
-                    for (Edge edge : node.getDependedByField(currentPath)) {
-                        if (alreadyCapturedNodes.contains(edge.getTarget())) {
-                            skipOuter = true;
-                            break;
-                        }
-                        alreadyCapturedNodes.add(edge.getTarget());
-                        innerHeader.add(edge.getTarget());
-                    }
-                    if (skipOuter) {
-                        break;
-                    }
-                    if (innerHeader.isEmpty()) {
-                        continue;
-                    }
-                    var innerHeaderWithValidEdges = findValidLoopNodes(node, currentPath, layers, Set.of(),
-                            innerHeader);
-                    if (innerHeaderWithValidEdges == null) {
-                        skipOuter = true;
-                        break;
-                    }
-                    // we extend now the collected list of nodes to include all depending nodes (transitive closure)
-                    // invalid assumption: the closures have to be disjunctive and form the bodies of every iteration
-                    var otherNodes = DependencyGraph.computeDependedByTransitive(innerHeader);
-                    var otherNodesWithValidEdges = findValidLoopNodes(node, currentPath, layers, innerHeader,
-                            otherNodes);
-                    if (otherNodesWithValidEdges == null) {
-                        skipOuter = true;
-                        break;
-                    }
-                    alreadyCapturedNodes.addAll(otherNodes);
-                    loopIterationBodies.put(i, new LoopIterationNodes(node, i,
-                            innerHeader, innerHeaderWithValidEdges,
-                            otherNodes, otherNodesWithValidEdges));
-                }
-                if (skipOuter || loopIterationBodies.size() < options.loopMinListSize) {
+                var loopIterationBodies =
+                        splitIntoLoopIterationBodies(node, layers, alreadyCapturedNodes, field, fieldValue);
+                if (loopIterationBodies == null) {
                     continue; // too small
                 }
-                Statement loop;
-                if (loopIterationBodies.values().stream().allMatch(LoopIterationNodes::isSingleRequest)) {
-                    loop = handleSingleRequestLoop(node, new AccessPath(field), loopIterationBodies);
+                List<Statement> loop;
+                var recResult = handleRecursionLoop(node, new AccessPath(field), loopIterationBodies);
+                if (recResult != null) {
+                    loop = recResult;
+                    shouldAddRequestCall = shouldAddRequestCall == -1 ? 0 : shouldAddRequestCall;
                 } else {
-                    loop = handleRegularLoop(node, new AccessPath(field), loopIterationBodies);
+                    loop = List.of(handleRegularLoop(node, new AccessPath(field), loopIterationBodies));
+                    shouldAddRequestCall = 1;
                 }
-                if (loop != null) {
-                    producedStatements.add(loop);
+                if (loop.size() > 0) {
+                    producedStatements.addAll(loop);
                     usedNodes.addAll(loopIterationBodies.values().stream().flatMap(b -> b.getAllNodes().stream())
                             .collect(Collectors.toSet()));
                 }
             }
-            return p(producedStatements, usedNodes);
+            if (shouldAddRequestCall != 0) {
+                producedStatements.addAll(0, createRequestCallStatements(node));
+            }
+            return new SynthResult(producedStatements, usedNodes.size() == usableNodes.size() - 1 ? usableNodes :
+                    usedNodes);
+        }
+
+        private @Nullable Map<Integer, LoopIterationNodes>
+        splitIntoLoopIterationBodies(Node node, Layers layers, Set<Node> alreadyCapturedNodes, String field,
+                                     ListValue<?> fieldValue) {
+            Map<Integer, LoopIterationNodes> loopIterationBodies = new HashMap<>();
+            var skipOuter = false;
+            for (int i = 0; i < fieldValue.size(); i++) {
+                var innerHeader = new HashSet<Node>();
+                var currentPath = new AccessPath(field, i);
+                for (Edge edge : node.getDependedByField(currentPath)) {
+                    if (alreadyCapturedNodes.contains(edge.getTarget())) {
+                        skipOuter = true;
+                        break;
+                    }
+                    alreadyCapturedNodes.add(edge.getTarget());
+                    innerHeader.add(edge.getTarget());
+                }
+                if (skipOuter) {
+                    break;
+                }
+                if (innerHeader.isEmpty()) {
+                    continue;
+                }
+                var innerHeaderWithValidEdges = findValidLoopNodes(node, currentPath, layers, Set.of(),
+                        innerHeader);
+                if (innerHeaderWithValidEdges == null) {
+                    skipOuter = true;
+                    break;
+                }
+                // we extend now the collected list of nodes to include all depending nodes (transitive closure)
+                // invalid assumption: the closures have to be disjunctive and form the bodies of every iteration
+                var otherNodes = DependencyGraph.computeDependedByTransitive(innerHeader);
+                if (otherNodes.isEmpty()) {
+                    loopIterationBodies.put(i, new LoopIterationNodes(node, i,
+                            innerHeader, innerHeaderWithValidEdges,
+                            otherNodes, Map.of()));
+                    continue;
+                }
+                var otherNodesWithValidEdges = findValidLoopNodes(node, currentPath, layers, innerHeader,
+                        otherNodes);
+                if (otherNodesWithValidEdges == null) {
+                    skipOuter = true;
+                    break;
+                }
+                alreadyCapturedNodes.addAll(otherNodes);
+                loopIterationBodies.put(i, new LoopIterationNodes(node, i,
+                        innerHeader, innerHeaderWithValidEdges,
+                        otherNodes, otherNodesWithValidEdges));
+            }
+            if (skipOuter || (loopIterationBodies.size() < options.loopMinListSize && loopIterationBodies.size() != fieldValue.size())) {
+                return null;
+            }
+            return loopIterationBodies;
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -761,20 +814,185 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             return nodesWithValidEdges;
         }
 
-        private Statement handleSingleRequestLoop(Node node, AccessPath field,
-                                                  Map<Integer, LoopIterationNodes> loopIterationBodies) {
+        @SuppressWarnings({"unchecked"})
+        private @Nullable List<Statement> handleRecursionLoop(Node node, AccessPath field, Map<Integer,
+                LoopIterationNodes> loopIterationBodies) {
+            if (!options.recursion) {
+                return null;
+            }
             // single request loop like
             //  (= var19 (request ReferenceType Interfaces ("refType")=(get var16 "typeID")))
             //  (= var22 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 2)))
             //  (= var23 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 1)))
             //  (= var24 (request ReferenceType Interfaces ("refType")=(get var19 "interfaces" 0))))
-            System.out.println("do later");
+            // but it might also contain other requests
+            // the main heuristic here is that
+            // - the loop header request has an argument that has a type which is also present in the result list
+            // - the majority of the loop bodies contain the loop header request
+            //    - this holds also true for the recurse
+            // - a recursive request can only depend transitively on a single other recursive request
+            assert node.getOrigin() != null;
+            var request = node.getOrigin().first;
+            var reply = node.getOrigin().second;
+            var fieldValue = (ListValue<?>) field.access(reply.asCombined());
+            if (fieldValue.size() == 0 || !(fieldValue.get(0) instanceof BasicValue)) {
+                return null;
+            }
+            if (loopIterationBodies.size() == 0) {
+                return null;
+            }
+            // check the request and the reply
+            var possibleRequestFields = request.asCombined().getValues().stream()
+                    .filter(p -> p.second instanceof BasicValue &&
+                            ((BasicValue) p.second).getGroup().equals(((BasicValue) fieldValue.get(0)).getGroup()))
+                    .map(p -> new AccessPath(p.first))
+                    .collect(Collectors.toList());
+            for (var requestField : possibleRequestFields) {
+
+
+                // now find the nodes related to each loop iteration
+                List<RecursionBody> recursionBodies =
+                        splitNodesIntoRecursionBodiesForLoop(node, requestField, field, loopIterationBodies);
+                // check if <= 33% of the recursion bodies have recursive calls
+                if (recursionBodies == null || recursionBodies.isEmpty() ||
+                        recursionBodies.stream().filter(r -> r.recursiveRequests.isEmpty()).count() >
+                                recursionBodies.size() / 0.66) {
+                    continue;
+                }
+                Body merged = null;
+                var nodeName = createNewNodeName();
+                var recName = ident(createNewName(RECURSION_NAME_PREFIX));
+                var iterName = ident(createNewName(ITER_NAME_PREFIX));
+                AccessPath replyPath = null;
+                for (RecursionBody recursionBody : recursionBodies) {
+                    var nodes = recursionBody.getBodyAndRecursiveRequestNodes();
+                    if (nodes.isEmpty()) {
+                        continue;
+                    }
+                    if (replyPath == null) {
+                        replyPath = recursionBody.recursiveReplyPath.dropLast();
+                    } else {
+                        if (!(replyPath.equals(recursionBody.recursiveReplyPath.dropLast()))) {
+                            return null;
+                        }
+                    }
+                    var layers = DependencyGraph.computeLayers(null, nodes);
+                    var nodeNames = new NodeNames(options);
+                    nodeNames.copyPreHandledAndNameCounts(this);
+                    nodeNames.names.put(recursionBody.headerNode, nodeName);
+                    nodeNames.preHandledAccessPaths.computeIfAbsent(recursionBody.headerNode.getId(),
+                                    x -> new HashMap<>())
+                            .put(recursionBody.recursiveReplyPath, iterName);
+                    nodeNames.preHandledRequestClasses.put((Class<? extends Request<?>>) request.getClass(),
+                            props -> new RecRequestCall(recName, props));
+                    var program = processNodes(nodeNames, layers, nodes).first.getBody();
+                    if (merged == null) {
+                        merged = program;
+                    } else {
+                        merged = merged.merge(program);
+                    }
+                }
+                if (merged == null) {
+                    return null;
+                }
+                var reqStatements = createRequestCallStatements(node);
+                List<Statement> ret = new ArrayList<>(reqStatements.subList(0, reqStatements.size() - 1));
+                ret.add(new Recursion(recName, options.maxNumberOfRecCalls, ident(nodeName),
+                        (RequestCall) ((AssignmentStatement) reqStatements.get(reqStatements.size() - 1)).getExpression(),
+                        new Body(new Loop(iterName, GET_FUNCTION.createCall(ident(nodeName), replyPath), merged))));
+                return ret;
+            }
             return null;
+        }
+
+        @Value
+        private static class RecursionBody {
+            /**
+             * node with the recursive request
+             */
+            Node headerNode;
+            AccessPath recursiveReplyPath;
+            /**
+             * body without calls to recursive request
+             */
+            Set<Node> body;
+            /**
+             * recursive request nodes that depend transitively on the header node
+             * (without going through another recursive request node)
+             */
+            List<RecursionBody> recursiveRequests;
+
+            Set<Node> getBodyAndRecursiveRequestNodes() {
+                var ret = new HashSet<>(body);
+                ret.addAll(recursiveRequests.stream().map(r -> r.headerNode).collect(Collectors.toSet()));
+                return ret;
+            }
+        }
+
+        private @Nullable List<RecursionBody>
+        splitNodesIntoRecursionBodiesForLoop(Node headerNode, AccessPath requestPath,
+                                             AccessPath replyPath,
+                                             Map<Integer, LoopIterationNodes> loopIterationBodies) {
+            var ret = new ArrayList<RecursionBody>();
+            // split every iteration into recursion bodies recursively
+            for (LoopIterationNodes iteration : loopIterationBodies.values()) {
+                // find now all recursive requests in the iteration body that directly (ignoring non recursive requests)
+                // depend on the header node
+                var nodes = iteration.getAllNodesWithValidEdges();
+                var layers = DependencyGraph.computeLayers(null, nodes);
+                var possibleBodies = findFirstLevelRecursionNodesAndBodies(headerNode, nodes);
+                if (possibleBodies == null) {
+                    return null;
+                }
+                for (var entry : possibleBodies.entrySet()) {
+                    var node = entry.getKey();
+                    var body = entry.getValue();
+                    if (body.size() > 0) {
+                        var iters = splitIntoLoopIterationBodies(node, layers, new HashSet<>(),
+                                (String) replyPath.get(0),
+                                (ListValue<?>) replyPath.access(node.getOrigin().second.asCombined()));
+                        if (iters == null) {
+                            return null;
+                        }
+                        var recs = splitNodesIntoRecursionBodiesForLoop(node, requestPath, replyPath, iters);
+                        if (recs == null) {
+                            return null;
+                        }
+                        ret.addAll(recs);
+                        ret.add(new RecursionBody(node, replyPath.append(iteration.iteration),
+                                body.stream().filter(n -> !n.getOrigin().first.getClass()
+                                        .equals(headerNode.getOrigin().first.getClass())).collect(Collectors.toSet())
+                                , recs));
+                    } else {
+                        ret.add(new RecursionBody(node, replyPath.append(iteration.iteration), Set.of(), List.of()));
+                    }
+                }
+            }
+            return ret;
+        }
+
+        private @Nullable Map<Node, Set<Node>> findFirstLevelRecursionNodesAndBodies(Node headerNode, Set<Node> nodes) {
+            var recursiveRequestClass = headerNode.getOrigin().first.getClass();
+            var recNodes = nodes.stream().filter(n -> n.getOrigin().first.getClass().equals(recursiveRequestClass))
+                    .collect(Collectors.toSet());
+
+            var childRecNodes = headerNode.computeDependedByTransitive(nodes, recNodes);
+            var usedNodes = new HashSet<>();
+            var ret = new HashMap<Node, Set<Node>>();
+            for (Node childRecNode : childRecNodes) {
+                var body = childRecNode.computeDependedByTransitive();
+                if (body.stream().anyMatch(usedNodes::contains)) {
+                    return null; // overlapping bodies
+                }
+                usedNodes.addAll(body);
+                ret.put(childRecNode, body);
+            }
+            return ret;
         }
 
         private @Nullable Loop handleRegularLoop(Node node, AccessPath field,
                                                  Map<Integer, LoopIterationNodes> loopIterationBodies) {
-            String iter = createNewIterName();
+            String iter = createNewName(ITER_NAME_PREFIX);
             String nodeName = get(node);
             // make programs out of the loop iterations
             // replacing `(get node field index)` with `iter`
@@ -785,8 +1003,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 var layers = DependencyGraph.computeLayers(null, nodes);
                 var nodeNames = new NodeNames(options);
                 nodeNames.names.put(node, nodeName);
-                nodeNames.nameCount = nameCount;
-                nodeNames.preHandledAccessPaths.putAll(preHandledAccessPaths);
+                nodeNames.copyPreHandledAndNameCounts(this);
                 nodeNames.preHandledAccessPaths.computeIfAbsent(node.getId(), x -> new HashMap<>())
                         .put(currentPath, AST.ident(iter));
                 iterationBodies.put(iteration.iteration, processNodes(nodeNames, layers, nodes).first.getBody());
@@ -865,7 +1082,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                         commonFields.put(accessPath, new HashMap<>());
                     } else {
                         if (!commonFields.containsKey(accessPath)) {
-                            continue; // field not found in non first iteration
+                            continue; // field not found in non-first iteration
                         }
                     }
                     Map<Optional<BasicValueTransformer<?>>, Map<BasicValue, List<Integer>>> valuesPerTransformer =
@@ -880,7 +1097,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                             .collect(Collectors.toList());
                     for (Optional<BasicValueTransformer<?>> transformer : transformers) {
                         if (!isFirstIteration && !valuesPerTransformer.containsKey(transformer)) {
-                            continue; // transformer not found in non first iteration
+                            continue; // transformer not found in non-first iteration
                         }
                         BasicValue resultingValue = transformer.map(t -> t.transform(null, basicFieldValue))
                                 .orElse(basicFieldValue);
@@ -947,26 +1164,175 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             }
             return body;
         }
+
+        private @Nullable SynthResult findSimpleRecursionWithNodeAsHeader(Node node, Set<Node> usableNodes) {
+            // deal with programs like
+            // (
+            //  (= var0 (request ClassType Superclass ("clazz")=(wrap "class-type" 1)))
+            //  (= var1 (request ClassType Superclass ("clazz")=(get var0 "superclass")))
+            //  (= var2 (request ClassType Superclass ("clazz")=(get var1 "superclass"))))
+            //
+            // and transform them into recursive calls
+            // this works only if
+            // - the recursive request has a basic value field and the reply too (with the same group)
+            var request = node.getOrigin().first;
+            var reply = node.getOrigin().second;
+
+            for (Pair<String, jdwp.Value> p : request.asCombined().getValues()) {
+                if (!(p.second instanceof BasicValue)) {
+                    continue;
+                }
+                var basicRequestValue = (BasicValue) p.second;
+                for (Pair<String, jdwp.Value> p2 : reply.asCombined().getValues()) {
+                    if (!(p2.second instanceof BasicValue) ||
+                            ((BasicValue) p2.second).getGroup() != basicRequestValue.getGroup()) {
+                        continue;
+                    }
+                    var requestField = new AccessPath(p.first);
+                    var replyField = new AccessPath(p2.first);
+                    var nodes = new HashSet<>(usableNodes);
+                    nodes.remove(node);
+                    var recs = splitNodesIntoRecursionBodies(node, requestField, replyField, nodes);
+                    if (recs == null) {
+                        return null;
+                    }
+                    return mergeRecursionBodies(node, recs);
+                }
+            }
+            return null;
+        }
+
+        @SuppressWarnings("unchecked")
+        private @Nullable SynthResult mergeRecursionBodies(Node headerNode, List<RecursionBody> recursionBodies) {
+            var request = headerNode.getOrigin().first;
+            Body merged = null;
+            var nodeName = createNewNodeName();
+            var recName = ident(createNewName(RECURSION_NAME_PREFIX));
+            Set<Node> usedNodes = new HashSet<>();
+            var emptyCount = recursionBodies.stream().filter(r -> r.getRecursiveRequests().isEmpty()).count();
+            if (emptyCount == recursionBodies.size() || emptyCount > recursionBodies.size() / 2) {
+                return null;
+            }
+            for (RecursionBody recursionBody : recursionBodies) {
+                var nodes = recursionBody.getBodyAndRecursiveRequestNodes();
+                usedNodes.addAll(nodes);
+                usedNodes.add(recursionBody.headerNode);
+                if (nodes.isEmpty()) {
+                    continue;
+                }
+                var layers = DependencyGraph.computeLayers(null, nodes);
+                var nodeNames = new NodeNames(options);
+                nodeNames.copyPreHandledAndNameCounts(this);
+                nodeNames.names.put(recursionBody.headerNode, nodeName);
+                nodeNames.preHandledRequestClasses.put((Class<? extends Request<?>>) request.getClass(),
+                        props -> new RecRequestCall(recName, props));
+                nodeNames.preHandledAccessPaths
+                        .computeIfAbsent(recursionBody.headerNode.getId(), x -> new HashMap<>())
+                        .put(recursionBody.recursiveReplyPath, GET_FUNCTION.createCall(ident(nodeName),
+                                recursionBody.recursiveReplyPath));
+                var program = processNodes(nodeNames, layers, nodes,
+                        recursionBody.recursiveRequests.stream().map(r -> r.headerNode)
+                                .collect(Collectors.toSet())).first.getBody();
+                if (merged == null) {
+                    merged = program;
+                } else {
+                    merged = merged.merge(program);
+                }
+            }
+            if (merged == null) {
+                return null;
+            }
+            var reqStatements = createRequestCallStatements(headerNode);
+            List<Statement> ret = new ArrayList<>(reqStatements.subList(0, reqStatements.size() - 1));
+            return new SynthResult(List.of(new Recursion(recName, options.maxNumberOfRecCalls, ident(nodeName),
+                    (RequestCall) ((AssignmentStatement) reqStatements.get(reqStatements.size() - 1)).getExpression()
+                    , merged)), usedNodes);
+        }
+
+        private @Nullable List<RecursionBody>
+        splitNodesIntoRecursionBodies(Node headerNode, AccessPath requestPath, AccessPath replyPath,
+                                      Set<Node> nodes) {
+            var request = headerNode.getOrigin().first;
+            Set<Node> possibleRecRequests =
+                    nodes.stream().filter(n -> n.getOrigin().first.getClass() == request.getClass())
+                    .collect(Collectors.toSet());
+            // only support single recursion for now
+            var possibleHeaderNodes = headerNode.getDependedByField(replyPath)
+                    .stream().map(Edge::getTarget).collect(Collectors.toSet());
+            Set<Node> bodyWithPossibleRecs;
+            if (possibleHeaderNodes.stream().anyMatch(n -> n.getOrigin().first.getClass() == request.getClass())) {
+                bodyWithPossibleRecs = possibleHeaderNodes;
+            } else {
+                bodyWithPossibleRecs = DependencyGraph.computeDependedByTransitive(possibleHeaderNodes, nodes,
+                        possibleRecRequests);
+            }
+            if ((DependencyGraph.computeDependedByTransitive(Set.of(headerNode), nodes, possibleRecRequests).size() !=
+                    bodyWithPossibleRecs.size())) {
+                return null;
+            }
+            var recs = bodyWithPossibleRecs.stream().filter(n -> n.getOrigin().first.getClass() == request.getClass())
+                    .collect(Collectors.toList());
+            if (recs.size() > 1) {
+                return null; // we do not support multiple recursions yet
+            }
+            var body = bodyWithPossibleRecs.stream().filter(n -> n.getOrigin().first.getClass() != request.getClass())
+                    .collect(Collectors.toSet());
+            for (Node node : body) {
+                if (node.getDependsOnNodes().stream().anyMatch(n -> !body.contains(n) && !n.equals(headerNode))) {
+                    return null;
+                }
+            }
+            List<RecursionBody> directRecs = new ArrayList<>();
+            List<RecursionBody> transitiveRecs = new ArrayList<>();
+            if (!recs.isEmpty()) {
+                var rec = recs.get(0);
+                var recBodyNodes = rec.getDependedByNodes();
+                var ret = splitNodesIntoRecursionBodies(rec, requestPath, replyPath, recBodyNodes);
+                if (ret == null) {
+                    return null;
+                }
+                directRecs.add(ret.get(ret.size() - 1));
+                transitiveRecs.addAll(ret);
+            }
+            transitiveRecs.add(new RecursionBody(headerNode, replyPath, body, directRecs));
+            return transitiveRecs;
+        }
     }
 
     private static Pair<Program, Set<Node>> processNodes(NodeNames variables, Layers layers, Set<Node> fullBody) {
+        return processNodes(variables, layers, fullBody, Set.of());
+    }
+
+    private static Pair<Program, Set<Node>> processNodes(NodeNames variables, Layers layers, Set<Node> fullBody,
+                                                         Set<Node> ignoreComplexSynthForNodes) {
         var fullBodySorted = new ArrayList<>(fullBody);
         fullBodySorted.sort(layers.getNodeComparator()); // makes the statement order deterministic
         List<Statement> statements = new ArrayList<>();
         Set<Node> ignoredNodes = new HashSet<>();
+        Set<Node> usableNodes = new HashSet<>(fullBody);
         for (Node node : fullBodySorted) {
-            if (ignoredNodes.contains(node)) {
+            if (!usableNodes.contains(node)) {
                 continue;
             }
             if (node.isCauseNode()) {
                 continue;
             }
-            statements.addAll(variables.createRequestCallStatements(node));
-            var foundLoops = variables.findLoopsWithNodeAsHeader(node, layers,
-                    fullBody.stream().filter(n -> !ignoredNodes.contains(n)).collect(Collectors.toSet()));
-            if (!foundLoops.first.isEmpty()) {
-                ignoredNodes.addAll(foundLoops.second);
-                statements.addAll(foundLoops.first);
+            if (ignoreComplexSynthForNodes.contains(node)) {
+                statements.addAll(variables.createRequestCallStatements(node));
+                continue;
+            }
+            SynthResult complexSynth = variables.resetNamesOnNull(() -> variables.findLoopsWithNodeAsHeader(node,
+                    layers,
+                    usableNodes));
+            if (complexSynth == null) {
+                complexSynth = variables.resetNamesOnNull(() -> variables.findSimpleRecursionWithNodeAsHeader(node,
+                        usableNodes));
+            }
+            if (complexSynth != null) {
+                usableNodes.removeAll(complexSynth.usedNodes);
+                statements.addAll(complexSynth.getCreatedStatements());
+            } else {
+                statements.addAll(variables.createRequestCallStatements(node));
             }
         }
         return p(new Program(statements), fullBody);

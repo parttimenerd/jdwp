@@ -237,4 +237,8 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         }
         return "";
     }
+
+    public AccessPath dropLast() {
+        return subPath(0, size() - 1);
+    }
 }

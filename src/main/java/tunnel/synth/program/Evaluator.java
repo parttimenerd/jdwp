@@ -1,18 +1,19 @@
 package tunnel.synth.program;
 
 import jdwp.*;
-import jdwp.Value.*;
+import jdwp.Value.CombinedValue;
+import jdwp.Value.ListValue;
+import jdwp.Value.TaggedValue;
+import jdwp.Value.WalkableValue;
 import jdwp.util.Pair;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import tunnel.synth.program.AST.*;
 import tunnel.synth.program.Visitors.ReturningExpressionVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -141,7 +142,8 @@ public class Evaluator {
     /**
      * @throws EvaluationAbortException with discard=true if the evaluation had severe problems
      */
-    public Pair<Scopes<Value>, Set<Statement>> evaluate(Scopes<Value> scope, Body body) {
+    private Pair<Scopes<Value>, Set<Statement>> evaluate(Scopes<Value> scope, Body body) {
+        Map<Recursion, Integer> recursiveEvaluations = new HashMap<>();
         Set<Statement> notEvaluated = new HashSet<>();
         body.accept(
                 new StatementVisitor() {
@@ -308,6 +310,55 @@ public class Evaluator {
                         if (cases.containsKey(expression)) {
                             cases.get(expression).getBody().accept(this);
                         }
+                    }
+
+                    @Override
+                    public void visit(Recursion recursion) {
+                        visit(recursion, null);
+                    }
+
+                    private void visit(Recursion recursion, @Nullable List<CallProperty> newProperties) {
+                        if (notEvaluated.contains(recursion)) {
+                            return;
+                        }
+                        if (recursiveEvaluations.getOrDefault(recursion, 0) >= recursion.getMaxNumberOfCalls()) {
+                            addToNotEvaluated(recursion);
+                            throw new EvaluationAbortException(false,
+                                    String.format("Recursion depth exceeded in %s", recursion));
+                        }
+                        scope.push();
+                        recursiveEvaluations.put(recursion, recursiveEvaluations.getOrDefault(recursion, 0) + 1);
+                        Reply reply;
+                        try {
+                            var request = recursion.getRequest();
+                            if (newProperties != null) {
+                                request = request.withProperties(newProperties);
+                            }
+                            reply = (Reply) evaluate(scope, request);
+                            scope.put(recursion.getRequestVariable().getName(), reply.asCombined());
+                        } catch (AssertionError | Exception e) {
+                            addToNotEvaluated(recursion);
+                            scope.pop();
+                            throw new EvaluationAbortException(
+                                    e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
+                                    "recursive header evaluation failed", e);
+                        }
+                        if (reply.asCombined().getValues().stream()
+                                .anyMatch(p -> p.second instanceof Reference && ((Reference) p.second).value == 0)) {
+                            scope.pop();
+                            return; // 0 indicates the termination of the recursion (a 0 reference is usually invalid)
+                        }
+                        recursion.getBody().accept(this);
+                        scope.pop();
+                    }
+
+                    @Override
+                    public void visit(RecRequestCall recCall) {
+                        if (notEvaluated.contains(recCall)) {
+                            return;
+                        }
+                        var recursion = (Recursion) recCall.getName().getSource();
+                        visit(recursion, recCall.getArguments());
                     }
                 });
         return p(scope, notEvaluated);
