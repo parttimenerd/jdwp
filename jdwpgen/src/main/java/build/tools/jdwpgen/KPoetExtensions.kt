@@ -57,23 +57,28 @@ fun TypeSpec.Builder.`private static field`(type: String, name: String, codeMeth
 
 // class extensions
 
-inline fun `public static class`(className: String, typeSpecFunc: TypeMethod)
-        = TypeSpec.classBuilder(className).typeSpecFunc().modifiers(public, static).build()!!
+inline fun `public static class`(className: String, typeSpecFunc: TypeMethod) =
+    TypeSpec.classBuilder(className).typeSpecFunc().modifiers(public, static).build()!!
 
-inline fun `public static abstract class`(className: String, typeSpecFunc: TypeMethod)
-        = TypeSpec.classBuilder(className).typeSpecFunc().modifiers(public, static, abstract).build()!!
+inline fun `public static abstract class`(className: String, typeSpecFunc: TypeMethod) =
+    TypeSpec.classBuilder(className).typeSpecFunc().modifiers(public, static, abstract).build()!!
 
-inline fun `public interface`(className: String, typeSpecFunc: TypeMethod)
-        = TypeSpec.interfaceBuilder(className).typeSpecFunc().modifiers(public).build()!!
+inline fun `public interface`(className: String, typeSpecFunc: TypeMethod) =
+    TypeSpec.interfaceBuilder(className).typeSpecFunc().modifiers(public).build()!!
+
+inline fun `public static enum`(className: String, typeSpecFunc: TypeMethod) =
+    TypeSpec.enumBuilder(className).typeSpecFunc().modifiers(public, static).build()!!
+
 
 fun TypeSpec.Builder.extends(type: String) = superclass(ClassName.bestGuess(type))!!
 
 fun TypeSpec.Builder.implements(vararg typeName: String) =
     addSuperinterfaces(typeName.map(ClassName::bestGuess))!!
 
-fun TypeSpec.Builder.constructor(parameters: List<ParameterSpec.Builder>,
-                                 methodSpecFunction: MethodMethod = { this })
-        = addMethod(methodSpecFunction(MethodSpec.constructorBuilder()).addParameters(parameters.map { it.build() }
+fun TypeSpec.Builder.constructor(
+    parameters: List<ParameterSpec.Builder>,
+    methodSpecFunction: MethodMethod = { this }
+) = addMethod(methodSpecFunction(MethodSpec.constructorBuilder()).addParameters(parameters.map { it.build() }
     .toMutableList()).build())!!
 
 fun TypeSpec.Builder.`public constructor`(parameters: List<ParameterSpec.Builder>,

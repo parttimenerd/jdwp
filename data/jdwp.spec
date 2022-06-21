@@ -42,6 +42,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy nothing)
         )
     )
     (Command ClassesBySignature=2
@@ -72,6 +73,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classLoaders modules classes classPath classLoadTime)
         )
     )
     (Command AllClasses=3
@@ -98,6 +100,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classLoaders modules classes classPath classLoadTime)
         )
     )
     (Command AllThreads=4
@@ -120,6 +123,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy threads threadLoadTime)
         )
     )
     (Command TopLevelThreadGroups=5
@@ -138,6 +142,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy threads threadLoadTime)
         )
     )
     (Command Dispose=6
@@ -172,6 +177,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (AffectedBy everything)
+            (Affects everything)
         )
     )
     (Command IDSizes=7
@@ -192,6 +199,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy nothing)
         )
     )
     (Command Suspend=8
@@ -214,6 +222,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache true)
+            (AffectedBy everything)
+            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
         )
     )
     (Command Resume=9
@@ -230,6 +240,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (AffectedBy everything)
+            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
         )
     )
     (Command Exit=10
@@ -249,6 +261,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (AffectedBy everything)
+            (Affects everything)
         )
     )
     (Command CreateString=11
@@ -266,6 +280,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy nothing)
+            (Affects instances garbageCollectionTime)
         )
     )
     (Command Capabilities=12
@@ -302,6 +318,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy nothing)
+            (Affects nothing)
         )
     )
     (Command ClassPaths=13
@@ -323,6 +341,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classPath classLoadTime)
         )
     )
     (Command DisposeObjects=14
@@ -371,6 +390,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (AffectedBy nothing)
+            (Affects instances time)
         )
     )
     (Command HoldEvents=15
@@ -394,6 +415,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (AffectedBy events)
+            (Affects events)
         )
     )
     (Command ReleaseEvents=16
@@ -410,6 +433,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (AffectedBy events)
+            (Affects events)
         )
     )
     (Command CapabilitiesNew=17
@@ -503,6 +528,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy nothing)
+            (Affects nothing)
         )
     )
     (Command RedefineClasses=18
@@ -561,6 +588,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (AffectedBy nothing)
+            (Affects modules classes methods fields time classLoadTime)
         )
     )
     (Command SetDefaultStratum=19
@@ -578,6 +607,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (AffectedBy nothing)
+            (Affects nothing)
         )
     )
     (Command AllClassesWithGeneric=20
@@ -612,6 +643,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classLoaders modules classes classPath classLoadTime)
         )
     )
 
@@ -640,6 +672,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classLoaders modules classes classPath instances garbageCollectionTime time)
         )
     )
     (Command AllModules=22
@@ -658,6 +691,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy modules classLoadTime)
         )
     )
 )
@@ -682,6 +716,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classLoadTime)
         )
     )
     (Command ClassLoader=2
@@ -702,6 +737,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classLoaders classLoadTime)
         )
     )
     (Command Modifiers=3
@@ -725,6 +761,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classLoadTime)
         )
     )
     (Command Fields=4
@@ -752,6 +789,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                                  "<a href=\"#JDWP_VirtualMachine_Capabilities\">capability</a> is available.")
                 )
             )
+
         )
         (ErrorSet
             (Error CLASS_NOT_PREPARED)
@@ -762,6 +800,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes fields classLoadTime)
         )
     )
     (Command Methods=5
@@ -800,6 +839,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes methods classLoadTime)
         )
     )
     (Command GetValues=6
@@ -831,6 +871,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy time garbageCollectionTime fields)
         )
     )
     (Command SourceFile=7
@@ -852,6 +893,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command NestedTypes=8
@@ -877,6 +919,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command Status=9
@@ -905,6 +948,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath time)
         )
     )
     (Command Interfaces=10
@@ -927,6 +971,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command ClassObject=11
@@ -945,6 +990,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command SourceDebugExtension=12
@@ -967,6 +1013,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command SignatureWithGeneric=13
@@ -994,6 +1041,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command FieldsWithGeneric=14
@@ -1038,6 +1086,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath fields classLoadTime)
         )
     )
     (Command MethodsWithGeneric=15
@@ -1083,6 +1132,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath methods classLoadTime)
         )
     )
     (Command Instances=16
@@ -1111,6 +1161,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath instances time garbageCollectionTime)
         )
     )
     (Command ClassFileVersion=17
@@ -1134,6 +1185,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command ConstantPool=18
@@ -1164,6 +1216,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command Module=19
@@ -1183,6 +1236,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy modules classPath classLoadTime)
         )
     )
 )
@@ -1203,6 +1257,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classPath classLoadTime)
         )
     )
     (Command SetValues=2
@@ -1236,6 +1291,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (AffectedBy everything)
+            (Affects time)
         )
     )
     (Command InvokeMethod=3
@@ -1317,6 +1374,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime)
         )
     )
     (Command NewInstance=4
@@ -1398,6 +1456,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
         )
     )
 )
@@ -1419,6 +1478,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime-time)
         )
     )
 )
@@ -1501,6 +1561,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
         )
     )
 )
@@ -1536,6 +1597,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes methods classLoadTime)
         )
     )
     (Command VariableTable=2
@@ -1577,6 +1639,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes methods classLoadTime)
         )
     )
     (Command Bytecodes=3
@@ -1604,6 +1667,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes methods classLoadTime)
         )
     )
     (Command IsObsolete=4
@@ -1633,6 +1697,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes methods classLoadTime)
         )
     )
     (Command VariableTableWithGeneric=5
@@ -1681,6 +1746,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes methods classLoadTime)
         )
     )
 
@@ -1705,6 +1771,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classLoadTime)
         )
     )
     (Command GetValues=2
@@ -1736,6 +1803,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy time)
         )
     )
     (Command SetValues=3
@@ -1766,6 +1834,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (AffectedBy time)
+            (Affects time)
         )
     )
     (Command MonitorInfo=5
@@ -1791,6 +1861,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy time)
         )
     )
     (Command InvokeMethod=6
@@ -1875,6 +1946,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
         )
     )
     (Command DisableCollection=7
@@ -1909,6 +1981,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (Affects instances)
         )
     )
     (Command EnableCollection=8
@@ -1929,6 +2002,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (Affects instances)
         )
     )
     (Command IsCollected=9
@@ -1946,6 +2020,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy instances time garbageCollectionTime)
         )
     )
     (Command ReferringObjects=10
@@ -1976,6 +2051,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy instances time)
         )
     )
 )
@@ -1996,6 +2072,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy instances garbageCollectionTime)
         )
     )
 )
@@ -2015,6 +2092,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy threads threadLoadTime)
         )
     )
     (Command Suspend=2
@@ -2053,6 +2131,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache true)
+            (Affects instances threads threadLoadTime)
         )
     )
     (Command Resume=3
@@ -2074,6 +2153,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects time instances threads threadLoadTime)
         )
     )
     (Command Status=4
@@ -2097,6 +2177,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy threads threadLoadTime)
         )
     )
     (Command ThreadGroup=5
@@ -2114,6 +2195,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy threads threadLoadTime)
         )
     )
     (Command Frames=6
@@ -2144,6 +2226,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy currentSuspension)
         )
     )
     (Command FrameCount=7
@@ -2164,6 +2247,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy currentSuspension)
         )
     )
     (Command OwnedMonitors=8
@@ -2188,6 +2272,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy currentSuspension)
         )
     )
     (Command CurrentContendedMonitor=9
@@ -2214,6 +2299,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy currentSuspension)
         )
     )
     (Command Stop=10
@@ -2233,6 +2319,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects currentSuspension threads threadLoadTime)
         )
     )
     (Command Interrupt=11
@@ -2249,7 +2336,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
-            (InvalidatesReplyCache false)
+            (InvalidatesReplyCache true)
+            (Affects currentSuspension threads threadLoadTime)
         )
     )
     (Command SuspendCount=12
@@ -2269,6 +2357,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy time threadLoadTime)
         )
     )
     (Command OwnedMonitorsStackDepthInfo=13
@@ -2301,6 +2390,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (Affects currentSuspension threads threadLoadTime)
         )
     )
     (Command ForceEarlyReturn=14
@@ -2370,6 +2460,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (Affects time currentSuspension threads threadLoadTime)
         )
     )
 
@@ -2390,6 +2481,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy threads threadLoadTime)
         )
     )
     (Command Parent=2
@@ -2409,6 +2501,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy threads threadLoadTime)
         )
     )
     (Command Children=3
@@ -2436,6 +2529,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy threads threadLoadTime)
         )
     )
 )
@@ -2455,6 +2549,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy garbageCollectionTime)
         )
     )
     (Command GetValues=2
@@ -2478,6 +2573,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy time)
         )
     )
     (Command SetValues=3
@@ -2504,6 +2600,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects time)
         )
     )
 )
@@ -2546,6 +2643,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes modules classPath classLoadTime)
         )
     )
 )
@@ -2780,6 +2878,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (AffectedBy nothing)
+            (Affects events)
         )
     )
     (Command Clear=2
@@ -2802,6 +2902,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (AffectedBy nothing)
+            (Affects events)
         )
     )
     (Command ClearAllBreakpoints=3
@@ -2816,6 +2918,8 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache false)
+            (AffectedBy nothing)
+            (Affects events)
         )
     )
 )
@@ -2854,6 +2958,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy currentSuspension frameValues)
         )
     )
     (Command SetValues=2
@@ -2889,6 +2994,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects currentSuspension frameValues)
         )
     )
     (Command ThisObject=3
@@ -2910,6 +3016,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy currentSuspension)
         )
     )
     (Command PopFrames=4
@@ -2941,6 +3048,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
+            (Affects currentSuspension frameValues)
         )
     )
 )
@@ -2961,6 +3069,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy classes classLoadTime)
         )
     )
 )
@@ -2981,6 +3090,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy modules classLoadTime)
         )
     )
     (Command ClassLoader=2
@@ -2999,6 +3109,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy modules classLoaders classLoadTime)
         )
     )
 )
@@ -3108,6 +3219,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                              "Request that generated event (or 0 if this "
                              "event is automatically generated.")
                         (threadObject thread "Initial thread")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything)
+                        )
                     )
                     (Alt SingleStep=JDWP.EventKind.SINGLE_STEP
                         "Notification of step completion in the target VM. The step event "
@@ -3116,6 +3232,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (int requestID "Request that generated event")
                         (threadObject thread "Stepped thread")
                         (location location "Location stepped to")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt Breakpoint=JDWP.EventKind.BREAKPOINT
                         "Notification of a breakpoint in the target VM. The breakpoint event "
@@ -3124,6 +3245,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (int requestID "Request that generated event")
                         (threadObject thread "Thread which hit breakpoint")
                         (location location "Location hit")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt MethodEntry=JDWP.EventKind.METHOD_ENTRY
                          "Notification of a method invocation in the target VM. This event "
@@ -3138,6 +3264,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (int requestID "Request that generated event")
                         (threadObject thread "Thread which entered method")
                         (location location "The initial executable location in the method.")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt MethodExit=JDWP.EventKind.METHOD_EXIT
                          "Notification of a method return in the target VM. This event "
@@ -3150,6 +3281,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (int requestID "Request that generated event")
                         (threadObject thread "Thread which exited method")
                         (location location "Location of exit")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt MethodExitWithReturnValue=JDWP.EventKind.METHOD_EXIT_WITH_RETURN_VALUE
                          "Notification of a method return in the target VM. This event "
@@ -3163,6 +3299,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (threadObject thread "Thread which exited method")
                         (location location "Location of exit")
                         (value value "Value that will be returned by the method")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt MonitorContendedEnter=JDWP.EventKind.MONITOR_CONTENDED_ENTER
                          "Notification that a thread in the target VM is attempting "
@@ -3176,6 +3317,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (threadObject thread "Thread which is trying to enter the monitor")
                         (tagged-object object "Monitor object reference")
                         (location location "Location of contended monitor enter")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt MonitorContendedEntered=JDWP.EventKind.MONITOR_CONTENDED_ENTERED
                          "Notification of a thread in the target VM is entering a monitor "
@@ -3189,6 +3335,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (threadObject thread "Thread which entered monitor")
                         (tagged-object object "Monitor object reference")
                         (location location "Location of contended monitor enter")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt MonitorWait=JDWP.EventKind.MONITOR_WAIT
                          "Notification of a thread about to wait on a monitor object. "
@@ -3202,6 +3353,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (tagged-object object "Monitor object reference")
                         (location location "Location at which the wait will occur")
                         (long     timeout  "Thread wait time in milliseconds")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt MonitorWaited=JDWP.EventKind.MONITOR_WAITED
                          "Notification that a thread in the target VM has finished waiting on "
@@ -3216,6 +3372,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (tagged-object object "Monitor object reference")
                         (location location "Location at which the wait occured")
                         (boolean  timed_out "True if timed out")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt Exception=JDWP.EventKind.EXCEPTION
                          "Notification of an exception in the target VM. "
@@ -3262,6 +3423,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                             "will be considered caught even though it appears to be uncaught from "
                             "examination of the source code. "
                         )
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt ThreadStart=JDWP.EventKind.THREAD_START
                         "Notification of a new running thread in the target VM. "
@@ -3285,6 +3451,11 @@ JDWP "Java(tm) Debug Wire Protocol"
 
                         (int requestID "Request that generated event")
                         (threadObject thread "Started thread")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt ThreadDeath=JDWP.EventKind.THREAD_DEATH
                         "Notification of a completed thread in the target VM. The "
@@ -3299,6 +3470,11 @@ JDWP "Java(tm) Debug Wire Protocol"
 
                         (int requestID "Request that generated event")
                         (threadObject thread "Ending thread")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt ClassPrepare=JDWP.EventKind.CLASS_PREPARE
                         "Notification of a class prepare in the target VM. See the JVM "
@@ -3329,6 +3505,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (string signature "Type signature")
                         (int status "Status of type. "
                          "See <a href=\"#JDWP_ClassStatus\">JDWP.ClassStatus</a>")
+                         (Metadata
+                             (OnlyReads true)
+                             (InvalidatesReplyCache true)
+                             (Affects everything-classPath-modules-threadLoadTime-garbageCollectionTime)
+                         )
                     )
                     (Alt ClassUnload=JDWP.EventKind.CLASS_UNLOAD
                          "Notification of a class unload in the target VM. "
@@ -3338,6 +3519,11 @@ JDWP "Java(tm) Debug Wire Protocol"
 
                         (int requestID "Request that generated event")
                         (string signature "Type signature")
+                        (Metadata
+                            (OnlyReads true)
+                            (InvalidatesReplyCache true)
+                            (Affects everything-classPath-modules-threadLoadTime-garbageCollectionTime)
+                        )
                     )
                     (Alt FieldAccess=JDWP.EventKind.FIELD_ACCESS
                         "Notification of a field access in the target VM. "
@@ -3355,6 +3541,11 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (field fieldID "Field being accessed")
                         (tagged-object object
                                 "Object being accessed (null=0 for statics")
+                        (Metadata
+                             (OnlyReads true)
+                             (InvalidatesReplyCache true)
+                             (Affects everything-classPath-modules-threadLoadTime-garbageCollectionTime-frameValues)
+                        )
                     )
                     (Alt FieldModification=JDWP.EventKind.FIELD_MODIFICATION
                         "Notification of a field modification in the target VM. "
@@ -3371,10 +3562,20 @@ JDWP "Java(tm) Debug Wire Protocol"
                         (tagged-object object
                                 "Object being modified (null=0 for statics")
                         (value valueToBe "Value to be assigned")
+                        (Metadata
+                             (OnlyReads true)
+                             (InvalidatesReplyCache true)
+                             (Affects everything-classPath-modules-threadLoadTime-garbageCollectionTime-frameValues)
+                        )
                     )
                     (Alt VMDeath=JDWP.EventKind.VM_DEATH
                         (int requestID
                                 "Request that generated event")
+                        (Metadata
+                             (OnlyReads true)
+                             (InvalidatesReplyCache true)
+                             (Affects everything)
+                        )
                     )
                     (Alt TunnelRequestReplies=JDWP.EventKind.TUNNEL_REQUEST_REPLIES
                         "Wraps an event with a set of prefetched request reply pairs, "
@@ -3387,6 +3588,10 @@ JDWP "Java(tm) Debug Wire Protocol"
                                 (bytes request "request packet")
                                 (bytes reply "reply packet")
                             )
+                        )
+                        (Metadata
+                             (OnlyReads true)
+                             (AffectedBy everything)
                         )
                     )
                 )
@@ -3414,6 +3619,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
+            (AffectedBy everything)
         )
     )
     (Command UpdateCache=2
@@ -3427,6 +3633,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (ErrorSet)
         (Metadata
             (OnlyReads true)
+            (AffectedBy nothing)
         )
     )
 )

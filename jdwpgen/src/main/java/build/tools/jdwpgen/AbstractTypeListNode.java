@@ -8,7 +8,11 @@ public abstract class AbstractTypeListNode extends AbstractNamedNode {
         if (node instanceof TypeNode) {
             node.constrain(ctx);
         } else {
-            error("Expected type descriptor item, got: " + node);
+            if (node instanceof MetadataNode) {
+                node.constrain(ctx);
+            } else {
+                error("Expected type descriptor item, got: " + node);
+            }
         }
     }
 

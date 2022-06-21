@@ -3,6 +3,9 @@ package jdwp;
 import jdwp.JDWP.RequestReplyVisitor;
 import jdwp.JDWP.RequestVisitor;
 import jdwp.JDWP.ReturningRequestVisitor;
+import jdwp.JDWP.StateProperty;
+
+import java.util.Set;
 
 public interface Request<R extends Value & Reply> extends ParsedPacket {
 
@@ -15,6 +18,10 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
     String getCommandSetName();
 
     boolean onlyReads();
+
+    Set<StateProperty> getAffectedBy();
+
+    Set<StateProperty> getAffects();
 
     default boolean invalidatesReplyCache() {
         return !onlyReads();
@@ -33,6 +40,14 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
     Packet toPacket(VM vm);
 
     ReplyOrError<R> parseReply(PacketInputStream ps);
+
+    long getAffectsBits();
+
+    long getAffectedByBits();
+
+    boolean isAffectedBy(Request<?> other);
+
+    boolean isAffectedByTime();
 
     void accept(RequestVisitor visitor);
     void accept(RequestReplyVisitor visitor, Reply reply);

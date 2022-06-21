@@ -4,7 +4,10 @@ import jdwp.JDWP.CommandVisitor;
 import jdwp.JDWP.RequestReplyVisitor;
 import jdwp.JDWP.RequestVisitor;
 import jdwp.*;
+import jdwp.JDWP.StateProperty;
 import jdwp.VirtualMachineCmds.VersionRequest;
+
+import java.util.Set;
 
 public class TestRequest extends AbstractTestParsedPacket implements Request<jdwp.util.TestReply> {
 
@@ -39,6 +42,16 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
     }
 
     @Override
+    public Set<StateProperty> getAffectedBy() {
+        return null;
+    }
+
+    @Override
+    public Set<StateProperty> getAffects() {
+        return null;
+    }
+
+    @Override
     public Packet toPacket(VM vm) {
         return null;
     }
@@ -46,6 +59,26 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
     @Override
     public ReplyOrError<jdwp.util.TestReply> parseReply(PacketInputStream ps) {
         return null;
+    }
+
+    @Override
+    public long getAffectsBits() {
+        return 0;
+    }
+
+    @Override
+    public long getAffectedByBits() {
+        return 0;
+    }
+
+    @Override
+    public boolean isAffectedBy(Request<?> other) {
+        return false;
+    }
+
+    @Override
+    public boolean isAffectedByTime() {
+        return false;
     }
 
     @Override

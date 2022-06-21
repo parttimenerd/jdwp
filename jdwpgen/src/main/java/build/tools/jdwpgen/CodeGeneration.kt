@@ -1,5 +1,7 @@
 package build.tools.jdwpgen
 
+import build.tools.jdwpgen.MetadataNode.StateProperty
+import build.tools.jdwpgen.MetadataNode.StatePropertySet
 import com.grosner.kpoet.*
 import com.squareup.javapoet.*
 import javax.lang.model.element.Modifier
@@ -191,24 +193,7 @@ internal object CodeGeneration {
                 _return("$replyClassName.parse(ps)")
             }
 
-            for ((entry, value) in cmd.metadata.entryValues.entries) {
-                `public static final field`(entry.typeName, entry.constantName) {
-                    addJavadoc(entry.description)
-                    `=`(
-                        if (entry.nodeName.equals("Cost")) {
-                            (if (value == 0) costFile.getCost(
-                                Integer.parseInt((cmd.parent as CommandSetNode).nameNode.value()),
-                                Integer.parseInt(cmd.nameNode.value())
-                            ).L else value.L) + "f"
-                        } else if (value is String) value.S else value.L
-                    )
-                }
-                `public`(entry.typeName, entry.methodName) {
-                    `@Override`()
-                    addJavadoc(entry.description)
-                    _return(entry.constantName)
-                }
-            }
+            genMetadataCode(cmd.metadata, costFile, cmd)
 
             genVisitorAccept(requestVisitorName)
             genReturningVisitorAccept(returningRequestVisitorName)
@@ -383,15 +368,15 @@ internal object CodeGeneration {
         val className = node.commonBaseClass()
         val instanceName = "${node.name()}Instance"
         val visitorName = "${node.name()}Visitor"
-        val commonFields = listOf(kindNode) + alts.fold(alts.first().components.map { it as TypeNode.AbstractTypeNode })
-        { l, n ->
-            l.filter { c ->
-                n.components.any {
-                    val c2 = it as TypeNode.AbstractTypeNode
-                    c2.name() == c.name() && c2.javaType() == c.javaType()
+        val commonFields =
+            listOf(kindNode) + alts.fold(alts.first().components.filterIsInstance<TypeNode.AbstractTypeNode>())
+            { l, n ->
+                l.filter { c ->
+                    n.components.filterIsInstance<TypeNode.AbstractTypeNode>().any { c2 ->
+                        c2.name() == c.name() && c2.javaType() == c.javaType()
+                    }
                 }
             }
-        }
         return listOf(`public static abstract class`(className) {
             extends(instanceName)
 
@@ -449,7 +434,8 @@ internal object CodeGeneration {
         commonFields: List<TypeNode.AbstractTypeNode>
     ): TypeSpec {
         val fields = alt.components
-            .map { it as TypeNode.AbstractTypeNode }
+            .filterIsInstance<TypeNode.AbstractTypeNode>()
+        val metadataNode = alt.components.filterIsInstance<MetadataNode>().firstOrNull()
         val uncommonFields = fields
             .filter { n -> commonFields.all { it.name() != n.name() } }
         return `public static class`(alt.javaType()) {
@@ -490,6 +476,10 @@ internal object CodeGeneration {
             }
 
             genCombinedTypeGet(fields)
+
+            metadataNode?.let {
+                genMetadataCode(it, null, null)
+            }
 
             genToString(alt.name(), fields)
             genToCode(commandSetClassName + "." + alt.name(), fields)
@@ -686,11 +676,66 @@ internal object CodeGeneration {
         statement("visitor.visit(this)")
     }
 
-    private fun TypeSpec.Builder.genReturningVisitorAccept(visitorName: String) = `public`(bg("R"), "accept",
-        param(pt(visitorName, "R"), "visitor")) {
+    private fun TypeSpec.Builder.genReturningVisitorAccept(visitorName: String) = `public`(
+        bg("R"), "accept",
+        param(pt(visitorName, "R"), "visitor")
+    ) {
         `@Override`()
         addTypeVariables(listOf(TypeVariableName.get("R")))
         _return("visitor.visit(this)")
+    }
+
+    private fun TypeSpec.Builder.genMetadataCode(
+        metadata: MetadataNode,
+        costFile: CostFile?,
+        cmd: CommandNode?
+    ): TypeSpec.Builder {
+        for ((entry, value) in metadata.entryValues.entries) {
+            if (entry.nodeName.equals("Cost") && costFile == null) {
+                continue
+            }
+            `public static final field`(entry.typeName, entry.constantName) {
+                addJavadoc(entry.description)
+                `=`(
+                    if (entry.nodeName.equals("Cost")) {
+                        (if (value == 0) costFile!!.getCost(
+                            Integer.parseInt((cmd!!.parent as CommandSetNode).nameNode.value()),
+                            Integer.parseInt(cmd.nameNode.value())
+                        ).L else value.L) + "f"
+                    } else if (value is String) value.S
+                    else if (value is StatePropertySet) {
+                        if (value.properties.isEmpty()) "Set.of()"
+                        else "EnumSet.of(${value.properties.joinToString(", ") { "StateProperty.${it.name}" }})"
+                    } else value.L
+                )
+            }
+            `public`(entry.typeName, entry.methodName) {
+                `@Override`()
+                addJavadoc(entry.description)
+                _return(entry.constantName)
+            }
+        }
+
+        `public`(TypeName.LONG, "getAffectsBits") {
+            `@Override`()
+            _return("0b0" + (metadata.get("Affects") as StatePropertySet).bitfield.toString(2) + "L")
+        }
+
+        `public`(TypeName.LONG, "getAffectedByBits") {
+            `@Override`()
+            _return("0b0" + (metadata.get("AffectedBy") as StatePropertySet).bitfield.toString(2) + "L")
+        }
+
+        `public`(TypeName.BOOLEAN, "isAffectedBy", param(pt("jdwp.Request"), "other")) {
+            `@Override`()
+            _return("(getAffectedByBits() & other.getAffectsBits()) != 0")
+        }
+
+        `public`(TypeName.BOOLEAN, "isAffectedByTime") {
+            `@Override`()
+            _return((metadata.get("AffectedBy") as StatePropertySet).properties.contains(StateProperty.TIME).L)
+        }
+        return this
     }
 
     @JvmStatic
@@ -822,9 +867,9 @@ internal object CodeGeneration {
             for (entry in MetadataNode.entries) {
                 `private static final field`(
                     ParameterizedTypeName.get(
-                        bg("Map"), bg("Integer"), pt(
-                            "Map", "Integer",
-                            ClassName.get(entry.resultType).toString()
+                        bg("Map"), bg("Integer"), ParameterizedTypeName.get(
+                            bg("Map"), bg("Integer"),
+                            entry.boxedTypeName
                         )
                     ), "commandTo${entry.nodeName}"
                 ) {
@@ -856,6 +901,7 @@ internal object CodeGeneration {
                     _return("commandTo${entry.nodeName}.get(getCommandSetByte(commandSetName)).get(getCommandByte(commandSetName, commandName))")
                 }
             }
+
             for (node in root.constantSetNodes) {
                 addType(genConstantClass(node))
             }
@@ -867,9 +913,21 @@ internal object CodeGeneration {
 
             addType(`public interface`(requestReplyVisitorName) {
                 for ((requestName, replyName) in requestNames.zip(replyNames)) {
-                    `public`(TypeName.VOID, "visit", param(bg(requestName), "request"), param(bg(replyName), "reply")) {
+                    `public`(
+                        TypeName.VOID, "visit", param(bg(requestName), "request"),
+                        param(bg(replyName), "reply")
+                    ) {
                         addModifiers(Modifier.DEFAULT)
                     }
+                }
+                this
+            })
+            addType(`public static enum`("StateProperty") {
+                for (property in StateProperty.values()) {
+                    addEnumConstant(
+                        property.name, TypeSpec.anonymousClassBuilder("")
+                            .addJavadoc(property.description).build()
+                    )
                 }
                 this
             })
