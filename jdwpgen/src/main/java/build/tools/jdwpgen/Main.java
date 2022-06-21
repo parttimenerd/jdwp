@@ -99,7 +99,7 @@ public class Main {
         }
         if (rawCostFile != null && costFile != null) {
             System.out.println("Override costfile");
-            CostFile.load(rawCostFile).store(costFile);
+            CostFile.loadJVMFile(rawCostFile).store(costFile);
         }
 
         Parse parse = new Parse(reader);
@@ -112,7 +112,7 @@ public class Main {
             doc.close();
         }
         if (jdi != null) {
-            root.genJava(jdi, jdiFile, costFile != null ? CostFile.load(costFile) : CostFile.empty());
+            root.genJava(jdi, jdiFile, costFile != null ? CostFile.loadFile(costFile) : CostFile.empty());
             jdi.close();
         }
         if (include != null) {
