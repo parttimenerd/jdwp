@@ -1267,6 +1267,10 @@ public interface AST {
         public SyntaxError(int line, int column, String msg) {
             super(String.format("Error at %d.%d: %s", line, column, msg));
         }
+
+        public SyntaxError(String message, Exception e) {
+            super(message, e);
+        }
     }
 
     class Body extends Statement implements List<Statement>, CompoundStatement<Body> {

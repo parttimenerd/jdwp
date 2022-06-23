@@ -90,7 +90,11 @@ public class Program extends Statement implements CompoundStatement<Program> {
     }
 
     public static Program parse(String string) {
-        return new Parser(string).parseProgram();
+        try {
+            return new Parser(string).parseProgram();
+        } catch (SyntaxError e) {
+            throw new SyntaxError("Error in program: " + string.replace("\n", "\\n"), e);
+        }
     }
 
     public Program merge(Program other) {
@@ -181,5 +185,21 @@ public class Program extends Statement implements CompoundStatement<Program> {
     public AST replaceIdentifiers(Function<Identifier, Identifier> identifierReplacer) {
         return new Program(cause == null ? null : cause.replaceIdentifiersConv(identifierReplacer),
                 body.replaceIdentifiersConv(identifierReplacer));
+    }
+
+    public List<Statement> collectStatements() {
+        List<Statement> statements = new ArrayList<>();
+        accept(new StatementVisitor() {
+            @Override
+            public void visit(Statement statement) {
+                statements.add(statement);
+                statement.getSubStatements().forEach(s -> s.accept(this));
+            }
+        });
+        return statements;
+    }
+
+    public boolean isEmpty() {
+        return getNumberOfAssignments() + (hasCause() ? 1 : 0) == 0;
     }
 }

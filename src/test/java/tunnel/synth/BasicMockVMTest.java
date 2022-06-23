@@ -271,6 +271,8 @@ public class BasicMockVMTest {
     @SneakyThrows
     public void testEvaluateBasicProgramTunnelTunnel2() {
         var classesReply = new ClassesBySignatureReply(0, new ListValue<>(Type.OBJECT));
+        var redefineClassesRequest = new RedefineClassesRequest(0, new ListValue<>(Type.OBJECT));
+        var redefineClassesReply = new RedefineClassesReply(0);
         try (var tp = VMTunnelTunnelClientTuple.create(new ReturningRequestVisitor<>() {
             @Override
             public Reply visit(ClassesBySignatureRequest classesBySignatureRequest) {
@@ -281,19 +283,29 @@ public class BasicMockVMTest {
             public Reply visit(ResumeRequest resume) {
                 return new ResumeReply(0);
             }
+
+            @Override
+            public Reply visit(RedefineClassesRequest redefineClassesRequest) {
+                return redefineClassesReply;
+            }
         })) {
             var idSizesRequest = new IDSizesRequest(0);
             var classesRequest = new ClassesBySignatureRequest(0, wrap("test"));
             // IdSizes and Classes request
             assertEquals(tp.vm.getIdSizesReply(), tp.client.query(idSizesRequest).withNewId(0));
+            assertEquals(1, tp.clientTunnel.getReplyCacheSize());
+
             assertEquals(classesReply, tp.client.query(classesRequest.withNewId(1)));
-            // Resume request, should break the partition
-            assertEquals(new ResumeReply(0), tp.client.query(new ResumeRequest(2)));
+            assertEquals(2, tp.clientTunnel.getReplyCacheSize());
+
+            // RedefineClasses request, should break the partition
+
+            assertEquals(redefineClassesReply, tp.client.query(redefineClassesRequest));
             assertFalse(tp.serverTunnel.getState().hasUnfinishedRequests());
             assertFalse(tp.clientTunnel.getState().hasUnfinishedRequests());
-            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100), () -> {
-                while (tp.clientTunnel.getState().getProgramCache().size() != 1) ;
-            });
+            assertEqualsTimeout(1, tp.clientTunnel::getProgramCacheSize, Duration.ofSeconds(1));
+            assertEquals(1, tp.clientTunnel.getReplyCacheSize());
+            assertEquals(0, tp.serverTunnel.getReplyCacheSize()); // just to for regression testing
             // check the program
             assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());
             assertEquals("((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)) (= " +
@@ -302,16 +314,27 @@ public class BasicMockVMTest {
                     tp.clientTunnel.getState().getProgramCache().get(idSizesRequest).get().toString());
             assertEquals(0, tp.serverTunnel.getState().getProgramCache().size());
             // assumption is that calling idSizes triggers classes request
-            assertEquals(List.of(idSizesRequest, classesRequest, new ResumeRequest(2)), tp.vm.getReceivedRequests());
+            assertEquals(List.of(idSizesRequest, classesRequest, redefineClassesRequest), tp.vm.getReceivedRequests());
             var idSizesReply = tp.client.query(idSizesRequest.withNewId(3));
-            assertEquals(5, tp.vm.getReceivedRequests().size());
-            assertEquals(List.of(idSizesRequest, classesRequest, new ResumeRequest(2), idSizesRequest,
-                    classesRequest), tp.vm.getReceivedRequests());
             assertEquals(tp.vm.getIdSizesReply(), idSizesReply);
+            // but idSizesRequest is still cached
+            // check that the vm received the classesRequest
+            assertEqualsTimeout(4, () -> tp.vm.getReceivedRequests().size(), Duration.ofMillis(1000));
+            assertEquals(List.of(idSizesRequest, classesRequest, redefineClassesRequest, classesRequest),
+                    tp.vm.getReceivedRequests());
+            // check that the client received the classesReply and put into its cache
+            assertEqualsTimeout(2, tp.clientTunnel::getReplyCacheSize, Duration.ofMillis(1000000));
+            // one of these replies is prefetched
+            assertEquals(1, tp.clientTunnel.getState().getReplyCache().getPrefetchedStatistics().size());
+            assertEquals(2, tp.clientTunnel.getState().getReplyCache().getNonPrefetchedStatistics().size());
+            assertEquals(3, tp.clientTunnel.getState().getReplyCache().getStatistics().size());
             // the next Classes request should not trickle down to the VM
             assertEquals(classesReply, tp.client.query(classesRequest));
-            assertEquals(5, tp.vm.getReceivedRequests().size());
+            assertEquals(4, tp.vm.getReceivedRequests().size());
 
+            System.out.println(tp.clientTunnel.getState().getReplyCache().getPrefetchedStatistics().toLongTable());
+            System.out.println(tp.clientTunnel.getState().getReplyCache().getNonPrefetchedStatistics().toLongTable());
+            System.out.println(tp.clientTunnel.getState().getReplyCache().getStatistics().toLongTable());
         }
     }
 
@@ -335,7 +358,7 @@ public class BasicMockVMTest {
             assertEquals(List.of(classesRequest), tp.vm.getReceivedRequests());
             tp.vm.sendEvent(100, death); // should break the partition at the client tunnel
             assertEquals(death, tp.client.readEvents().events.get(0));
-            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100), () -> {
+            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100000), () -> {
                 // the propagation might need some time
                 while (tp.serverTunnel.getState().getProgramCache().size() != 1) ;
             });
@@ -344,15 +367,16 @@ public class BasicMockVMTest {
             assertEquals(0, tp.clientTunnel.getState().getProgramCache().getClientPrograms().size());
             //assertFalse(tp.serverTunnel.getState().hasUnfinishedRequests());
             assertFalse(tp.clientTunnel.getState().hasUnfinishedRequests());
+            assertEqualsTimeout(1, tp.serverTunnel::getProgramCacheSize, Duration.ofSeconds(1));
             assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
                             "\"kind\")=(wrap \"string\" \"ClassUnload\") (\"events\" 0 \"requestID\")=(wrap \"int\" " +
                             "0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 (request " +
                             "VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))",
-                    tp.serverTunnel.getState().getCachedProgram(events).get().toString());
+                    tp.serverTunnel.getState().getCachedProgram(events).toString());
             // the event should have caused the usage of this program, resulting in another Classes request to the vm
             assertEquals(List.of(classesRequest, classesRequest), tp.vm.getReceivedRequests());
-            assertEquals(new ReplyCache(), tp.serverTunnel.getState().getReplyCache());
-            assertEquals(new ReplyCache(List.of(p(classesRequest, classesReply))),
+            assertEquals(new ReplyCache(tp.vm.vm), tp.serverTunnel.getState().getReplyCache());
+            assertEquals(new ReplyCache(tp.vm.vm, List.of(p(classesRequest, classesReply))),
                     tp.clientTunnel.getState().getReplyCache());
             assertEquals(classesReply, tp.client.query(classesRequest));
             assertEquals(List.of(classesRequest, classesRequest), tp.vm.getReceivedRequests());
@@ -362,7 +386,7 @@ public class BasicMockVMTest {
             Assertions.assertTimeoutPreemptively(Duration.ofMillis(100), () -> {
                 while (tp.clientTunnel.getState().getReplyCache().size() > 0) Thread.yield();
             });
-            assertEquals(new ReplyCache(), tp.clientTunnel.getState().getReplyCache());
+            assertEquals(new ReplyCache(tp.vm.vm), tp.clientTunnel.getState().getReplyCache());
             assertEquals(new Events(0, wrap((byte) 2), new ListValue<>(classUnloadEvent)), tp.client.readEvents());
         }
     }
@@ -423,9 +447,14 @@ public class BasicMockVMTest {
             public Reply visit(SetRequest setRequest) {
                 return new SetReply(0, wrap(1));
             }
+
+            @Override
+            public Reply visit(VersionRequest versionRequest) {
+                return new VersionReply(0, wrap(""), wrap(0), wrap(1), wrap(""), wrap(""));
+            }
         })) {
             // store an artificial program in the program cache
-            tp.serverTunnel.getState().getProgramCache().accept(Program.parse(
+            tp.clientTunnel.getState().getProgramCache().accept(Program.parse(
                     "((= cause (request EventRequest Set (\"eventKind\")" +
                             "=(wrap \"byte\" 9) (\"suspendPolicy\")=(wrap \"byte\" 0))) " +
                             "(= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +

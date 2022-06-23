@@ -716,7 +716,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classLoadTime)
+            (AffectedBy classes garbageCollectionTime)
         )
     )
     (Command ClassLoader=2
@@ -761,7 +761,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classLoadTime)
+            (AffectedBy classes garbageCollectionTime)
         )
     )
     (Command Fields=4
@@ -800,7 +800,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes fields classLoadTime)
+            (AffectedBy classes fields garbageCollectionTime)
         )
     )
     (Command Methods=5
@@ -839,7 +839,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes methods classLoadTime)
+            (AffectedBy classes methods garbageCollectionTime)
         )
     )
     (Command GetValues=6
@@ -893,7 +893,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command NestedTypes=8
@@ -919,7 +919,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command Status=9
@@ -971,7 +971,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command ClassObject=11
@@ -990,7 +990,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command SourceDebugExtension=12
@@ -1013,7 +1013,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command SignatureWithGeneric=13
@@ -1041,7 +1041,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command FieldsWithGeneric=14
@@ -1086,7 +1086,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath fields classLoadTime)
+            (AffectedBy classes classPath fields garbageCollectionTime)
         )
     )
     (Command MethodsWithGeneric=15
@@ -1132,7 +1132,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath methods classLoadTime)
+            (AffectedBy classes classPath methods garbageCollectionTime)
         )
     )
     (Command Instances=16
@@ -1185,7 +1185,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command ConstantPool=18
@@ -1216,7 +1216,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command Module=19
@@ -1236,7 +1236,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy modules classPath classLoadTime)
+            (AffectedBy modules classPath garbageCollectionTime)
         )
     )
 )
@@ -1257,7 +1257,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classPath classLoadTime)
+            (AffectedBy classes classPath garbageCollectionTime)
         )
     )
     (Command SetValues=2
@@ -1597,7 +1597,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes methods classLoadTime)
+            (AffectedBy classes methods)
         )
     )
     (Command VariableTable=2
@@ -1639,7 +1639,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes methods classLoadTime)
+            (AffectedBy classes methods)
         )
     )
     (Command Bytecodes=3
@@ -1667,7 +1667,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes methods classLoadTime)
+            (AffectedBy classes methods)
         )
     )
     (Command IsObsolete=4
@@ -1697,7 +1697,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes methods classLoadTime)
+            (AffectedBy classes methods)
         )
     )
     (Command VariableTableWithGeneric=5
@@ -1746,7 +1746,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes methods classLoadTime)
+            (AffectedBy classes methods)
         )
     )
 
@@ -1771,7 +1771,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classLoadTime)
+            (AffectedBy classes garbageCollectionTime)
         )
     )
     (Command GetValues=2
@@ -3069,7 +3069,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads true)
-            (AffectedBy classes classLoadTime)
+            (AffectedBy classes garbageCollectionTime)
         )
     )
 )

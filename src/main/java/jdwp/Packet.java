@@ -140,4 +140,8 @@ public class Packet {
     public InputStream toInputStream(VM vm) {
         return toStream(vm).toInputStream();
     }
+
+    public int size() {
+        return data.length;
+    }
 }

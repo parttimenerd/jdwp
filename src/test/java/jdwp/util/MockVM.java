@@ -109,6 +109,7 @@ public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeabl
             reply = accept(request);
         }
         if (reply == null) {
+            LOG.error("No reply for request {}", request);
             return new ReplyOrError<>(request.getId(), (short) 1);
         }
         reply = (Reply) reply.withNewId(request.getId());
@@ -123,7 +124,7 @@ public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeabl
     }
 
     @Override
-    public Reply visit(IDSizesRequest iDSizesRequest) {
+    public Reply visit(IDSizesRequest idSizesRequest) {
         return idSizesReply;
     }
 

@@ -7,6 +7,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 import tunnel.BasicTunnel;
 import tunnel.Listener.LoggingListener;
+import tunnel.ReplyCache;
 import tunnel.State;
 import tunnel.State.Formatter;
 import tunnel.synth.Partitioner;
@@ -74,6 +75,8 @@ public class PacketLogger implements Runnable {
     @Option(names = "--cache-file")
     String programCacheFile = "";
 
+    ReplyCache.Options replyCacheOptions = ReplyCache.DEFAULT_OPTIONS;
+
     enum ColumnMode {
         NONE,
         TWO_COLUMN
@@ -109,7 +112,7 @@ public class PacketLogger implements Runnable {
         handleLoggingSetup();
         LOG.info("Starting tunnel from {} to {}", mainConfig.getJvmAddress(), mainConfig.getOwnAddress());
         Formatter formatter = new Formatter(packetToStringMode, partitionToStringMode);
-        var tunnel = new BasicTunnel(new State(new VM(0), tunnelMode, formatter),
+        var tunnel = new BasicTunnel(new State(new VM(0), tunnelMode, replyCacheOptions, formatter),
                 mainConfig.getOwnAddress(), mainConfig.getJvmAddress());
         tunnel.setFormatter(formatter);
         if (disableProgramCache) {

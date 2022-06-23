@@ -18,6 +18,9 @@ import tunnel.ReplyCache.DisabledReplyCache;
 import tunnel.synth.Partitioner;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.Synthesizer;
+import tunnel.synth.program.Evaluator;
+import tunnel.synth.program.Evaluator.EvaluationAbortException;
+import tunnel.synth.program.Functions;
 import tunnel.synth.program.Program;
 import tunnel.util.Either;
 import tunnel.util.ToStringMode;
@@ -121,15 +124,15 @@ public class State {
     private Formatter formatter;
     private @Nullable Path programCacheFile;
 
-    public State(VM vm, Mode mode) {
-        this(vm, mode, new Formatter(ToStringMode.CODE, ToStringMode.CODE));
+    public State(VM vm, Mode mode, ReplyCache.Options replyCacheOptions) {
+        this(vm, mode, replyCacheOptions, new Formatter(ToStringMode.CODE, ToStringMode.CODE));
     }
 
-    public State(VM vm, Mode mode, Formatter formatter) {
+    public State(VM vm, Mode mode, ReplyCache.Options replyCacheOptions, Formatter formatter) {
         this.vm = vm;
         this.unfinished = new HashMap<>();
         this.listeners = new HashSet<>();
-        this.replyCache = new ReplyCache();
+        this.replyCache = mode == Mode.SERVER ? new DisabledReplyCache(vm) : new ReplyCache(replyCacheOptions, vm);
         this.programCache = new ProgramCache();
         this.unfinishedEvaluateRequests = new HashMap<>();
         this.mode = mode;
@@ -142,6 +145,14 @@ public class State {
             }
         }
         vm.setLogger(LOG);
+    }
+
+    public State() {
+        this(NONE);
+    }
+
+    public State(Mode mode) {
+        this(new VM(0), mode, ReplyCache.DEFAULT_OPTIONS);
     }
 
     public void loadProgramCache(Path programCacheFile) {
@@ -178,7 +189,7 @@ public class State {
     }
 
     public State disableReplyCache() {
-        this.replyCache = new DisabledReplyCache();
+        this.replyCache = new DisabledReplyCache(vm);
         return this;
     }
 
@@ -187,35 +198,8 @@ public class State {
         return this;
     }
 
-    public State() {
-        this(NONE);
-    }
-
-    public State(Mode mode) {
-        this(new VM(0), mode);
-    }
-
     private void registerCacheListener() {
-        listeners.add(new Listener() {
-            @Override
-            public void onRequest(Request<?> request) {
-                if (request.invalidatesReplyCache()) {
-                    replyCache.invalidate();
-                }
-            }
-
-            @Override
-            public void onReply(Request<?> request, Reply reply) {
-                if (!request.invalidatesReplyCache()) {
-                    replyCache.put(request, reply);
-                }
-            }
-
-            @Override
-            public void onEvent(Events events) {
-                replyCache.invalidate();
-            }
-        });
+        listeners.add(replyCache);
     }
 
     /**
@@ -309,6 +293,12 @@ public class State {
         unfinished.remove(id);
     }
 
+    public void cache(Request<?> request, Reply reply, boolean prefetched) {
+        if (request.onlyReads()) {
+            replyCache.put(request, reply, prefetched);
+        }
+    }
+
     public void addEvent(WrappedPacket<Events> event) {
         listeners.forEach(l -> l.onEvent(event));
     }
@@ -346,11 +336,16 @@ public class State {
                     addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), (short) 1)));
                     removeCachedProgram(Program.parse(program.getValue()));
                 } else {
+                    var request = hasUnfinishedRequest(ps.id()) ? getUnfinishedRequest(ps.id()).getPacket() : null;
                     var realReply = reply.getReply();
+                    Reply originalReply = null;
                     assert clientOutputStream != null;
                     for (var p : BasicTunnel.parseEvaluateProgramReply(vm, realReply)) {
                         captureInformation(p.first, p.second);
-                        replyCache.put(p.first, p.second);
+                        if (originalReply == null && p.first.equals(request)) {
+                            originalReply = p.second;
+                        }
+                        cache(p.first, p.second, p.second != originalReply);
                         LOG.debug("put into reply cache: {} -> {}", formatter.format(p.first),
                                 formatter.format(p.second));
                     }
@@ -360,20 +355,23 @@ public class State {
                     for (WrappedPacket<Request<?>> value : new HashMap<>(unfinished).values()) {
                         // might cause a concurrent modification exception
                         var unfinishedRequest = value.packet;
-                        if (hasCachedReply(unfinishedRequest) && unfinishedRequest.getId() != ps.id()) {
-                            var cachedReply = replyCache.getOrNull(unfinishedRequest);
-                            addReply(new WrappedPacket<>(new ReplyOrError<>(cachedReply),
-                                    System.currentTimeMillis()));
-                            writeReply(clientOutputStream, Either.right(new ReplyOrError<>(cachedReply)));
+                        if (unfinishedRequest.getId() != ps.id()) {
+                            var cachedReply = replyCache.get(unfinishedRequest);
+                            if (cachedReply != null) {
+                                addReply(new WrappedPacket<>(new ReplyOrError<>(cachedReply),
+                                        System.currentTimeMillis()));
+                                writeReply(clientOutputStream, Either.right(new ReplyOrError<>(cachedReply)));
+                            }
                         }
                     }
                     // handle the original request
-                    var originalReply = new ReplyOrError<>(ps.id(),
-                            replyCache.get(getUnfinishedRequest(ps.id()).getPacket()).get());
-                    addReply(new WrappedPacket<>(originalReply));
+                    if (originalReply != null) {
+                        addReply(new WrappedPacket<>(new ReplyOrError<>(originalReply),
+                                System.currentTimeMillis()));
+                    }
                     clientPartitioner.enable();
                     serverPartitioner.enable();
-                    return Either.right(originalReply);
+                    return originalReply == null ? null : Either.right(new ReplyOrError<>(ps.id(), originalReply));
                 }
             }
             var request = getUnfinishedRequest(ps.id());
@@ -383,6 +381,7 @@ public class State {
             if (reply.isReply()) {
                 var realReply = reply.getReply();
                 captureInformation(request.packet, realReply);
+                cache(request.packet, reply.getReply(), false);
             }
             return Either.right(reply);
         } else {
@@ -395,7 +394,7 @@ public class State {
                     var parsed = BasicTunnel.parseTunnelRequestReplyEvent(vm, (TunnelRequestReplies)event);
                     addEvent(new WrappedPacket<>(parsed.first));
                     for (Pair<Request<?>, Reply> p : parsed.second) {
-                        replyCache.put(p.first, p.second);
+                        replyCache.put(p.first, p.second, true);
                     }
                     return Either.left(parsed.first);
                 }
@@ -453,10 +452,11 @@ public class State {
      */
     public void writeRequest(OutputStream outputStream, Request<?> request) {
         try {
+            assert isClient() || !(request instanceof EvaluateProgramRequest); // just a sanity check
             LOG.debug("Write {}", formatter.format(request));
             request.toPacket(vm).write(outputStream);
         } catch (Exception | AssertionError e) {
-            throw new PacketError(String.format("Failed to write request %s", request));
+            throw new PacketError(String.format("Failed to write request %s", request), e);
         }
     }
 
@@ -481,15 +481,15 @@ public class State {
     }
 
     public boolean hasCachedReply(Request<?> request) {
-        return replyCache.getOrNull(request) != null;
+        return !isServer() && replyCache.contains(request);
     }
 
     public Reply getCachedReply(Request<?> request) {
-        return replyCache.getOrNull(request);
+        return replyCache.get(request);
     }
 
-    public Optional<Program> getCachedProgram(ParsedPacket packet) {
-        return programCache.get(packet).or(() -> programCache.getSimilar(packet));
+    public @Nullable Program getCachedProgram(ParsedPacket packet) {
+        return programCache.get(packet).or(() -> programCache.getSimilar(packet)).orElse(null);
     }
 
     public void addUnfinishedEvaluateRequest(EvaluateProgramRequest evaluateRequest) {
@@ -522,5 +522,24 @@ public class State {
 
     public void removeCachedProgram(Program program) {
         programCache.remove(program);
+    }
+
+    /**
+     * remove all requests from the program that are cached
+     */
+    public Program reduceProgramToNonCachedRequests(Program program) {
+        var notEvaluated = new Evaluator(vm, new Functions() {
+            @Override
+            protected Value processRequest(Request<?> request) {
+                var reply = replyCache.get(request);
+                if (reply != null) {
+                    return reply.asCombined();
+                }
+                throw new EvaluationAbortException(false);
+            }
+        }).evaluate(program).second;
+        var toRemove = program.collectStatements();
+        toRemove.removeAll(notEvaluated);
+        return program.removeStatements(new HashSet<>(toRemove));
     }
 }

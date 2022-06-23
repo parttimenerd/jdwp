@@ -758,4 +758,10 @@ public class ProgramTest {
         assertEquals("((= x 1) (= z x))", Program.parse("((= x 1))")
                 .merge(Program.parse("((= y 1) (= z y))")).toString());
     }
+
+    @Test
+    public void testParseCauseOnlyProgram() {
+        var program = new Program(new EventsCall("x", "y", List.of()), List.of());
+        assertEquals(program, Program.parse(program.toPrettyString()));
+    }
 }

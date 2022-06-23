@@ -17,11 +17,16 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
 
     String getCommandSetName();
 
+    /** is this a cacheable request? */
     boolean onlyReads();
 
     Set<StateProperty> getAffectedBy();
 
     Set<StateProperty> getAffects();
+
+    default boolean isAffectedBy(StateProperty property) {
+        return getAffectedBy().contains(property);
+    }
 
     default boolean invalidatesReplyCache() {
         return !onlyReads();

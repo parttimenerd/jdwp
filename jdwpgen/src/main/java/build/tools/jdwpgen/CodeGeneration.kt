@@ -841,6 +841,10 @@ internal object CodeGeneration {
                 `=`("Map.ofEntries(${nodes.joinToString(", ") { "Map.entry(\"${it.name}\", (byte)${it.nameNode.value()})" }})")
             }
 
+            `private static final field`(pt("Map", "Byte", "String"), "commandSetByteToName") {
+                `=`("Map.ofEntries(${nodes.joinToString(", ") { "Map.entry((byte)${it.nameNode.value()}, \"${it.name}\")" }})")
+            }
+
             `private static final field`(
                 ParameterizedTypeName.get(bg("Map"), bg("String"), pt("Map", "String", "Byte")), "commandNameToByte") {
                 `=`("Map.ofEntries(${
@@ -853,8 +857,24 @@ internal object CodeGeneration {
                 })")
             }
 
+            `private static final field`(
+                ParameterizedTypeName.get(bg("Map"), bg("Byte"), pt("Map", "Byte", "String")), "commandByteToName") {
+                `=`("Map.ofEntries(${
+                    nodes.joinToString(", ") {
+                        "Map.entry((byte)${it.nameNode.value()}, Map.ofEntries(${
+                            it.components.filterIsInstance<CommandNode>()
+                                .joinToString(", ") { c -> "Map.entry((byte)${c.nameNode.value()}, \"${c.name}\")" }
+                        }))"
+                    }
+                })")
+            }
+
             `public static`(TypeName.BYTE, "getCommandSetByte", param("String", "commandSetName")) {
                 _return("commandSetNameToByte.get(commandSetName)")
+            }
+
+            `public static`(bg("String"), "getCommandSetName", param(TypeName.BYTE, "commandSet")) {
+                _return("commandSetByteToName.get(commandSet)")
             }
 
             `public static`(
@@ -862,6 +882,13 @@ internal object CodeGeneration {
                 param("String", "commandName")
             ) {
                 _return("commandNameToByte.get(commandSetName).get(commandName)")
+            }
+
+            `public static`(
+                bg("String"), "getCommandName", param(TypeName.BYTE, "commandSet"),
+                param(TypeName.BYTE, "command")
+            ) {
+                _return("commandByteToName.get(commandSet).get(command)")
             }
 
             for (entry in MetadataNode.entries) {

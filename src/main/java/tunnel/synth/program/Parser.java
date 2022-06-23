@@ -97,6 +97,7 @@ public class Parser {
         while (current != ')') {
             skipWhitespace();
             statements.add(parseStatement());
+            skipWhitespace();
         }
         identifiers.pop();
         return statements;

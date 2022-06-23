@@ -44,8 +44,7 @@ import java.util.stream.Collectors;
 import static jdwp.JDWP.Error.CANNOT_EVALUATE_PROGRAM;
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
-import static tunnel.State.Mode.CLIENT;
-import static tunnel.State.Mode.NONE;
+import static tunnel.State.Mode.*;
 import static tunnel.util.ToStringMode.CODE;
 
 /**
@@ -142,6 +141,7 @@ public class BasicTunnel {
                 if (clientRequest.isPresent()) {
                     var request = clientRequest.get();
                     currentId = request.getId();
+                    Program program;
                     if (request instanceof EvaluateProgramRequest) { // handle evaluation requests
                         handleEvaluateProgramRequest(jvmInputStream, jvmOutputStream,
                                 clientOutputStream, (EvaluateProgramRequest) request);
@@ -149,24 +149,36 @@ public class BasicTunnel {
                         state.updateProgramCache(((UpdateCacheRequest) request).programs
                                 .asList().stream().map(StringValue::getValue).collect(Collectors.toList()));
                         state.getUnfinished().remove(request.getId());
+                    } else if ((program = state.getCachedProgram(request)) != null) {
+                        var reducedProgram = state.reduceProgramToNonCachedRequests(program);
+                        if (state.hasCachedReply(request)) {
+                            // the found program is fully cached
+                            // we therefore just use the cached program
+                            var reply = state.getCachedReply(request);
+                            assert reply != null;
+                            LOG.info("Cached reply for  {}: {}", formatter.format(request), formatter.format(reply));
+                            state.addReply(new WrappedPacket<>(new ReplyOrError<>(reply)));
+                            writeClientReply(clientOutputStream, Either.right(new ReplyOrError<>(reply)));
+                        }
+                        if (reducedProgram.isEmpty()) {
+                            continue; // nothing to do
+                        }
+                        LOG.info("Using cached program for request  {}:\n {}", formatter.format(request),
+                                reducedProgram);
+                        var evaluateRequest = new EvaluateProgramRequest(reducedProgram.hasCause() ? request.getId()
+                                : request.getId() + 10000,
+                                wrap(reducedProgram.toPrettyString()));
+                        state.addUnfinishedEvaluateRequest(evaluateRequest);
+                        state.writeRequest(jvmOutputStream, evaluateRequest);
                     } else if (state.hasCachedReply(request)) {
                         var reply = state.getCachedReply(request);
+                        assert reply != null;
                         LOG.info("Cached reply for  {}: {}", formatter.format(request), formatter.format(reply));
                         state.addReply(new WrappedPacket<>(new ReplyOrError<>(reply)));
                         writeClientReply(clientOutputStream, Either.right(new ReplyOrError<>(reply)));
                         continue;
                     } else {
-                        var programOpt = state.getCachedProgram(request);
-                        if (programOpt.isPresent() && state.isClient()) {
-                            var program = programOpt.get().toPrettyString();
-                            LOG.info("Using cached program for request  {}:\n {}", formatter.format(request), program);
-                            var evaluateRequest = new EvaluateProgramRequest(request.getId(),
-                                    wrap(program));
-                            state.addUnfinishedEvaluateRequest(evaluateRequest);
-                            state.writeRequest(jvmOutputStream, evaluateRequest);
-                        } else {
-                            state.writeRequest(jvmOutputStream, request);
-                        }
+                        state.writeRequest(jvmOutputStream, request);
                     }
                 }
             } catch (ClosedStreamException e) {
@@ -180,8 +192,12 @@ public class BasicTunnel {
                             state.addAndWriteError(clientOutputStream, packet.getId(), CANNOT_EVALUATE_PROGRAM);
                             continue; // tunnel commands cannot be sent directly to the VM
                         }
-                    } catch (Exception ex) {}
+                        LOG.error("packet error: ", e);
+                    } catch (Exception ex) {
+                    }
                     jvmOutputStream.write(e.getContent());
+                } else {
+                    LOG.error("packet error during request handling", e);
                 }
             } catch (Exception ex) {
                 if (clientRequest.isPresent()) {
@@ -191,6 +207,7 @@ public class BasicTunnel {
                         continue;
                     }
                 }
+                LOG.error("error during request handling", ex);
             }
             Optional<Either<Events, ReplyOrError<?>>> reply = Optional.empty();
             try {
@@ -198,9 +215,8 @@ public class BasicTunnel {
                 if (reply.isPresent() && reply.get().isLeft()) {
                     currentId = reply.get().getLeft().getId();
                     var events = reply.get().getLeft();
-                    var programOpt = state.getCachedProgram(events);
-                    if (state.isServer() && programOpt.isPresent()) {
-                        var program = programOpt.get();
+                    var program = state.getCachedProgram(events);
+                    if (state.isServer() && program != null) {
                         LOG.info("Using cached program for events  {}:\n {}", formatter.format(events),
                                 program.toPrettyString());
                         handleEvaluateProgramEvent(jvmInputStream, jvmOutputStream,
@@ -399,7 +415,7 @@ public class BasicTunnel {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static List<Pair<Request<?>, Reply>> parseEvaluateProgramReply(VM vm, EvaluateProgramReply reply) {
         return reply.replies.stream().map(p -> {
             Request<?> innerRequest = JDWP.parse(vm, Packet.fromByteArray(p.request.bytes));
@@ -408,12 +424,21 @@ public class BasicTunnel {
         }).collect(Collectors.toList());
     }
 
-    @SuppressWarnings("unchecked")
-    public static Pair<Events, List<Pair<Request<?>, Reply>>> parseTunnelRequestReplyEvent(VM vm, TunnelRequestReplies reply) {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static Pair<Events, List<Pair<Request<?>, Reply>>> parseTunnelRequestReplyEvent(VM vm,
+                                                                                           TunnelRequestReplies reply) {
         return p(Events.parse(vm, Packet.fromByteArray(reply.events.bytes)), reply.replies.stream().map(p -> {
             Request<?> innerRequest = JDWP.parse(vm, Packet.fromByteArray(p.request.bytes));
             Reply innerReply = innerRequest.parseReply(new PacketInputStream(vm, p.reply.bytes)).getReply();
-            return (Pair<Request<?>, Reply>)(Pair)p(innerRequest, innerReply);
+            return (Pair<Request<?>, Reply>) (Pair) p(innerRequest, innerReply);
         }).collect(Collectors.toList()));
+    }
+
+    public int getReplyCacheSize() {
+        return state.getReplyCache().size();
+    }
+
+    public int getProgramCacheSize() {
+        return state.getProgramCache().size();
     }
 }
