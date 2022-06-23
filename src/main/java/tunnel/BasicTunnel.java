@@ -243,7 +243,7 @@ public class BasicTunnel {
             });
             while (!hasDataAvailable(clientInputStream) && !hasDataAvailable(jvmInputStream)) {
                 state.tick();
-                if (state.getMode() == CLIENT && state.hasProgramsToSendToServer()) {
+                if (state.isClient() && state.hasProgramsToSendToServer()) {
                     sendProgramsToServer(jvmInputStream, jvmOutputStream);
                 } else {
                     assert state.getProgramsToSendToServer().isEmpty();

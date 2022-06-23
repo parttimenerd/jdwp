@@ -208,11 +208,13 @@ public class ReplyCache implements Listener {
         enum EvictionCause {
             TIME,
             SIZE,
-            AFFECTS
+            AFFECTS,
+            REPLACE
         }
 
         @AllArgsConstructor
         @Getter
+        @ToString
         static class RequestWithTime implements Comparable<RequestWithTime> {
             final long evictionTime;
             final Request<?> request;
@@ -315,18 +317,24 @@ public class ReplyCache implements Listener {
             if (remove.isEmpty()) {
                 return;
             }
+            checkInvariants();
             timeBasedEvictionQueue.removeAll(remove);
             for (RequestWithTime requestWithTime : remove) {
                 var entry = cache.get(requestWithTime.request);
-                recordEviction(requestWithTime.request, entry, TIME);
+                otherSize -= otherSizeComputer.apply(entry.reply);
+                recordEviction(requestWithTime.request, Objects.requireNonNull(entry), TIME);
                 cache.remove(requestWithTime.request);
             }
             checkInvariants();
         }
 
         private void checkInvariants() {
-            assert cache.size() >= timeBasedEvictionQueue.size();
-            assert timeBasedEvictionQueue.stream().allMatch(r -> cache.containsKey(r.request));
+            if (cache.size() < timeBasedEvictionQueue.size()) {
+                throw new AssertionError("cache.size() >= timeBasedEvictionQueue.size()");
+            }
+            if (!timeBasedEvictionQueue.stream().allMatch(r -> cache.containsKey(r.request))) {
+                throw new AssertionError("timeBasedEvictionQueue.stream().allMatch(r -> cache.containsKey(r.request))");
+            }
         }
 
         private void recordEviction(Request<?> request, CacheEntry<T> entry, EvictionCause cause) {
@@ -349,6 +357,9 @@ public class ReplyCache implements Listener {
             remove.forEach(e -> {
                 recordEviction(e.getKey(), e.getValue(), SIZE);
             });
+            if (otherSize != -1) {
+                otherSize -= remove.stream().mapToInt(e -> otherSizeComputer.apply(e.getValue().reply)).sum();
+            }
             checkInvariants();
         }
 
@@ -369,12 +380,27 @@ public class ReplyCache implements Listener {
             if (remove.isEmpty()) {
                 return;
             }
-            timeBasedEvictionQueue.removeIf(e -> remove.stream().anyMatch(e2 -> e2.getKey() == e.request));
+            timeBasedEvictionQueue.removeIf(e -> remove.stream().anyMatch(e2 -> e2.getKey().equals(e.request)));
             remove.forEach(e -> {
                 recordEviction(e.getKey(), e.getValue(), SIZE);
                 cache.remove(e.getKey());
             });
             otherSize -= freedUp;
+            checkInvariants();
+        }
+
+        private void evict(Request<?> request) {
+            var entry = cache.get(request);
+            if (entry == null) {
+                return;
+            }
+            checkInvariants();
+            if (cache.remove(request) == null) {
+                throw new AssertionError("cache.remove(request) == null");
+            }
+            timeBasedEvictionQueue.removeIf(e -> e.request.equals(request));
+            recordEviction(request, entry, REPLACE);
+            otherSize -= otherSizeComputer.apply(entry.reply);
             checkInvariants();
         }
 
@@ -386,6 +412,9 @@ public class ReplyCache implements Listener {
             tick(); // try to open up some space
             if (cache.size() >= maximumSize) {
                 evictLeastRecentlyAdded(removeAtOnce);
+            }
+            if (cache.containsKey(request)) {
+                evict(request);
             }
             cache.put(request, new CacheEntry<>(reply, System.currentTimeMillis(), prefetched, 0));
             var evictionTime = getEvictionTimeForRequest(request);
