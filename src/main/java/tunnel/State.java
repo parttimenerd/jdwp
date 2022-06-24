@@ -80,7 +80,7 @@ public class State {
     @Setter
     public static class Formatter {
 
-        private static final int maxLength = 200;
+        static final int MAX_LENGTH = 200;
         private ToStringMode packetToStringMode;
         private ToStringMode partitionToStringMode;
 
@@ -100,9 +100,9 @@ public class State {
             return cut(packetToStringMode.format(partition));
         }
 
-        private String cut(String s) {
-            if (s.length() > maxLength - 3) {
-                return s.substring(0, maxLength) + "...";
+        static String cut(String s) {
+            if (s.length() > MAX_LENGTH - 3) {
+                return s.substring(0, MAX_LENGTH - 3) + "...";
             }
             return s;
         }
@@ -212,7 +212,7 @@ public class State {
      */
     private void registerPartitionListener() {
         assert mode == CLIENT;
-        clientPartitioner = new Partitioner().addListener(partition -> {
+        clientPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isLeft()) {
@@ -224,7 +224,7 @@ public class State {
             }
         });
         addPartitionerListener(clientPartitioner);
-        serverPartitioner = new Partitioner().addListener(partition -> {
+        serverPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isRight()) {

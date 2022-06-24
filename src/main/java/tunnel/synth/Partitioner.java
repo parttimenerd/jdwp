@@ -124,23 +124,43 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     public static class Partition extends AbstractList<Pair<Request<?>, Reply>> implements ToCode {
         private @Nullable Either<Request<?>, Events> cause;
         private final List<Pair<? extends Request<?>, ? extends Reply>> items;
+        private final boolean conservative;
 
-        Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<? extends Request<?>, ? extends Reply>> items) {
+        Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<? extends Request<?>, ? extends Reply>> items,
+                  boolean conservative) {
             this.cause = cause;
             this.items = items;
+            this.conservative = conservative;
             checkInvariant();
         }
 
+        Partition(Either<Request<?>, Events> cause, boolean conservative) {
+            this(cause, new ArrayList<>(), conservative);
+        }
+
+        public Partition(List<Pair<? extends Request<?>, ? extends Reply>> items,
+                         boolean conservative) {
+            this(null, items, conservative);
+        }
+
+        Partition(boolean conservative) {
+            this(null, new ArrayList<>(), conservative);
+        }
+
+        Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<? extends Request<?>, ? extends Reply>> items) {
+            this(cause, items, false);
+        }
+
         Partition(Either<Request<?>, Events> cause) {
-            this(cause, new ArrayList<>());
+            this(cause, false);
         }
 
         public Partition(List<Pair<? extends Request<?>, ? extends Reply>> items) {
-            this(null, items);
+            this(items, false);
         }
 
         Partition() {
-            this(null, new ArrayList<>());
+            this(false);
         }
 
         public boolean hasCause() {
@@ -181,7 +201,12 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
          * Currently, only uses the onlyReads property. This should be extended later.
          */
         public boolean isAffectedBy(Request<?> request) {
-            return !request.onlyReads();
+            if (conservative) {
+                return !request.onlyReads();
+            }
+            return (cause != null && ((cause.isLeft() && cause.getLeft().isAffectedBy(request)) ||
+                    (cause.isRight() && cause.getRight().isAffectedBy(request)))) ||
+                    items.stream().anyMatch(p -> p.first.isAffectedBy(request));
         }
 
         /**
@@ -191,7 +216,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
          * Currently, only uses the onlyReads property. This should be extended later.
          */
         public boolean isAffectedBy(Events events) {
-            return !events.onlyReads();
+            return isAffectedBy((Request<?>) events);
         }
 
         @Override
@@ -231,7 +256,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         /**
          * return a sorted version, sorted by request id (but the cause request is sorted to the start)
          */
-        public Partition sorted() {
+        public Partition sortedAndDistinct() {
             return new Partition(cause, items.stream()
                     .sorted(Comparator.comparing(l -> {
                         if (cause != null && cause.isLeft() && cause.getLeft().equals(l.first)) {
@@ -239,7 +264,8 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
                         }
                         return l.first.getId();
                     }))
-                    .collect(Collectors.toList()));
+                    .distinct()
+                    .collect(Collectors.toList()), conservative);
         }
     }
 
@@ -249,20 +275,30 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     private @Nullable Partition currentPartition;
 
     private boolean enabled = true;
+    private boolean conservative = false;
+
+    public Partitioner(Timings timings, boolean conservative) {
+        this.timings = timings;
+        this.conservative = conservative;
+    }
 
     public Partitioner(Timings timings) {
-        this.timings = timings;
+        this(timings, false);
+    }
+
+    public Partitioner(boolean conservative) {
+        this(new Timings(DEFAULT_TIMINGS_FACTOR, DEFAULT_MIN_DIFFERENCE), false);
     }
 
     public Partitioner() {
-        this(new Timings(DEFAULT_TIMINGS_FACTOR, DEFAULT_MIN_DIFFERENCE));
+        this(new Timings(DEFAULT_TIMINGS_FACTOR, DEFAULT_MIN_DIFFERENCE), false);
     }
 
     private void startNewPartition(String reason, @Nullable Either<Request<?>, Events> cause) {
         if (currentPartition != null) {
             submit(currentPartition);
         }
-        currentPartition = cause == null ? null : new Partition(cause);
+        currentPartition = cause == null ? null : new Partition(cause, conservative);
         if (currentPartition != null) {
             LOG.debug("Starting new partition: {}", currentPartition);
         }
@@ -349,7 +385,9 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
                 if (currentPartition == null) {
                     startNewPartition("current partition is empty", Either.left(request));
                 }
-                currentPartition.add(p(request, reply.getReply()));
+                if ((currentPartition.hasCause() && currentPartition.getCause().get() == request) || request.onlyReads()) {
+                    currentPartition.add(p(request, reply.getReply()));
+                }
             } catch (Exception e) {
                 LOG.error("Failed to add {} to partition {}", p(request, reply.getReply()), currentPartition);
                 LOG.error("Failed ", e);

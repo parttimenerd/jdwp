@@ -651,6 +651,10 @@ public class DependencyGraph {
             return nodeToLayerIndex.get(node);
         }
 
+        public boolean hasLayerIndex(Node node) {
+            return nodeToLayerIndex.containsKey(node);
+        }
+
         @Override
         public int size() {
             return layers.size();
@@ -702,7 +706,6 @@ public class DependencyGraph {
                     }
                     int layerComp = Long.compare(getLayerIndex(left), getLayerIndex(right));
                     if (layerComp != 0) {
-                        System.out.println(" " + layerComp + "  different layers");
                         return layerComp;
                     }
                     int comparison = Long.compare(hash(left), hash(right));

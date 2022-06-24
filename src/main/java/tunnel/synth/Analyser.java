@@ -3,6 +3,7 @@ package tunnel.synth;
 import ch.qos.logback.classic.Logger;
 import org.slf4j.LoggerFactory;
 import tunnel.synth.Partitioner.Partition;
+import tunnel.util.ToCode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,11 +33,14 @@ public class Analyser<S extends Analyser<S, T>, T> {
     }
 
     protected void submit(T result) {
+        LOG.error("submit: " + result + "   " + this.getClass().getSimpleName());
         listeners.forEach(l -> {
             try {
                 l.accept(result);
             } catch (Exception e) {
-                LOG.error(String.format("Failed to handle %s with %s, ignoring this error", result.toString(), this.getClass()), e);
+                LOG.error(String.format("Failed to handle %s with %s, ignoring this error",
+                        (result instanceof ToCode ? ((ToCode) result).toCode() : result.toString()),
+                        this.getClass()), e);
             }
         });
         if (recordResults) {

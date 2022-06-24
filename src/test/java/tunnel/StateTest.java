@@ -1,5 +1,6 @@
 package tunnel;
 
+import com.google.common.base.Strings;
 import jdwp.EventCmds.Events;
 import jdwp.Reply;
 import jdwp.ReplyOrError;
@@ -12,15 +13,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 import tunnel.Listener.CollectingListener;
+import tunnel.State.Formatter;
 import tunnel.State.NoSuchRequestException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static jdwp.PrimitiveValue.wrap;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Tests the state without opening real ports */
 public class StateTest {
@@ -80,5 +82,12 @@ public class StateTest {
             addRequest(new VersionRequest(1));
             assertThrows(NoSuchRequestException.class, () -> addReply(new VersionReply(10, wrap("a"), wrap(1), wrap(1), wrap("b"), wrap("c"))));
         }
+    }
+
+    @Test
+    public void testFormatterWithLongLines() {
+        IntStream.range(0, 500).mapToObj(i -> Strings.repeat("a", i)).forEach(s -> {
+            assertTrue(Formatter.cut(s).length() <= Formatter.MAX_LENGTH);
+        });
     }
 }

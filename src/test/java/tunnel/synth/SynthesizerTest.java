@@ -28,7 +28,6 @@ import tunnel.util.Either;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static jdwp.PrimitiveValue.wrap;
@@ -411,7 +410,7 @@ public class SynthesizerTest {
 
     @Test
     public void testLargeSynthesis() {
-        Supplier<Partition> partition = () -> new Partition(Either.right(new jdwp.EventCmds.Events(5,
+        Partition partition = new Partition(Either.right(new jdwp.EventCmds.Events(5,
                 PrimitiveValue.wrap((byte) 2),
                 new ListValue<>(Type.LIST, List.of(new
                         EventCmds.Events.Breakpoint(PrimitiveValue.wrap(42), new ThreadReference(1L),
@@ -563,13 +562,10 @@ public class SynthesizerTest {
                         "\"location\" \"methodRef\") (\"refType\")=(get cause \"events\" 0 \"location\" " +
                         "\"declaringType\")))\n" +
                         "  (= var11 (request ThreadGroupReference Name (\"group\")=(get var6 \"group\")))\n" +
+                        "  (map map0 (get var10 \"slots\") iter1 (\"sigbyte\")=(getTagForSignature (get iter1 " +
+                        "\"signature\")) (\"slot\")=(get iter1 \"slot\"))\n" +
                         "  (= var12 (request StackFrame GetValues (\"frame\")=(get var7 \"frames\" 0 \"frameID\") " +
-                        "(\"thread\")=(get cause \"events\" 0 \"thread\") (\"slots\" 0 \"sigbyte\")=" +
-                        "(getTagForSignature (get var10 \"slots\" 0 \"signature\")) (\"slots\" 0 \"slot\")=(get var10" +
-                        " \"slots\" 0 \"slot\") (\"slots\" 1 \"sigbyte\")=(getTagForSignature (get var10 \"slots\" 1 " +
-                        "\"signature\")) (\"slots\" 1 \"slot\")=(get var10 \"slots\" 1 \"slot\") (\"slots\" 2 " +
-                        "\"sigbyte\")=(getTagForSignature (get var10 \"slots\" 2 \"signature\")) (\"slots\" 2 " +
-                        "\"slot\")=(get var10 \"slots\" 2 \"slot\")))\n" +
+                        "(\"slots\")=map0 (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
                         "  (for iter0 (get var12 \"values\") \n" +
                         "    (switch (getTagForValue iter0)\n" +
                         "      (case (wrap \"byte\" 91)\n" +
@@ -581,7 +577,54 @@ public class SynthesizerTest {
                         "        (for iter2 (get var15 \"interfaces\") \n" +
                         "          (= var16 (request ReferenceType Interfaces (\"refType\")=iter2)))\n" +
                         "        (= var16 (request ClassType Superclass (\"clazz\")=(get var13 \"typeID\")))))))",
-                Synthesizer.synthesizeProgram(partition.get()).toPrettyString());
+                Synthesizer.synthesizeProgram(partition).toPrettyString());
+    }
+
+    @Test
+    public void testMapSynthesisInGetValuesWithGenerics() {
+        Partition partition = new Partition(null, List.of(
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(20408, new ThreadReference(1L)),
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(20408, PrimitiveValue.wrap(1))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(20411, new ThreadReference(1L), PrimitiveValue.wrap(0),
+                        PrimitiveValue.wrap(1)), new
+                        jdwp.ThreadReferenceCmds.FramesReply(20411, new ListValue<>(Type.LIST,
+                        List.of(new ThreadReferenceCmds.FramesReply.Frame(new FrameReference(131072L), new Location
+                                (new ClassTypeReference(1070L), new MethodReference(105553136387016L),
+                                        PrimitiveValue.wrap((long) 5))))))),
+                p(new jdwp.MethodCmds.VariableTableWithGenericRequest(20417, new ClassReference(1070L),
+                        new MethodReference(105553136387016L)), new
+                        jdwp.MethodCmds.VariableTableWithGenericReply(20417, PrimitiveValue.wrap(1),
+                        new ListValue<>(Type.LIST, List.of(new
+                                        MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 0),
+                                        PrimitiveValue.wrap("args"), PrimitiveValue.wrap("[Ljava/lang/String;"),
+                                        PrimitiveValue.wrap(""), PrimitiveValue.wrap(11), PrimitiveValue.wrap(0)),
+                                new MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 3),
+                                        PrimitiveValue.wrap("s"), PrimitiveValue.wrap("Ljava/lang/String;"),
+                                        PrimitiveValue.wrap(""),
+                                        PrimitiveValue.wrap(8), PrimitiveValue.wrap(1)), new
+                                        MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 5),
+                                        PrimitiveValue.wrap("i"), PrimitiveValue.wrap("I"), PrimitiveValue.wrap(""),
+                                        PrimitiveValue.wrap(6), PrimitiveValue.wrap(2)))))),
+                p(new jdwp.StackFrameCmds.GetValuesRequest(20422, new ThreadReference(1L),
+                        new FrameReference(131072L), new ListValue<>(Type.LIST, List.of(new
+                                StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(0),
+                                PrimitiveValue.wrap((byte) 91)),
+                        new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(
+                                1), PrimitiveValue.wrap((byte) 76)),
+                        new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(2),
+                                PrimitiveValue.wrap((byte) 73))))), new
+                        jdwp.StackFrameCmds.GetValuesReply(20422, new ListValue<>(Type.LIST,
+                        List.of(new ArrayReference(1072L), new ObjectReference(1073L), PrimitiveValue.wrap(0)))))));
+        assertEquals("(\n" +
+                "  (= var0 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) (\"startFrame\")=(wrap " +
+                "\"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                "  (= var1 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                "  (= var2 (request Method VariableTableWithGeneric (\"methodID\")=(get var0 \"frames\" 0 " +
+                "\"location\" \"methodRef\") (\"refType\")=(get var0 \"frames\" 0 \"location\" \"declaringType\")))\n" +
+                "  (map map0 (get var2 \"slots\") iter0 (\"sigbyte\")=(getTagForSignature (get iter0 \"signature\")) " +
+                "(\"slot\")=(get iter0 \"slot\"))\n" +
+                "  (= var3 (request StackFrame GetValues (\"frame\")=(get var0 \"frames\" 0 \"frameID\") (\"slots\")" +
+                "=map0 (\"thread\")=(wrap \"thread\" 1))))", Synthesizer.synthesizeProgram(partition).toPrettyString());
     }
 
     private static void assertNodeListEquals(List<Node> first, List<Node> second) {

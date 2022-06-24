@@ -400,12 +400,12 @@ public class VM {
 
             @Override
             public void visit(VariableTableWithGenericRequest request, VariableTableWithGenericReply reply) {
-                log.error("VariableTableWithGenericRequest not implemented " + reply);
+
             }
 
             @Override
             public void visit(VariableTableRequest request, VariableTableReply reply) {
-                log.error("VariableTableRequest not implemented" + reply);
+
             }
         }, reply);
     }

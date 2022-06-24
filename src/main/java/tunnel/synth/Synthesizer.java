@@ -300,7 +300,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 for (AccessPath targetPath : fieldDoubly.getTargetPaths()) { // accessors can have multiple targets
                     // assumption: path has the form [..., index, field]
                     if (!targetPath.endsWith(Integer.class, String.class)) {
-                        return null;
+                        continue;
                     }
                     var index = (Integer) targetPath.get(-2);
                     var property = (String) targetPath.get(-1);
@@ -662,6 +662,9 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                     loop = recResult;
                     shouldAddRequestCall = shouldAddRequestCall == -1 ? 0 : shouldAddRequestCall;
                 } else {
+                    if (loopIterationBodies.size() < options.loopMinListSize) {
+                        return null;
+                    }
                     loop = List.of(handleRegularLoop(node, new AccessPath(field), loopIterationBodies));
                     shouldAddRequestCall = 1;
                 }
@@ -780,7 +783,10 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                     var n2 = edge.getTarget();
                     allCollectedAccessPaths.addAll(edge.getUsedValues().stream()
                             .flatMap(d -> d.getTargetPaths().stream()).collect(Collectors.toSet()));
-                    var valid = layers.getLayerIndex(n2) < layer ||
+                    if (!layers.hasLayerIndex(n2)) {
+                        continue;
+                    }
+                    var valid = nodes.contains(n2) || layers.getLayerIndex(n2) < layer ||
                             n2.equals(headerNode) || miscNodes.contains(n2) || nodes.contains(n2);
                     if (!valid) {
                         continue;
@@ -993,7 +999,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             return ret;
         }
 
-        private @Nullable Loop handleRegularLoop(Node node, AccessPath field,
+        private Loop handleRegularLoop(Node node, AccessPath field,
                                                  Map<Integer, LoopIterationNodes> loopIterationBodies) {
             String iter = createNewName(ITER_NAME_PREFIX);
             String nodeName = get(node);
