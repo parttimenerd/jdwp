@@ -2,6 +2,7 @@ package jdwp;
 
 import jdwp.JDWP.Tag;
 import jdwp.Value.BasicScalarValue;
+import tunnel.util.Hashed;
 
 /**
  * Primitive values
@@ -39,7 +40,18 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
                 getClass().getSimpleName().replace("Value", "").toLowerCase(), value);
     }
 
-    public static class BooleanValue extends jdwp.PrimitiveValue<Boolean> {
+    public static abstract class NumericPrimitiveValue<T extends Number> extends PrimitiveValue<T> {
+        private NumericPrimitiveValue(Type type, T value) {
+            super(type, value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Hashed.hashToInt(getGroup(), value.longValue());
+        }
+    }
+
+    public static class BooleanValue extends PrimitiveValue<Boolean> {
 
         static {
             Type.registerType(BooleanValue.class, Type.BOOLEAN);
@@ -66,9 +78,14 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         public String toCode() {
             return String.format("PrimitiveValue.wrap(%s)", value);
         }
+
+        @Override
+        public int hashCode() {
+            return Hashed.hashToInt(getGroup(), value ? 1 : 0);
+        }
     }
 
-    public static class ByteValue extends jdwp.PrimitiveValue<Byte> {
+    public static class ByteValue extends NumericPrimitiveValue<Byte> {
 
         static {
             Type.registerType(ByteValue.class, Type.BYTE);
@@ -92,7 +109,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         }
     }
 
-    public static class CharValue extends jdwp.PrimitiveValue<Character> {
+    public static class CharValue extends PrimitiveValue<Character> {
 
         static {
             Type.registerType(CharValue.class, Type.CHAR);
@@ -114,9 +131,14 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         public BasicGroup getGroup() {
             return BasicGroup.CHAR;
         }
+
+        @Override
+        public int hashCode() {
+            return Hashed.hashToInt(getGroup(), (long)value);
+        }
     }
 
-    public static class ShortValue extends jdwp.PrimitiveValue<Short> {
+    public static class ShortValue extends NumericPrimitiveValue<Short> {
 
         static {
             Type.registerType(ShortValue.class, Type.SHORT);
@@ -140,7 +162,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         }
     }
 
-    public static class IntValue extends jdwp.PrimitiveValue<Integer> {
+    public static class IntValue extends NumericPrimitiveValue<Integer> {
 
         static {
             Type.registerType(IntValue.class, Type.INT);
@@ -169,7 +191,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         }
     }
 
-    public static class LongValue extends jdwp.PrimitiveValue<Long> {
+    public static class LongValue extends NumericPrimitiveValue<Long> {
 
         static {
             Type.registerType(LongValue.class, Type.LONG);
@@ -193,7 +215,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         }
     }
 
-    public static class FloatValue extends jdwp.PrimitiveValue<Float> {
+    public static class FloatValue extends NumericPrimitiveValue<Float> {
 
         static {
             Type.registerType(FloatValue.class, Type.FLOAT);
@@ -217,7 +239,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         }
     }
 
-    public static class DoubleValue extends jdwp.PrimitiveValue<Double> {
+    public static class DoubleValue extends NumericPrimitiveValue<Double> {
 
         static {
             Type.registerType(DoubleValue.class, Type.DOUBLE);
@@ -272,6 +294,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         @Override
         public String toCode() {
             return String.format("PrimitiveValue.wrap(\"%s\")", value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Hashed.hashToInt(getGroup(), value.hashCode());
         }
     }
 

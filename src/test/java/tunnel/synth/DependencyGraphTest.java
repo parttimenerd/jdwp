@@ -241,9 +241,9 @@ public class DependencyGraphTest {
         var partition = new Partition(Either.left(func.apply(1).first),
                 List.of(func.apply(1), func.apply(3), func.apply(4)));
         var graph = DependencyGraph.compute(partition);
-        assertEquals(4, graph.getAllNodes().size());
+        assertEquals(2, graph.getAllNodes().size());
         var layers = graph.computeLayers();
-        assertEquals(4, layers.getAllNodes().size());
+        assertEquals(2, layers.getAllNodes().size());
         assertEquals(2, layers.getAllNodesWithoutDuplicates().size());
     }
 
@@ -356,6 +356,31 @@ public class DependencyGraphTest {
         var nodes2 = new ArrayList<>(layers2.getAllNodes());
         nodes2.sort(layers2.getNodeComparator());
         assertEquals(nodes1.toString(), nodes2.toString());
+    }
+
+    @Test
+    public void testLoopLikePartitionWithDuplicates() {
+        var partition = new Partition(Either.right(new jdwp.EventCmds.Events(5, PrimitiveValue.wrap((byte) 2),
+                new ListValue<>(Type.LIST, List.of(new EventCmds.Events.Breakpoint(PrimitiveValue.wrap(41),
+                        new ThreadReference(1L), new Location(new ClassTypeReference(1070L),
+                        new MethodReference(105553126474952L), PrimitiveValue.wrap((long) 5))))))), List.of(
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(353, new ThreadReference(1L)),
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(353, PrimitiveValue.wrap(1))),
+                p(new jdwp.StackFrameCmds.GetValuesRequest(367, new ThreadReference(1L), new FrameReference(131072L),
+                                new ListValue<>(Type.LIST,
+                                        List.of())),
+                        new jdwp.StackFrameCmds.GetValuesReply(367, new ListValue<>(Type.LIST,
+                                List.of(new ArrayReference(1072L), new ObjectReference(1073L),
+                                        PrimitiveValue.wrap(0))))),
+                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(369, new ObjectReference(1073L)),
+                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(369, PrimitiveValue.wrap((byte) 1),
+                                new ClassReference(1052L))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(370, new ArrayReference(1072L)),
+                        new jdwp.ArrayReferenceCmds.LengthReply(370, PrimitiveValue.wrap(0))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(372, new ArrayReference(1072L)),
+                        new jdwp.ArrayReferenceCmds.LengthReply(372, PrimitiveValue.wrap(0)))));
+        var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
+        assertEquals(5, graph.getAllNodes().size());
     }
 
     static TestRequest request(int id, Value value) {

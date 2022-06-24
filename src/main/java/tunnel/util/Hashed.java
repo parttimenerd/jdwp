@@ -8,6 +8,9 @@ import org.jetbrains.annotations.NotNull;
  */
 public class Hashed<T> implements Comparable<Hashed<T>> {
 
+    // see https://stackoverflow.com/a/1836079/19040822
+    public static final int LARGE_PRIME = 97654321;
+    public static final int LARGE_PRIME2 = 12356789;
     private final long hash;
     private final T value;
 
@@ -68,6 +71,10 @@ public class Hashed<T> implements Comparable<Hashed<T>> {
         return ((long)identifier << 32) | ((long)hashToInt(hash(childHashes)) & 0x00000000ffffffffL);
     }
 
+    public static long hash(int leftHash, int rightHash) {
+        return ((long)leftHash << 32) | ((long)rightHash & 0x00000000ffffffffL);
+    }
+
     public static long hash(long... childHashes) {
         // see https://www.planetmath.org/goodhashtableprimes for suitable numbers
         long hash = 1;
@@ -75,6 +82,15 @@ public class Hashed<T> implements Comparable<Hashed<T>> {
             hash = (hash + childHash) * 193;
         }
         return hash;
+    }
+
+    public static long hash(Enum<?> enumValue, long hash) {
+        return (enumValue.ordinal() * (long)Hashed.LARGE_PRIME) ^ (hash * (long)Hashed.LARGE_PRIME2);
+    }
+
+    /** uses the ordinal of the enum and the other passed hash values, multiplies both with large primes */
+    public static int hashToInt(Enum<?> enumValue, long hash) {
+        return hashToInt((enumValue.ordinal() * (long)Hashed.LARGE_PRIME) ^ (hash * (long)Hashed.LARGE_PRIME2));
     }
 
     private static int hashToInt(long hash) {

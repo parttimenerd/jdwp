@@ -342,6 +342,9 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                     var accessorOrConstants = indexToPropertyToAccessors.get(i).get(property);
                     var pairs = accessorOrConstants.stream().map(a -> {
                         if (a.taggedFunctionCall != null) {
+                            if (a.taggedFunctionCall.accessPath.size() <= 1 || a.taggedFunctionCall.accessPath.get(-2) instanceof String) {
+                                return p(false, a);
+                            }
                             var originIndex = (int) a.taggedFunctionCall.accessPath.get(-2);
                             return p(originIndex == targetIndex, a);
                         }
@@ -1036,7 +1039,10 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                                             e -> e.getValue().keySet())))
                             : null;
             Body loopBody;
-            if (!options.switchCaseInLoop || switchExpression == null) {
+            if (!options.switchCaseInLoop || switchExpression == null ||
+                    switchExpression.iterationsPerSwitchExpression.values().stream()
+                            .map(integers -> mergeBodies(integers.stream()
+                            .map(iterationBodies::get).collect(Collectors.toList()))).distinct().count() <= 1) {
                 // not enough diversity: neither enough different types, nor missing iterations which might be explained
                 // with different types
                 // but: we can just merge all iterations into one (hopefully without crashing the JVM)
@@ -1134,9 +1140,9 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                         }
                         return comp;
                     }).get();
-            var switchExpression =
-                    GET_TAG_FOR_VALUE.createCall(best.first.size() > 0 ?
-                            GET_FUNCTION.createCall(ident(iter), best.first) : ident(iter));
+            var inner = best.first.size() > 0 ?
+                    GET_FUNCTION.createCall(ident(iter), best.first) : ident(iter);
+            var switchExpression = best.second.map(f -> (Expression)f.createCall(inner)).orElse(inner);
             return new FoundSwitchVariable(switchExpression,
                     commonFields.get(best.first).get(best.second).entrySet().stream()
                             .collect(Collectors.toMap(e -> Functions.createWrapperFunctionCall(e.getKey()),
@@ -1254,13 +1260,13 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                                       Set<Node> nodes) {
             var request = headerNode.getOrigin().first;
             Set<Node> possibleRecRequests =
-                    nodes.stream().filter(n -> n.getOrigin().first.getClass() == request.getClass())
+                    nodes.stream().filter(n -> n.hasSameRequestClass(request))
                     .collect(Collectors.toSet());
             // only support single recursion for now
             var possibleHeaderNodes = headerNode.getDependedByField(replyPath)
                     .stream().map(Edge::getTarget).collect(Collectors.toSet());
             Set<Node> bodyWithPossibleRecs;
-            if (possibleHeaderNodes.stream().anyMatch(n -> n.getOrigin().first.getClass() == request.getClass())) {
+            if (possibleHeaderNodes.stream().anyMatch(n -> n.hasSameRequestClass(request))) {
                 bodyWithPossibleRecs = possibleHeaderNodes;
             } else {
                 bodyWithPossibleRecs = DependencyGraph.computeDependedByTransitive(possibleHeaderNodes, nodes,
@@ -1270,12 +1276,12 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                     bodyWithPossibleRecs.size())) {
                 return null;
             }
-            var recs = bodyWithPossibleRecs.stream().filter(n -> n.getOrigin().first.getClass() == request.getClass())
+            var recs = bodyWithPossibleRecs.stream().filter(n ->n.hasSameRequestClass(request))
                     .collect(Collectors.toList());
             if (recs.size() > 1) {
                 return null; // we do not support multiple recursions yet
             }
-            var body = bodyWithPossibleRecs.stream().filter(n -> n.getOrigin().first.getClass() != request.getClass())
+            var body = bodyWithPossibleRecs.stream().filter(n -> !n.hasSameRequestClass(request))
                     .collect(Collectors.toSet());
             for (Node node : body) {
                 if (node.getDependsOnNodes().stream().anyMatch(n -> !body.contains(n) && !n.equals(headerNode))) {
@@ -1308,7 +1314,6 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         var fullBodySorted = new ArrayList<>(fullBody);
         fullBodySorted.sort(layers.getNodeComparator()); // makes the statement order deterministic
         List<Statement> statements = new ArrayList<>();
-        Set<Node> ignoredNodes = new HashSet<>();
         Set<Node> usableNodes = new HashSet<>(fullBody);
         for (Node node : fullBodySorted) {
             if (!usableNodes.contains(node)) {

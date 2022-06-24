@@ -3,6 +3,7 @@ package jdwp;
 import jdwp.JDWP.Tag;
 import jdwp.JDWP.TypeTag;
 import jdwp.Value.BasicScalarValue;
+import tunnel.util.Hashed;
 
 import java.util.Objects;
 
@@ -16,6 +17,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
     public Reference(Type type, long ref) {
         super(type, ref);
+    }
+
+    @Override
+    public int hashCode() {
+        return Hashed.hashToInt(getGroup(), (long)getValue());
     }
 
     @Override
@@ -197,7 +203,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
     public static class InterfaceTypeReference extends TypeReference {
 
-        InterfaceTypeReference(long ref) {
+        public InterfaceTypeReference(long ref) {
             super((byte)TypeTag.INTERFACE, ref);
         }
 

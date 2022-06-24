@@ -196,9 +196,8 @@ public class ReplyCache implements Listener {
         }
 
         public void add(Statistics other) {
-            other.hitsPerCommandEntry.forEach((k, v) -> {
-                hitsPerCommandEntry.computeIfAbsent(k, k2 -> new ArrayList<>()).addAll(v);
-            });
+            other.hitsPerCommandEntry.forEach((k, v) -> hitsPerCommandEntry.computeIfAbsent(k,
+                    k2 -> new ArrayList<>()).addAll(v));
         }
     }
 
@@ -247,6 +246,7 @@ public class ReplyCache implements Listener {
             }
         }
 
+        @Getter
         private final Options options;
         private final int maximumSize;
         private final int removeAtOnce;
@@ -354,9 +354,7 @@ public class ReplyCache implements Listener {
                 cache.remove(entry.getKey());
             }
             timeBasedEvictionQueue.removeIf(e -> !cache.containsKey(e.request));
-            remove.forEach(e -> {
-                recordEviction(e.getKey(), e.getValue(), SIZE);
-            });
+            remove.forEach(e -> recordEviction(e.getKey(), e.getValue(), SIZE));
             if (otherSize != -1) {
                 otherSize -= remove.stream().mapToInt(e -> otherSizeComputer.apply(e.getValue().reply)).sum();
             }
@@ -477,6 +475,7 @@ public class ReplyCache implements Listener {
 
     public static final Options DEFAULT_OPTIONS = new Options();
 
+    @Getter
     private final Options options;
     private final VM vm;
     private final Cache<Reply> l1Cache;

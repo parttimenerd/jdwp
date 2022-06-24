@@ -12,6 +12,7 @@ import tunnel.synth.program.Functions;
 import tunnel.synth.program.Functions.BasicValueTransformer;
 import tunnel.synth.program.Functions.Function;
 import tunnel.util.Either;
+import tunnel.util.Hashed;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -299,6 +300,10 @@ public class DependencyGraph {
             dependsOn.add(edge);
             edge.getTarget().dependedBy.add(edge.reverse());
         }
+
+        public boolean hasSameRequestClass(Request<?> request) {
+            return origin != null && origin.first.getClass() == request.getClass();
+        }
     }
 
     private final @Nullable Node causeNode;
@@ -368,7 +373,7 @@ public class DependencyGraph {
      * was first received and thereby typically in a lower layer
      */
     public static DependencyGraph compute(Partition _partition, ComputationOptions options) {
-        var partition = _partition.sorted();
+        var partition = _partition.sortedAndDistinct();
         // collect the values
         if (partition.isEmpty()) {
             return new DependencyGraph(partition.getCause());
@@ -697,9 +702,10 @@ public class DependencyGraph {
                     }
                     int layerComp = Long.compare(getLayerIndex(left), getLayerIndex(right));
                     if (layerComp != 0) {
+                        System.out.println(" " + layerComp + "  different layers");
                         return layerComp;
                     }
-                    int comparison = Integer.compare(hash(left), hash(right));
+                    int comparison = Long.compare(hash(left), hash(right));
                     if (comparison == 0) {
                         return Integer.compare(left.getId(), right.getId()); // use the ids only as a measure of last resort
                     }
@@ -729,13 +735,29 @@ public class DependencyGraph {
             return getAllNodes().stream().filter(n -> !considerForRemoval.contains(n)).collect(Collectors.toSet());
         }
 
-        private static int hash(Node node) {
-            return node.origin != null ? node.origin.first.hashCode() : 0;
+        private final Map<Node, Long> hashCache = new HashMap<>();
+
+        long hash(Node node) {
+            if (node.isCauseNode()) {
+                return 0;
+            }
+            if (!hashCache.containsKey(node)) {
+                assert node.origin != null;
+                // take all basic values into account
+                // this is by construction of the dependency graph equivalent to using the edges
+                // assumes that the graph construction is deterministic
+                hashCache.put(node, Hashed.hash((byte)node.origin.first.getCommandSet(),
+                        (byte)node.origin.first.getCommand(),
+                        node.origin.first.asCombined().getTaggedValues()
+                                .mapToLong(t -> Hashed.hash(t.value.hashCode(), t.path.hashCode()))
+                                .sorted().toArray()));
+            }
+            return hashCache.get(node);
         }
 
-        private static class HashedNode {
+        class HashedNode {
             private final Node node;
-            private final int hashCode;
+            private final long hashCode;
 
             public HashedNode(Node node) {
                 this.node = node;
@@ -744,7 +766,7 @@ public class DependencyGraph {
 
             @Override
             public int hashCode() {
-                return hashCode;
+                return Long.hashCode(hashCode);
             }
 
             @Override

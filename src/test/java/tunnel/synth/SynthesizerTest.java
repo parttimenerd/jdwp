@@ -18,6 +18,7 @@ import jdwp.util.Pair;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import tunnel.synth.DependencyGraph.Node;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.ProgramTest.RecordingFunctions;
 import tunnel.synth.program.Evaluator;
@@ -27,6 +28,7 @@ import tunnel.util.Either;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static jdwp.PrimitiveValue.wrap;
@@ -376,5 +378,216 @@ public class SynthesizerTest {
                 program.toPrettyString());
         // can we parse it?
         Program.parse(program.toPrettyString());
+    }
+
+    @Test
+    public void testLoopLikePartitionWithDuplicates() {
+        var partition = new Partition(Either.right(new jdwp.EventCmds.Events(5, PrimitiveValue.wrap((byte) 2),
+                new ListValue<>(Type.LIST, List.of(new EventCmds.Events.Breakpoint(PrimitiveValue.wrap(41),
+                        new ThreadReference(1L), new Location(new ClassTypeReference(1070L),
+                        new MethodReference(105553126474952L), PrimitiveValue.wrap((long) 5))))))), List.of(
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(353, new ThreadReference(1L)),
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(353, PrimitiveValue.wrap(1))),
+                p(new jdwp.StackFrameCmds.GetValuesRequest(367, new ThreadReference(1L), new FrameReference(131072L),
+                                new ListValue<>(Type.LIST,
+                                        List.of(new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(0),
+                                                        PrimitiveValue.wrap((byte) 91)),
+                                                new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(1),
+                                                        PrimitiveValue.wrap((byte) 76)),
+                                                new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(2),
+                                                        PrimitiveValue.wrap((byte) 73))))),
+                        new jdwp.StackFrameCmds.GetValuesReply(367, new ListValue<>(Type.LIST,
+                                List.of(new ArrayReference(1072L), new ObjectReference(1073L),
+                                        PrimitiveValue.wrap(0))))),
+                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(369, new ObjectReference(1073L)),
+                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(369, PrimitiveValue.wrap((byte) 1),
+                                new ClassReference(1052L))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(370, new ArrayReference(1072L)),
+                        new jdwp.ArrayReferenceCmds.LengthReply(370, PrimitiveValue.wrap(0))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(372, new ArrayReference(1072L)),
+                        new jdwp.ArrayReferenceCmds.LengthReply(372, PrimitiveValue.wrap(0)))));
+        Synthesizer.synthesizeProgram(partition);
+    }
+
+    @Test
+    public void testLargeSynthesis() {
+        Supplier<Partition> partition = () -> new Partition(Either.right(new jdwp.EventCmds.Events(5,
+                PrimitiveValue.wrap((byte) 2),
+                new ListValue<>(Type.LIST, List.of(new
+                        EventCmds.Events.Breakpoint(PrimitiveValue.wrap(42), new ThreadReference(1L),
+                        new Location(new ClassTypeReference(1070L), new MethodReference(105553136387016L),
+                                PrimitiveValue.wrap((long) 5))))))), List.of(
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(20408, new ThreadReference(1L)),
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(20408, PrimitiveValue.wrap(1))),
+                p(new jdwp.ThreadReferenceCmds.NameRequest(20409, new ThreadReference(1L)),
+                        new jdwp.ThreadReferenceCmds.NameReply(20409, PrimitiveValue.wrap("main"))),
+                p(new jdwp.ThreadReferenceCmds.StatusRequest(20410, new ThreadReference(1L)),
+                        new jdwp.ThreadReferenceCmds.StatusReply(20410, PrimitiveValue.wrap(1),
+                                PrimitiveValue.wrap(1))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(20411, new ThreadReference(1L), PrimitiveValue.wrap(0),
+                        PrimitiveValue.wrap(1)), new
+                        jdwp.ThreadReferenceCmds.FramesReply(20411, new ListValue<>(Type.LIST,
+                        List.of(new ThreadReferenceCmds.FramesReply.Frame(new FrameReference(131072L), new Location
+                                (new ClassTypeReference(1070L), new MethodReference(105553136387016L),
+                                        PrimitiveValue.wrap((long) 5))))))),
+                p(new jdwp.ThreadReferenceCmds.ThreadGroupRequest(20412, new ThreadReference(1L)),
+                        new jdwp.ThreadReferenceCmds.ThreadGroupReply(20412, new ThreadGroupReference(
+                                1071L))),
+                p(new jdwp.ThreadGroupReferenceCmds.NameRequest(20413, new ThreadGroupReference(1071L)),
+                        new jdwp.ThreadGroupReferenceCmds.NameReply(20413, PrimitiveValue.wrap(
+                                "main"))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20414, new ClassTypeReference(1070L)),
+                        new jdwp.ClassTypeCmds.SuperclassReply(20414, new ClassTypeReference(1058L))),
+                p(new jdwp.MethodCmds.IsObsoleteRequest(20415, new ClassReference(1070L),
+                        new MethodReference(105553136387016L)), new jdwp.MethodCmds.IsObsoleteReply(20415,
+                        PrimitiveValue.wrap(false))),
+                p(new jdwp.ReferenceTypeCmds.FieldsWithGenericRequest(20416, new ClassReference(1070L)),
+                        new jdwp.ReferenceTypeCmds.FieldsWithGenericReply(20416, new ListValue<>
+                                (Type.LIST, List.of()))),
+                p(new jdwp.MethodCmds.VariableTableWithGenericRequest(20417, new ClassReference(1070L),
+                        new MethodReference(105553136387016L)), new
+                        jdwp.MethodCmds.VariableTableWithGenericReply(20417, PrimitiveValue.wrap(1),
+                        new ListValue<>(Type.LIST, List.of(new
+                                        MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 0),
+                                        PrimitiveValue.wrap("args"), PrimitiveValue.wrap("[Ljava/lang/String;"),
+                                        PrimitiveValue.wrap(""), PrimitiveValue.wrap(11), PrimitiveValue.wrap(0)),
+                                new MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 3),
+                                        PrimitiveValue.wrap("s"), PrimitiveValue.wrap("Ljava/lang/String;"),
+                                        PrimitiveValue.wrap(""),
+                                        PrimitiveValue.wrap(8), PrimitiveValue.wrap(1)), new
+                                        MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 5),
+                                        PrimitiveValue.wrap("i"), PrimitiveValue.wrap("I"), PrimitiveValue.wrap(""),
+                                        PrimitiveValue.wrap(6), PrimitiveValue.wrap(2)))))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20418, new ClassReference(1070L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20418, new ListValue<>(Type.LIST,
+                                List.of()))),
+                p(new jdwp.ReferenceTypeCmds.FieldsWithGenericRequest(20419, new ClassReference(1058L)),
+                        new jdwp.ReferenceTypeCmds.FieldsWithGenericReply(20419, new ListValue<>
+                                (Type.LIST, List.of()))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20420, new ClassTypeReference(1058L)),
+                        new jdwp.ClassTypeCmds.SuperclassReply(20420, new ClassTypeReference(0L))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20421, new ClassReference(1058L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20421, new ListValue<>(Type.LIST,
+                                List.of()))),
+                p(new jdwp.StackFrameCmds.GetValuesRequest(20422, new ThreadReference(1L),
+                        new FrameReference(131072L), new ListValue<>(Type.LIST, List.of(new
+                                StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(0),
+                                PrimitiveValue.wrap((byte) 91)),
+                        new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(
+                                1), PrimitiveValue.wrap((byte) 76)),
+                        new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(2),
+                                PrimitiveValue.wrap((byte) 73))))), new
+                        jdwp.StackFrameCmds.GetValuesReply(20422, new ListValue<>(Type.LIST,
+                        List.of(new ArrayReference(1072L), new ObjectReference(1073L), PrimitiveValue.wrap(0))))),
+                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(20423, new ObjectReference(1072L)),
+                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(20423,
+                                PrimitiveValue.wrap((byte) 3), new ClassReference(920L))),
+                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(20424, new ObjectReference(1073L)),
+                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(20424,
+                                PrimitiveValue.wrap((byte) 1), new ClassReference(1052L))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(20425, new ArrayReference(1072L)),
+                        new jdwp.ArrayReferenceCmds.LengthReply(20425, PrimitiveValue.wrap(0))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(20426, new ArrayReference(1072L)),
+                        new jdwp.ArrayReferenceCmds.LengthReply(20426, PrimitiveValue.wrap(0))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(20427, new ArrayReference(1072L)),
+                        new jdwp.ArrayReferenceCmds.LengthReply(20427, PrimitiveValue.wrap(0))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20428, new ClassTypeReference(1052L)),
+                        new jdwp.ClassTypeCmds.SuperclassReply(20428, new ClassTypeReference(1058L))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20429, new ClassReference(1052L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20429, new ListValue<>(Type.LIST,
+                                List.of(new InterfaceTypeReference(1057L), new InterfaceTypeReference(1056L),
+                                        new InterfaceTypeReference(1055L), new InterfaceTypeReference(1054L), new
+                                                InterfaceTypeReference(1053L))))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20432, new ClassTypeReference(1052L)),
+                        new jdwp.ClassTypeCmds.SuperclassReply(20432, new ClassTypeReference(1058L))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20433, new ClassReference(1052L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20433, new ListValue<>(Type.LIST,
+                                List.of(new InterfaceTypeReference(1057L), new InterfaceTypeReference(1056L),
+                                        new InterfaceTypeReference(1055L), new InterfaceTypeReference(1054L), new
+                                                InterfaceTypeReference(1053L))))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20434, new ClassTypeReference(1052L)),
+                        new jdwp.ClassTypeCmds.SuperclassReply(20434, new ClassTypeReference(1058L))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20435, new ClassReference(1052L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20435, new ListValue<>(Type.LIST,
+                                List.of(new InterfaceTypeReference(1057L), new InterfaceTypeReference(1056L),
+                                        new InterfaceTypeReference(1055L), new InterfaceTypeReference(1054L), new
+                                                InterfaceTypeReference(1053L))))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20445, new ClassReference(1057L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20445, new ListValue<>(Type.LIST,
+                                List.of()))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20446, new ClassReference(1056L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20446, new ListValue<>(Type.LIST,
+                                List.of()))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20447, new ClassReference(1055L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20447, new ListValue<>(Type.LIST,
+                                List.of()))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20457, new ClassReference(1055L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20457, new ListValue<>(Type.LIST,
+                                List.of()))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20458, new ClassReference(1054L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20458, new ListValue<>(Type.LIST,
+                                List.of()))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20459, new ClassReference(1053L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20459, new ListValue<>(Type.LIST,
+                                List.of()))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20454, new ClassReference(1053L)),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20454, new ListValue<>(Type.LIST,
+                                List.of())))));
+        assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")" +
+                        "=(wrap \"string\" \"Breakpoint\") (\"events\" 0 \"requestID\")=(wrap \"int\" 42) (\"events\"" +
+                        " 0 \"thread\")=(wrap \"thread\" 1) (\"events\" 0 \"location\" \"codeIndex\")=(wrap \"long\" " +
+                        "5) (\"events\" 0 \"location\" \"declaringType\")=(wrap \"class-type\" 1070) (\"events\" 0 " +
+                        "\"location\" \"methodRef\")=(wrap \"method\" 105553136387016)))\n" +
+                        "  (= var0 (request ReferenceType Interfaces (\"refType\")=(get cause \"events\" 0 " +
+                        "\"location\" \"declaringType\")))\n" +
+                        "  (= var1 (request ReferenceType FieldsWithGeneric (\"refType\")=(get cause \"events\" 0 " +
+                        "\"location\" \"declaringType\")))\n" +
+                        "  (rec recursion0 1000 var2 (request ClassType Superclass (\"clazz\")=(get cause \"events\" " +
+                        "0 \"location\" \"declaringType\"))\n" +
+                        "    (= var3 (request ReferenceType Interfaces (\"refType\")=(get var2 \"superclass\")))\n" +
+                        "    (= var4 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var2 \"superclass\")" +
+                        "))\n" +
+                        "    (reccall recursion0 (\"clazz\")=(get var2 \"superclass\")))\n" +
+                        "  (= var4 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
+                        "  (= var5 (request ThreadReference Status (\"thread\")=(get cause \"events\" 0 \"thread\")))" +
+                        "\n" +
+                        "  (= var6 (request ThreadReference ThreadGroup (\"thread\")=(get cause \"events\" 0 " +
+                        "\"thread\")))\n" +
+                        "  (= var7 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) (\"startFrame\")=" +
+                        "(wrap \"int\" 0) (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
+                        "  (= var8 (request ThreadReference FrameCount (\"thread\")=(get cause \"events\" 0 " +
+                        "\"thread\")))\n" +
+                        "  (= var9 (request Method IsObsolete (\"methodID\")=(get var7 \"frames\" 0 \"location\" " +
+                        "\"methodRef\") (\"refType\")=(get cause \"events\" 0 \"location\" \"declaringType\")))\n" +
+                        "  (= var10 (request Method VariableTableWithGeneric (\"methodID\")=(get var7 \"frames\" 0 " +
+                        "\"location\" \"methodRef\") (\"refType\")=(get cause \"events\" 0 \"location\" " +
+                        "\"declaringType\")))\n" +
+                        "  (= var11 (request ThreadGroupReference Name (\"group\")=(get var6 \"group\")))\n" +
+                        "  (= var12 (request StackFrame GetValues (\"frame\")=(get var7 \"frames\" 0 \"frameID\") " +
+                        "(\"thread\")=(get cause \"events\" 0 \"thread\") (\"slots\" 0 \"sigbyte\")=" +
+                        "(getTagForSignature (get var10 \"slots\" 0 \"signature\")) (\"slots\" 0 \"slot\")=(get var10" +
+                        " \"slots\" 0 \"slot\") (\"slots\" 1 \"sigbyte\")=(getTagForSignature (get var10 \"slots\" 1 " +
+                        "\"signature\")) (\"slots\" 1 \"slot\")=(get var10 \"slots\" 1 \"slot\") (\"slots\" 2 " +
+                        "\"sigbyte\")=(getTagForSignature (get var10 \"slots\" 2 \"signature\")) (\"slots\" 2 " +
+                        "\"slot\")=(get var10 \"slots\" 2 \"slot\")))\n" +
+                        "  (for iter0 (get var12 \"values\") \n" +
+                        "    (switch (getTagForValue iter0)\n" +
+                        "      (case (wrap \"byte\" 91)\n" +
+                        "        (= var13 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var14 (request ArrayReference Length (\"arrayObject\")=iter0)))\n" +
+                        "      (case (wrap \"byte\" 76)\n" +
+                        "        (= var13 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var15 (request ReferenceType Interfaces (\"refType\")=(get var13 \"typeID\")))\n" +
+                        "        (for iter2 (get var15 \"interfaces\") \n" +
+                        "          (= var16 (request ReferenceType Interfaces (\"refType\")=iter2)))\n" +
+                        "        (= var16 (request ClassType Superclass (\"clazz\")=(get var13 \"typeID\")))))))",
+                Synthesizer.synthesizeProgram(partition.get()).toPrettyString());
+    }
+
+    private static void assertNodeListEquals(List<Node> first, List<Node> second) {
+        assertEquals(first.size(), second.size());
+        for (int i = 0; i < first.size(); i++) {
+            assertEquals(first.get(i).getOrigin(), second.get(i).getOrigin());
+        }
     }
 }

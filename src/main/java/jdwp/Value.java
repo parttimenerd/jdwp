@@ -8,6 +8,7 @@ import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
+import tunnel.util.Hashed;
 import tunnel.util.ToCode;
 
 import java.lang.reflect.Field;
@@ -705,7 +706,7 @@ public abstract class Value implements ToCode {
 
         @Override
         public int hashCode() {
-            return getGroup().hashCode();
+            return getGroup().ordinal() * Hashed.LARGE_PRIME;
         }
 
         @Override
@@ -816,6 +817,11 @@ public abstract class Value implements ToCode {
             return String.format("new ByteList(%s)",
                     Arrays.asList(bytes).stream().map(b -> "" + b).collect(Collectors.joining(", ")));
         }
+
+        @Override
+        public int hashCode() {
+            return super.hashCode() ^ Arrays.hashCode(bytes);
+        }
     }
 
     @Getter
@@ -918,6 +924,10 @@ public abstract class Value implements ToCode {
 
         public boolean isDirectPointer() {
             return value.isDirectPointer();
+        }
+
+        public long hash() {
+            return Hashed.hash(value.hashCode(), path.hashCode());
         }
     }
 }
