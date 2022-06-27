@@ -11,7 +11,9 @@ import jdwp.EventRequestCmds.SetRequest;
 import jdwp.JDWP.ReturningRequestVisitor;
 import jdwp.PacketError.SupplierWithError;
 import jdwp.Reference;
+import jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest;
 import jdwp.Reply;
+import jdwp.ReplyOrError;
 import jdwp.Request;
 import jdwp.TunnelCmds.EvaluateProgramReply;
 import jdwp.TunnelCmds.EvaluateProgramReply.RequestReply;
@@ -43,6 +45,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static jdwp.PrimitiveValue.wrap;
+import static jdwp.Reference.klass;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -335,6 +338,96 @@ public class BasicMockVMTest {
             System.out.println(tp.clientTunnel.getState().getReplyCache().getPrefetchedStatistics().toLongTable());
             System.out.println(tp.clientTunnel.getState().getReplyCache().getNonPrefetchedStatistics().toLongTable());
             System.out.println(tp.clientTunnel.getState().getReplyCache().getStatistics().toLongTable());
+        }
+    }
+
+    @Test
+    @SneakyThrows
+    public void testEvaluateBasicProgramTunnelTunnelWithError() {
+        var classesRequest = new ClassesBySignatureRequest(0, wrap("test"));
+        var classesReply = new ClassesBySignatureReply(0, new ListValue<>(Type.OBJECT));
+        var redefineClassesRequest = new RedefineClassesRequest(0, new ListValue<>(Type.OBJECT));
+        var redefineClassesReply = new RedefineClassesReply(0);
+        var sourceDebugExtensionRequest = new SourceDebugExtensionRequest(0, klass(10));
+        try (var tp = VMTunnelTunnelClientTuple.create(new ReturningRequestVisitor<>() {
+            @Override
+            public Reply visit(ClassesBySignatureRequest classesBySignatureRequest) {
+                return classesReply;
+            }
+
+            @Override
+            public Reply visit(ResumeRequest resume) {
+                return new ResumeReply(0);
+            }
+
+            @Override
+            public Reply visit(RedefineClassesRequest redefineClassesRequest) {
+                return redefineClassesReply;
+            }
+
+            @Override
+            public ReplyOrError<?> visit(SourceDebugExtensionRequest sourceDebugExtensionRequest) {
+                return null;
+            }
+        })) {
+            var idSizesRequest = new IDSizesRequest(0);
+
+            tp.clientTunnel.getState().getProgramCache().accept(Program.parse("((= cause (request VirtualMachine IDSizes)) " +
+                    "(= var0 (request VirtualMachine IDSizes)) " +
+                    "(= var10 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"class-reference\" 10)))" +
+                    "(= var1 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))"));
+
+            // IdSizes and Classes request
+            assertEquals(tp.vm.getIdSizesReply(), tp.client.query(idSizesRequest).withNewId(0));
+            assertEquals(2, tp.clientTunnel.getReplyCacheSize());
+
+            assertEquals(classesReply, tp.client.query(classesRequest.withNewId(1)));
+            assertEquals(2, tp.clientTunnel.getReplyCacheSize());
+        }
+    }
+
+    @Test
+    @SneakyThrows
+    public void testEvaluateBasicProgramTunnelTunnelWithErrorAndDepending() {
+        var classesRequest = new ClassesBySignatureRequest(0, wrap("test"));
+        var classesReply = new ClassesBySignatureReply(0, new ListValue<>(Type.OBJECT));
+        var redefineClassesRequest = new RedefineClassesRequest(0, new ListValue<>(Type.OBJECT));
+        var redefineClassesReply = new RedefineClassesReply(0);
+        var sourceDebugExtensionRequest = new SourceDebugExtensionRequest(0, klass(10));
+        try (var tp = VMTunnelTunnelClientTuple.create(new ReturningRequestVisitor<>() {
+            @Override
+            public Reply visit(ClassesBySignatureRequest classesBySignatureRequest) {
+                return classesReply;
+            }
+
+            @Override
+            public Reply visit(ResumeRequest resume) {
+                return new ResumeReply(0);
+            }
+
+            @Override
+            public Reply visit(RedefineClassesRequest redefineClassesRequest) {
+                return redefineClassesReply;
+            }
+
+            @Override
+            public ReplyOrError<?> visit(SourceDebugExtensionRequest sourceDebugExtensionRequest) {
+                return null;
+            }
+        })) {
+            var idSizesRequest = new IDSizesRequest(0);
+
+            tp.clientTunnel.getState().getProgramCache().accept(Program.parse("((= cause (request VirtualMachine IDSizes)) " +
+                    "(= var0 (request VirtualMachine IDSizes)) " +
+                    "(= var10 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"klass\" 10)))" +
+                    "(= var1 (request VirtualMachine ClassesBySignature (\"signature\")=(get var10 \"extension\"))))"));
+
+            // IdSizes and Classes request
+            assertEquals(tp.vm.getIdSizesReply(), tp.client.query(idSizesRequest).withNewId(0));
+            assertEquals(1, tp.clientTunnel.getReplyCacheSize());
+
+            assertEquals(classesReply, tp.client.query(classesRequest.withNewId(1)));
+            assertEquals(2, tp.clientTunnel.getReplyCacheSize());
         }
     }
 

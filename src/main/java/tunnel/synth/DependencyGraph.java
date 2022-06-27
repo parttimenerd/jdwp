@@ -174,13 +174,16 @@ public class DependencyGraph {
     public static class Node {
         private final int id;
         private @Nullable
-        final Pair<Request<?>, Reply> origin;
+        final Pair<Request<?>, ReplyOrError<?>> origin;
         private final Set<Edge> dependsOn = new HashSet<>();
         private final Set<Edge> dependedBy = new HashSet<>();
 
-        public Node(int id, @Nullable Pair<Request<?>, Reply> origin) {
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        public Node(int id, @Nullable Pair<Request<?>, ? extends Reply> origin) {
             this.id = id;
-            this.origin = origin;
+            this.origin = origin == null ? null : (origin.second instanceof ReplyOrError<?> ?
+                    (Pair<Request<?>, ReplyOrError<?>>)(Pair)origin : p(origin.first,
+                    new ReplyOrError<>(origin.second)));
         }
 
         /**
@@ -249,7 +252,7 @@ public class DependencyGraph {
                     .flatMap(e -> e.getUsedValues().stream().map(d -> p(d, e.getTarget()))).collect(Collectors.toList());
         }
 
-        public @Nullable Pair<Request<?>, Reply> getOrigin() {
+        public @Nullable Pair<Request<?>, ReplyOrError<?>> getOrigin() {
             return origin;
         }
 
@@ -380,8 +383,8 @@ public class DependencyGraph {
         }
         ContainedValues causeValues = partition.hasCause() ? partition.getCausePacket().getContainedValues() :
                 new ContainedValues();
-        Map<Pair<Request<?>, Reply>, Pair<ContainedValues, ContainedValues>> containedValues = new HashMap<>();
-        for (Pair<Request<?>, Reply> p : partition) {
+        Map<Pair<Request<?>, ReplyOrError<?>>, Pair<ContainedValues, ContainedValues>> containedValues = new HashMap<>();
+        for (Pair<Request<?>, ReplyOrError<?>> p : partition) {
             containedValues.put(p, p(p.first.asCombined().getContainedValues(),
                     p.second.asCombined().getContainedValues()));
         }
@@ -413,7 +416,7 @@ public class DependencyGraph {
             } else {
                 usedCauseValues = Map.of();
             }
-            Map<Pair<Request<?>, Reply>, List<DoublyTaggedBasicValue<?, ?>>> dependsOn = new HashMap<>();
+            Map<Pair<Request<?>, ReplyOrError<?>>, List<DoublyTaggedBasicValue<?, ?>>> dependsOn = new HashMap<>();
             for (var entry : requestValues.entrySet()) { // for every basic value in the request
                 var value = entry.getKey();
                 if (usedCauseValues.containsKey(value)) { // cause has the highest priority
@@ -546,7 +549,7 @@ public class DependencyGraph {
         return sb.toString();
     }
 
-    void add(Pair<Request<?>, Reply> origin, Map<Pair<Request<?>, Reply>, List<DoublyTaggedBasicValue<?, ?>>> dependsOn,
+    void add(Pair<Request<?>, ReplyOrError<?>> origin, Map<Pair<Request<?>, ReplyOrError<?>>, List<DoublyTaggedBasicValue<?, ?>>> dependsOn,
              Collection<DoublyTaggedBasicValue<?, ?>> usedCauseValues) {
         var node = getNode(origin);
         node.addAllDependsOn(dependsOn.entrySet().stream()

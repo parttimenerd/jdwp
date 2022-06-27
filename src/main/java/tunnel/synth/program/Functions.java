@@ -396,7 +396,14 @@ public abstract class Functions {
                         return false;
                     }
                     var string = ((StringValue) value).getValue();
-                    return string.length() > 0 && JNITypeParser.getTagForFirstSignatureChar(string.charAt(0)) != -1;
+                    try {
+                        if (string.length() > 0 && JNITypeParser.checkSignature(string)){
+                            new JNITypeParser(string).jdwpTag();
+                            return true;
+                        }
+                    } catch (IllegalArgumentException e) {
+                    }
+                    return false;
                 }
             };
 

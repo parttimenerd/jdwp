@@ -121,15 +121,16 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
      * invariant: cause is request => request is first statement in partition
      */
     @EqualsAndHashCode(callSuper = true)
-    public static class Partition extends AbstractList<Pair<Request<?>, Reply>> implements ToCode {
+    public static class Partition extends AbstractList<Pair<Request<?>, ReplyOrError<?>>> implements ToCode {
         private @Nullable Either<Request<?>, Events> cause;
-        private final List<Pair<? extends Request<?>, ? extends Reply>> items;
+        private final List<Pair<? extends Request<?>, ReplyOrError<?>>> items;
         private final boolean conservative;
 
         Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<? extends Request<?>, ? extends Reply>> items,
                   boolean conservative) {
             this.cause = cause;
-            this.items = items;
+            this.items = items.stream().map(p -> p(p.first, p.second instanceof ReplyOrError ? (ReplyOrError<?>) p.second :
+                    new ReplyOrError<>(p.second))).collect(Collectors.toList());
             this.conservative = conservative;
             checkInvariant();
         }
@@ -174,8 +175,8 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
 
         @SuppressWarnings("unchecked")
         @Override
-        public Pair<Request<?>, Reply> get(int index) {
-            return (Pair<Request<?>, Reply>) items.get(index);
+        public Pair<Request<?>, ReplyOrError<?>> get(int index) {
+            return (Pair<Request<?>, ReplyOrError<?>>) items.get(index);
         }
 
         @Override
@@ -220,7 +221,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         }
 
         @Override
-        public boolean add(Pair<Request<?>, Reply> requestReplyPair) {
+        public boolean add(Pair<Request<?>, ReplyOrError<?>> requestReplyPair) {
             checkInvariant();
             if (cause == null) {
                 cause = Either.left(requestReplyPair.first);
@@ -363,7 +364,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         }
         var request = requestPacket.getPacket();
         var reply = replyPacket.getPacket();
-        if (reply.isError()) {  // start a new partition on error
+        if (reply.isNonReplyLikeError()) {  // start a new partition on error
             LOG.error("partition {} ended with error reply {} for request {}", currentPartition, reply, request);
             removeRequestFromPartition(request);
             startNewPartition(String.format("last reply was an error (%d for request %s)",
@@ -386,10 +387,10 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
                     startNewPartition("current partition is empty", Either.left(request));
                 }
                 if ((currentPartition.hasCause() && currentPartition.getCause().get() == request) || request.onlyReads()) {
-                    currentPartition.add(p(request, reply.getReply()));
+                    currentPartition.add(p(request, reply));
                 }
             } catch (Exception e) {
-                LOG.error("Failed to add {} to partition {}", p(request, reply.getReply()), currentPartition);
+                LOG.error("Failed to add {} to partition {}", p(request, reply), currentPartition);
                 LOG.error("Failed ", e);
                 startNewPartition("failed to add element to partition", null);
             }

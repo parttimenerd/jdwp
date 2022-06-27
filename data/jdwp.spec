@@ -590,6 +590,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (OnlyReads false)
             (AffectedBy nothing)
             (Affects modules classes methods fields time classLoadTime)
+            (ReplyLikeErrors UNSUPPORTED_VERSION INVALID_CLASS_FORMAT CIRCULAR_CLASS_DEFINITION FAILS_VERIFICATION NOT_IMPLEMENTED ADD_METHOD_NOT_IMPLEMENTED SCHEMA_CHANGE_NOT_IMPLEMENTED HIERARCHY_CHANGE_NOT_IMPLEMENTED DELETE_METHOD_NOT_IMPLEMENTED CLASS_MODIFIERS_CHANGE_NOT_IMPLEMENTED METHOD_MODIFIERS_CHANGE_NOT_IMPLEMENTED CLASS_ATTRIBUTE_CHANGE_NOT_IMPLEMENTED)
         )
     )
     (Command SetDefaultStratum=19
@@ -609,6 +610,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (OnlyReads false)
             (AffectedBy nothing)
             (Affects nothing)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command AllClassesWithGeneric=20
@@ -673,6 +675,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classLoaders modules classes classPath instances garbageCollectionTime time)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command AllModules=22
@@ -692,6 +695,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy modules classLoadTime)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
 )
@@ -894,6 +898,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes classPath garbageCollectionTime)
+            (ReplyLikeErrors ABSENT_INFORMATION)
         )
     )
     (Command NestedTypes=8
@@ -1014,6 +1019,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes classPath garbageCollectionTime)
+            (ReplyLikeErrors ABSENT_INFORMATION NOT_IMPLEMENTED)
         )
     )
     (Command SignatureWithGeneric=13
@@ -1162,6 +1168,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes classPath instances time garbageCollectionTime)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command ClassFileVersion=17
@@ -1186,6 +1193,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes classPath garbageCollectionTime)
+            (ReplyLikeErrors ABSENT_INFORMATION)
         )
     )
     (Command ConstantPool=18
@@ -1217,6 +1225,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes classPath garbageCollectionTime)
+            (ReplyLikeErrors NOT_IMPLEMENTED ABSENT_INFORMATION)
         )
     )
     (Command Module=19
@@ -1237,6 +1246,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy modules classPath garbageCollectionTime)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
 )
@@ -1640,6 +1650,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes methods)
+            (ReplyLikeErrors ABSENT_INFORMATION)
         )
     )
     (Command Bytecodes=3
@@ -1668,6 +1679,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes methods)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command IsObsolete=4
@@ -1698,6 +1710,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes methods)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command VariableTableWithGeneric=5
@@ -1747,6 +1760,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy classes methods)
+            (ReplyLikeErrors ABSENT_INFORMATION)
         )
     )
 
@@ -1862,6 +1876,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy time)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command InvokeMethod=6
@@ -2052,6 +2067,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy instances time)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
 )
@@ -2273,6 +2289,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy currentSuspension)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command CurrentContendedMonitor=9
@@ -2300,6 +2317,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy currentSuspension)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command Stop=10
@@ -2391,6 +2409,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (Affects currentSuspension threads threadLoadTime)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command ForceEarlyReturn=14
@@ -2461,6 +2480,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (OnlyReads false)
             (InvalidatesReplyCache false)
             (Affects time currentSuspension threads threadLoadTime)
+            (ReplyLikeErrors NO_MORE_FRAMES NOT_IMPLEMENTED TYPE_MISMATCH)
         )
     )
 
@@ -2880,6 +2900,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (InvalidatesReplyCache false)
             (AffectedBy nothing)
             (Affects events)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command Clear=2
@@ -3049,6 +3070,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (Affects currentSuspension frameValues)
+            (ReplyLikeErrors NO_MORE_FRAMES NOT_IMPLEMENTED)
         )
     )
 )
@@ -3091,6 +3113,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy modules classLoadTime)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
     (Command ClassLoader=2
@@ -3110,6 +3133,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy modules classLoaders classLoadTime)
+            (ReplyLikeErrors NOT_IMPLEMENTED)
         )
     )
 )

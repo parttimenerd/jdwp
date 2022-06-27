@@ -206,6 +206,26 @@ public class JNITypeParser {
         return signatureList;
     }
 
+    public static boolean checkSignature(String signature) {
+        JNITypeParser parser = new JNITypeParser(signature);
+        try {
+            int currentIndex = 0;
+            while(currentIndex < 10) {
+                if (parser.currentIndex >= parser.signature.length()) {
+                    return true;
+                }
+                if (getTagForFirstSignatureChar(parser.signature.charAt(parser.currentIndex)) == -1) {
+                    return false;
+                }
+                parser.nextSignature();
+                currentIndex++;
+            }
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     private synchronized List<String> typeNameList() {
         if (typeNameList == null) {
             typeNameList = new ArrayList<>(10);

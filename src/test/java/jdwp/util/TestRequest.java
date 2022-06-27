@@ -1,12 +1,11 @@
 package jdwp.util;
 
-import jdwp.JDWP.CommandVisitor;
-import jdwp.JDWP.RequestReplyVisitor;
-import jdwp.JDWP.RequestVisitor;
+import jdwp.JDWP.*;
 import jdwp.*;
-import jdwp.JDWP.StateProperty;
+import jdwp.VirtualMachineCmds.IDSizesRequest;
 import jdwp.VirtualMachineCmds.VersionRequest;
 
+import java.util.List;
 import java.util.Set;
 
 public class TestRequest extends AbstractTestParsedPacket implements Request<jdwp.util.TestReply> {
@@ -39,6 +38,11 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
     @Override
     public boolean onlyReads() {
         return true;
+    }
+
+    @Override
+    public List<Integer> getReplyLikeErrors() {
+        return List.of();
     }
 
     @Override
@@ -79,6 +83,11 @@ public class TestRequest extends AbstractTestParsedPacket implements Request<jdw
     @Override
     public boolean isAffectedByTime() {
         return false;
+    }
+
+    @Override
+    public Metadata getMetadata() {
+        return IDSizesRequest.METADATA;
     }
 
     @Override

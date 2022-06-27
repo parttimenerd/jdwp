@@ -157,8 +157,8 @@ public class BasicTunnel {
                             var reply = state.getCachedReply(request);
                             assert reply != null;
                             LOG.info("Cached reply for  {}: {}", formatter.format(request), formatter.format(reply));
-                            state.addReply(new WrappedPacket<>(new ReplyOrError<>(reply)));
-                            writeClientReply(clientOutputStream, Either.right(new ReplyOrError<>(reply)));
+                            state.addReply(new WrappedPacket<>(reply));
+                            writeClientReply(clientOutputStream, Either.right(reply));
                         }
                         if (reducedProgram.isEmpty()) {
                             continue; // nothing to do
@@ -174,8 +174,8 @@ public class BasicTunnel {
                         var reply = state.getCachedReply(request);
                         assert reply != null;
                         LOG.info("Cached reply for  {}: {}", formatter.format(request), formatter.format(reply));
-                        state.addReply(new WrappedPacket<>(new ReplyOrError<>(reply)));
-                        writeClientReply(clientOutputStream, Either.right(new ReplyOrError<>(reply)));
+                        state.addReply(new WrappedPacket<>(reply));
+                        writeClientReply(clientOutputStream, Either.right(reply));
                         continue;
                     } else {
                         state.writeRequest(jvmOutputStream, request);
@@ -189,7 +189,9 @@ public class BasicTunnel {
                         var packet = Packet.fromByteArray(e.getContent());
                         if (packet.getCmd() == TunnelCmds.COMMAND_SET) {
                             LOG.error("packet error: ", e);
-                            state.addAndWriteError(clientOutputStream, packet.getId(), CANNOT_EVALUATE_PROGRAM);
+                            state.addAndWriteError(clientOutputStream,new ReplyOrError<>(
+                                    clientRequest.get().getId(), EvaluateProgramRequest.METADATA,
+                                    (short) CANNOT_EVALUATE_PROGRAM));
                             continue; // tunnel commands cannot be sent directly to the VM
                         }
                         LOG.error("packet error: ", e);
@@ -203,7 +205,9 @@ public class BasicTunnel {
                 if (clientRequest.isPresent()) {
                     if (clientRequest.get() instanceof EvaluateProgramRequest) {
                         LOG.error("packet error: ", ex);
-                        state.addAndWriteError(clientOutputStream, clientRequest.get().getId(), CANNOT_EVALUATE_PROGRAM);
+                        state.addAndWriteError(clientOutputStream, new ReplyOrError<>(
+                                clientRequest.get().getId(), EvaluateProgramRequest.METADATA,
+                                (short) CANNOT_EVALUATE_PROGRAM));
                         continue;
                     }
                 }
@@ -233,6 +237,7 @@ public class BasicTunnel {
             } catch (ClosedStreamException e) {
                 return;
             } catch (PacketError e) {
+                LOG.error("packet error: ", e);
                 if (e.hasContent()) {
                     clientOutputStream.write(e.getContent());
                     reply = Optional.empty();
@@ -276,7 +281,8 @@ public class BasicTunnel {
     private Optional<Either<Events, ReplyOrError<?>>> readJvmReply(InputStream jvmInputStream,
                                                                    OutputStream clientOutputStream) throws IOException {
         if (hasDataAvailable(jvmInputStream)) {
-            return Optional.ofNullable(state.readReply(jvmInputStream, clientOutputStream));
+            var reply = state.readReply(jvmInputStream, clientOutputStream);
+            return Optional.ofNullable(reply);
         }
         return Optional.empty();
     }
@@ -299,11 +305,14 @@ public class BasicTunnel {
                     request.id, program);
         } catch (EvaluationAbortException e) {
             state.addAndWriteReply(clientOutputStream,
-                    Either.right(new ReplyOrError<>(request.id, (short) CANNOT_EVALUATE_PROGRAM)));
+                    Either.right(new ReplyOrError<>(
+                            request.getId(), EvaluateProgramRequest.METADATA,
+                            (short) CANNOT_EVALUATE_PROGRAM)));
         }
         if (requestReplies.isEmpty()) {
             state.addAndWriteReply(clientOutputStream,
-                    Either.right(new ReplyOrError<>(request.id, (short) CANNOT_EVALUATE_PROGRAM)));
+                    Either.right(new ReplyOrError<>(request.getId(), EvaluateProgramRequest.METADATA,
+                            (short) CANNOT_EVALUATE_PROGRAM)));
         }
         // if it all worked out, then request replies contains all request replies
         var reply = new ReplyOrError<>(request.getId(),
@@ -327,12 +336,14 @@ public class BasicTunnel {
             state.removeCachedProgram(program);
             LOG.error(String.format("Evaluated %s but got error", program), e);
             state.addAndWriteReply(clientOutputStream,
-                    Either.right(new ReplyOrError<>(events.id, (short) CANNOT_EVALUATE_PROGRAM)));
+                    Either.right(new ReplyOrError<>(events.getId(), EvaluateProgramRequest.METADATA,
+                            (short) CANNOT_EVALUATE_PROGRAM)));
             return;
         }
         if (requestReplies.isEmpty()) {
             state.addAndWriteReply(clientOutputStream,
-                    Either.right(new ReplyOrError<>(events.id, (short) CANNOT_EVALUATE_PROGRAM)));
+                    Either.right(new ReplyOrError<>(events.getId(), EvaluateProgramRequest.METADATA,
+                            (short) CANNOT_EVALUATE_PROGRAM)));
         }
         // if it all worked out, then request replies contains all request replies
         var trrEvent = new TunnelRequestReplies(wrap((int) events.getEvents().get(0).kind),
@@ -416,21 +427,21 @@ public class BasicTunnel {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static List<Pair<Request<?>, Reply>> parseEvaluateProgramReply(VM vm, EvaluateProgramReply reply) {
+    public static List<Pair<Request<?>, ReplyOrError<?>>> parseEvaluateProgramReply(VM vm, EvaluateProgramReply reply) {
         return reply.replies.stream().map(p -> {
             Request<?> innerRequest = JDWP.parse(vm, Packet.fromByteArray(p.request.bytes));
-            Reply innerReply = innerRequest.parseReply(new PacketInputStream(vm, p.reply.bytes)).getReply();
-            return (Pair<Request<?>, Reply>)(Pair)p(innerRequest, innerReply);
+            ReplyOrError<?> innerReply = innerRequest.parseReply(new PacketInputStream(vm, p.reply.bytes));
+            return (Pair<Request<?>, ReplyOrError<?>>)(Pair)p(innerRequest, innerReply);
         }).collect(Collectors.toList());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static Pair<Events, List<Pair<Request<?>, Reply>>> parseTunnelRequestReplyEvent(VM vm,
+    public static Pair<Events, List<Pair<Request<?>, ReplyOrError<?>>>> parseTunnelRequestReplyEvent(VM vm,
                                                                                            TunnelRequestReplies reply) {
         return p(Events.parse(vm, Packet.fromByteArray(reply.events.bytes)), reply.replies.stream().map(p -> {
             Request<?> innerRequest = JDWP.parse(vm, Packet.fromByteArray(p.request.bytes));
-            Reply innerReply = innerRequest.parseReply(new PacketInputStream(vm, p.reply.bytes)).getReply();
-            return (Pair<Request<?>, Reply>) (Pair) p(innerRequest, innerReply);
+            ReplyOrError<?> innerReply = innerRequest.parseReply(new PacketInputStream(vm, p.reply.bytes));
+            return (Pair<Request<?>, ReplyOrError<?>>) (Pair) p(innerRequest, innerReply);
         }).collect(Collectors.toList()));
     }
 

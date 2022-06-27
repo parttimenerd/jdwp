@@ -1,13 +1,10 @@
 package jdwp;
 
-import jdwp.JDWP.RequestReplyVisitor;
-import jdwp.JDWP.RequestVisitor;
-import jdwp.JDWP.ReturningRequestVisitor;
-import jdwp.JDWP.StateProperty;
+import jdwp.JDWP.*;
 
 import java.util.Set;
 
-public interface Request<R extends Value & Reply> extends ParsedPacket {
+public interface Request<R extends Value & Reply> extends ParsedPacket, WithMetadata {
 
     int getCommandSet();
 
@@ -19,6 +16,8 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
 
     /** is this a cacheable request? */
     boolean onlyReads();
+
+    java.util.List<Integer> getReplyLikeErrors();
 
     Set<StateProperty> getAffectedBy();
 
@@ -46,15 +45,9 @@ public interface Request<R extends Value & Reply> extends ParsedPacket {
 
     ReplyOrError<R> parseReply(PacketInputStream ps);
 
-    long getAffectsBits();
-
-    long getAffectedByBits();
-
     boolean isAffectedBy(Request<?> other);
-
-    boolean isAffectedByTime();
-
     void accept(RequestVisitor visitor);
+
     void accept(RequestReplyVisitor visitor, Reply reply);
 
     Request<R> withNewId(int id);

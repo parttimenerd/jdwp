@@ -110,7 +110,7 @@ public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeabl
         }
         if (reply == null) {
             LOG.error("No reply for request {}", request);
-            return new ReplyOrError<>(request.getId(), (short) 1);
+            return new ReplyOrError<>(request, (short) 1);
         }
         reply = (Reply) reply.withNewId(request.getId());
         receivedRequests.add(request);

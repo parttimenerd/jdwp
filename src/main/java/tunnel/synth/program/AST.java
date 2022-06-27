@@ -649,8 +649,8 @@ public interface AST {
         }
 
         public float getCost() {
-            return JDWP.getCost(JDWP.getCommandSetByte(getCommandSet()),
-                    JDWP.getCommandByte(getCommandSet(), getCommand()));
+            return JDWP.getMetadata(JDWP.getCommandSetByte(getCommandSet()),
+                    JDWP.getCommandByte(getCommandSet(), getCommand())).getCost();
         }
 
         @Override

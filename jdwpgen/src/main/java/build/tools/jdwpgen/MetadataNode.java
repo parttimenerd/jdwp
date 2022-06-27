@@ -203,6 +203,37 @@ public class MetadataNode extends Node {
         }
     }
 
+    static class ReplyLikeErrorList {
+        public final List<String> errorConstants;
+
+        ReplyLikeErrorList(List<String> errorConstants) {
+            this.errorConstants = errorConstants;
+        }
+    }
+
+    public static class ReplyLikeErrorEntry extends Entry<ReplyLikeErrorList> {
+
+        public ReplyLikeErrorEntry(String name, String constantName, String description,
+                                  Optional<DefaultValue<ReplyLikeErrorList>> statePropertyDefaultValue) {
+            super(name, constantName, description, ReplyLikeErrorList.class,
+                    ReplyLikeErrorEntry::parseSet, statePropertyDefaultValue);
+        }
+
+        static ReplyLikeErrorList parseSet(String str) {
+            return new ReplyLikeErrorList(Arrays.stream(str.split("[, ]+")).collect(Collectors.toList()));
+        }
+
+        @Override
+        public TypeName getTypeName() {
+            return ParameterizedTypeName.get(ClassName.get(List.class), ClassName.bestGuess("Integer"));
+        }
+
+        @Override
+        public TypeName getBoxedTypeName() {
+            return getTypeName();
+        }
+    }
+
     static final List<Entry<?>> entries = List.of(
             new Entry<>("OnlyReads", "ONLY_READS",
                     "Can the request be issued multiple times without affecting the JVM from debugger's perpective",
@@ -223,9 +254,14 @@ public class MetadataNode extends Node {
                     String.format("List of state properties (%s) that are affected the validity by this request",
                             StateProperty.combinedString()),
                     Optional.of(new DefaultValue<>(m -> new StatePropertySet(Set.of((boolean) m.get("OnlyReads") ?
-                            NOTHING : EVERYTHING)))))
+                            NOTHING : EVERYTHING))))),
+            new ReplyLikeErrorEntry("ReplyLikeErrors", "REPLY_LIKE_ERRORS",
+                    "List of error constants that are considered to be a reply rather than an error",
+                    Optional.of(new DefaultValue<>(new ReplyLikeErrorList(List.of()))))
 
     );
+
+    public static final String METADATA_CLASSNAME = "Metadata";
 
     public static final Map<String, Entry<?>> entryMap = entries.stream().collect(Collectors.toMap(Entry::getNodeName
             , e -> e));

@@ -2,9 +2,11 @@ package tunnel.synth;
 
 import jdwp.*;
 import jdwp.EventCmds.Events.VMStart;
-import jdwp.Reference.ClassReference;
-import jdwp.Reference.MethodReference;
-import jdwp.Reference.ThreadReference;
+import jdwp.JDWP.Error;
+import jdwp.Reference.*;
+import jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest;
+import jdwp.ThreadReferenceCmds.NameReply;
+import jdwp.ThreadReferenceCmds.NameRequest;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import jdwp.VirtualMachineCmds.IDSizesReply;
@@ -94,6 +96,27 @@ public class PartitionerTest {
         assertTrue(partitions.get(1).hasCause());
         assertEquals(1, partitions.get(0).size());
         assertEquals(2, partitions.get(1).size());
+    }
+
+    @Test
+    public void testSplitAfterError() {
+        List<Partition> partitions = new ArrayList<>();
+        var partitioner = new Partitioner().addListener(partitions::add);
+        var state = new State().addListener(partitioner);
+        state.addRequest(wp(new jdwp.ThreadReferenceCmds.ResumeRequest(16193, new ThreadReference(1L))));
+        state.addReply(wpr(new jdwp.ThreadReferenceCmds.ResumeReply(16193)));
+        state.addRequest(wp(new NameRequest(16197, new ThreadReference(1L))));
+        state.addReply(wpr(new NameReply(16197, PrimitiveValue.wrap("main"))));
+        // reply like error
+        var sdbg = new SourceDebugExtensionRequest(16198, Reference.klass(1));
+        state.addRequest(wp(sdbg));
+        state.addReply(new WrappedPacket<>(new ReplyOrError<>(sdbg, (short) Error.ABSENT_INFORMATION)));
+        assertEquals(0, partitions.size());
+        state.addRequest(wp(sdbg));
+        state.addReply(new WrappedPacket<>(new ReplyOrError<>(sdbg, (short)Error.VM_DEAD)));
+        partitioner.close();
+        assertEquals(1, partitions.size());
+        assertEquals(2, partitions.get(0).size());
     }
 
     private void addRequest(State state, int id, long time) {

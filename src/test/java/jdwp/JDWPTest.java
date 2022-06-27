@@ -1188,7 +1188,7 @@ class JDWPTest {
     @Test
     public void testParsingErrorPackage() {
         // can we handle errors properly (we only have to this for a single test case)
-        var reply = new ReplyOrError<ThreadReferenceCmds.NameReply>(0, (short) 10);
+        var reply = new ReplyOrError<ThreadReferenceCmds.NameReply>(0, NameRequest.METADATA, (short) 10);
         assertEquals(10, oraclePacketStream(reply.toPacket(vm)).pkt.errorCode);
 
         // can we parse our package?
@@ -1271,7 +1271,8 @@ class JDWPTest {
         var reply = new EvaluateProgramReply(0, new ListValue<>(
                 new RequestReply(new ByteList(idSizesRequest.toPacket(vm).toByteArray()),
                         new ByteList(idSizesReply.toPacket(vm).toByteArray()))));
-        assertEquals(List.of(p(idSizesRequest, idSizesReply)), parseEvaluateProgramReply(vm, EvaluateProgramReply.parse(reply.toStream(vm)).getReply()));
+        assertEquals(List.of(p(idSizesRequest, new ReplyOrError<>(idSizesReply))),
+                parseEvaluateProgramReply(vm, EvaluateProgramReply.parse(reply.toStream(vm)).getReply()));
     }
 
     @Test

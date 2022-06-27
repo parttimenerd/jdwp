@@ -96,7 +96,7 @@ fun TypeSpec.Builder.`public abstract`(type: TypeName, name: String, vararg para
 
 fun TypeSpec.Builder.default(type: TypeName, name: String, vararg params: ParameterSpec.Builder,
                              codeMethod: MethodMethod = { this })
-        = addMethod(applyParams(listOf(), type, name, params = *params, function = codeMethod))!!
+        = addMethod(applyParams(listOf(Modifier.DEFAULT, public), type, name, params = *params, function = codeMethod))!!
 
 fun param(type: String, name: String, paramMethod: ParamMethod = { this })
         = ParameterSpec.builder(ClassName.bestGuess(type), name).paramMethod()

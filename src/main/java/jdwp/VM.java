@@ -305,6 +305,12 @@ public class VM {
         events.events.stream().forEach(this::captureInformation);
     }
 
+    public void captureInformation(Request<?> request, ReplyOrError<?> reply) {
+        if (reply.isReply()) {
+            captureInformation(request, reply.getReply());
+        }
+    }
+
     /**
      * capture information on object, field and array types and idsizes from a reply
      */

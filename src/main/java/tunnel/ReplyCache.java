@@ -237,11 +237,11 @@ public class ReplyCache implements Listener {
             }
 
             int size() {
-                assert reply instanceof Packet || reply instanceof Reply;
+                assert reply instanceof Packet || reply instanceof ReplyOrError<?>;
                 if (reply instanceof Packet) {
                     return ((Packet) reply).size();
                 } else {
-                    return ((Reply) reply).toPacket(new VM(0)).size();
+                    return ((ReplyOrError<?>) reply).toPacket(new VM(0)).size();
                 }
             }
         }
@@ -478,7 +478,7 @@ public class ReplyCache implements Listener {
     @Getter
     private final Options options;
     private final VM vm;
-    private final Cache<Reply> l1Cache;
+    private final Cache<ReplyOrError<?>> l1Cache;
     private final Cache<Packet> l2Cache;
     @Getter
     private final Statistics prefetchedStats;
@@ -488,7 +488,7 @@ public class ReplyCache implements Listener {
     public ReplyCache(Options options, VM vm, List<Pair<Request<?>, Reply>> entries) {
         this(options, vm);
         for (var entry : entries) {
-            put(entry.first, entry.second, false);
+            put(entry.first, new ReplyOrError<>(entry.second), false);
         }
     }
 
@@ -511,7 +511,7 @@ public class ReplyCache implements Listener {
     }
 
     /** evict into l2 cache */
-    private void l1EvictionListener(Request<?> request, CacheEntry<Reply> reply, EvictionCause cause) {
+    private void l1EvictionListener(Request<?> request, CacheEntry<ReplyOrError<?>> reply, EvictionCause cause) {
         if (cause == SIZE) {
             l2Cache.put(request, reply.reply.toPacket(vm), reply.prefetched);
         } else {
@@ -562,21 +562,22 @@ public class ReplyCache implements Listener {
         return stats;
     }
 
-    public void put(Request<?> request, Reply reply, boolean prefetched) {
+    public void put(Request<?> request, ReplyOrError<?> reply, boolean prefetched) {
+        assert reply.isReplyLike();
         l1Cache.put(request, reply, prefetched);
     }
 
-    public @Nullable Reply get(Request<?> request) {
+    public @Nullable ReplyOrError<?> get(Request<?> request) {
         var reply = l1Cache.get(request);
         if (reply != null) {
-            return (Reply) reply.withNewId(request.getId());
+            return (ReplyOrError<?>) reply.withNewId(request.getId());
         }
         var replyPacket = l2Cache.get(request);
         if (replyPacket == null) {
             return null;
         }
         try {
-            return (Reply) request.parseReply(replyPacket.toStream(vm)).getReply().withNewId(request.getId());
+            return (ReplyOrError<?>) request.parseReply(replyPacket.toStream(vm)).withNewId(request.getId());
         } catch (Exception | AssertionError e) {
             return null;
         }
@@ -625,7 +626,7 @@ public class ReplyCache implements Listener {
     }
 
     @Override
-    public void onReply(Request<?> request, Reply reply) {
+    public void onReply(Request<?> request, ReplyOrError<?> reply) {
         onRequest(request); // just to be safe
     }
 
@@ -636,7 +637,7 @@ public class ReplyCache implements Listener {
         }
 
         @Override
-        public void put(Request<?> request, Reply reply, boolean prefetched) {
+        public void put(Request<?> request, ReplyOrError<?> reply, boolean prefetched) {
         }
     }
 }

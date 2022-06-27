@@ -138,8 +138,8 @@ public class State {
         this.mode = mode;
         this.formatter = formatter;
         LOG = (Logger) LoggerFactory.getLogger((mode == NONE ? "" : mode.name().toLowerCase() + "-") + "tunnel");
+        registerCacheListener();
         if (mode != NONE) {
-            registerCacheListener();
             if (mode == CLIENT) {
                 registerPartitionListener();
             }
@@ -213,6 +213,7 @@ public class State {
     private void registerPartitionListener() {
         assert mode == CLIENT;
         clientPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
+            LOG.error("Partition: {}", partition);
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isLeft()) {
@@ -221,10 +222,13 @@ public class State {
                     programCache.accept(program);
                     storeProgramCache();
                 }
+            } else {
+                LOG.error("omit because of missing cause");
             }
         });
         addPartitionerListener(clientPartitioner);
         serverPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
+            LOG.error("Partition: {}", partition);
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isRight()) {
@@ -234,6 +238,8 @@ public class State {
                     storeProgramCache();
                     programsToSendToServer.add(program);
                 }
+            } else {
+                LOG.error("omit because of missing cause");
             }
         });
         addPartitionerListener(serverPartitioner);
@@ -293,7 +299,7 @@ public class State {
         unfinished.remove(id);
     }
 
-    public void cache(Request<?> request, Reply reply, boolean prefetched) {
+    public void cache(Request<?> request, ReplyOrError<?> reply, boolean prefetched) {
         if (request.onlyReads()) {
             replyCache.put(request, reply, prefetched);
         }
@@ -333,17 +339,17 @@ public class State {
                 unfinishedEvaluateRequests.remove(ps.id());
                 if (reply.isError()) {
                     LOG.error("Error in evaluate program reply: " + reply);
-                    addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), (short) 1)));
+                    addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), EvaluateProgramRequest.METADATA, (short) 1)));
                     removeCachedProgram(Program.parse(program.getValue()));
                 } else {
                     var request = hasUnfinishedRequest(ps.id()) ? getUnfinishedRequest(ps.id()).getPacket() : null;
                     var realReply = reply.getReply();
-                    Reply originalReply = null;
+                    ReplyOrError<?> originalReply = null;
                     assert clientOutputStream != null;
                     for (var p : BasicTunnel.parseEvaluateProgramReply(vm, realReply)) {
                         captureInformation(p.first, p.second);
                         if (originalReply == null && p.first.equals(request)) {
-                            originalReply = p.second;
+                            originalReply = (ReplyOrError<?>) p.second.withNewId(ps.id());
                         }
                         cache(p.first, p.second, p.second != originalReply);
                         LOG.debug("put into reply cache: {} -> {}", formatter.format(p.first),
@@ -358,20 +364,23 @@ public class State {
                         if (unfinishedRequest.getId() != ps.id()) {
                             var cachedReply = replyCache.get(unfinishedRequest);
                             if (cachedReply != null) {
-                                addReply(new WrappedPacket<>(new ReplyOrError<>(cachedReply),
-                                        System.currentTimeMillis()));
-                                writeReply(clientOutputStream, Either.right(new ReplyOrError<>(cachedReply)));
+                                addReply(new WrappedPacket<>(cachedReply, System.currentTimeMillis()));
+                                writeReply(clientOutputStream, Either.right(cachedReply));
                             }
                         }
                     }
                     // handle the original request
                     if (originalReply != null) {
-                        addReply(new WrappedPacket<>(new ReplyOrError<>(originalReply),
-                                System.currentTimeMillis()));
+                        try {
+                            addReply(new WrappedPacket<>(originalReply, System.currentTimeMillis()));
+                        } catch (Exception e) {
+                            LOG.error("Failed to add reply to reply cache", e);
+                        }
                     }
                     clientPartitioner.enable();
                     serverPartitioner.enable();
-                    return originalReply == null ? null : Either.right(new ReplyOrError<>(ps.id(), originalReply));
+                    LOG.debug("original reply " + originalReply);
+                    return originalReply == null ? null : Either.right(originalReply);
                 }
             }
             var request = getUnfinishedRequest(ps.id());
@@ -381,7 +390,7 @@ public class State {
             if (reply.isReply()) {
                 var realReply = reply.getReply();
                 captureInformation(request.packet, realReply);
-                cache(request.packet, reply.getReply(), false);
+                cache(request.packet, new ReplyOrError<Reply>(reply.getReply()), false);
             }
             return Either.right(reply);
         } else {
@@ -393,7 +402,7 @@ public class State {
                     assert events.events.size() == 1; // is the only event in the list
                     var parsed = BasicTunnel.parseTunnelRequestReplyEvent(vm, (TunnelRequestReplies)event);
                     addEvent(new WrappedPacket<>(parsed.first));
-                    for (Pair<Request<?>, Reply> p : parsed.second) {
+                    for (Pair<Request<?>, ReplyOrError<?>> p : parsed.second) {
                         replyCache.put(p.first, p.second, true);
                     }
                     return Either.left(parsed.first);
@@ -410,6 +419,12 @@ public class State {
         } catch (Exception | AssertionError e) {
             throw new PacketError(String.format("Failed to capture information from request %s and reply %s",
                     request, reply), e);
+        }
+    }
+
+    public void captureInformation(Request<?> request, ReplyOrError<?> reply) {
+        if (reply.isReply()) {
+            captureInformation(request, reply.getReply());
         }
     }
 
@@ -442,9 +457,8 @@ public class State {
         writeReply(outputStream, reply);
     }
 
-    public void addAndWriteError(OutputStream outputStream, int id, int error) {
-        var replyOrError = new ReplyOrError<>(id, (short) error);
-        addAndWriteReply(outputStream, Either.right(replyOrError));
+    public void addAndWriteError(OutputStream outputStream, ReplyOrError<?> error) {
+        addAndWriteReply(outputStream, Either.right(error));
     }
 
     /**
@@ -484,7 +498,7 @@ public class State {
         return !isServer() && replyCache.contains(request);
     }
 
-    public Reply getCachedReply(Request<?> request) {
+    public ReplyOrError<?> getCachedReply(Request<?> request) {
         return replyCache.get(request);
     }
 
@@ -540,6 +554,11 @@ public class State {
         }).evaluate(program).second;
         var toRemove = program.collectStatements();
         toRemove.removeAll(notEvaluated);
-        return program.removeStatements(new HashSet<>(toRemove));
+        try {
+            return program.removeStatements(new HashSet<>(toRemove));
+        } catch (AssertionError e) {
+            LOG.error("Failed to remove cached requests ({}) from program {}", program, toRemove, e);
+        }
+        return program;
     }
 }

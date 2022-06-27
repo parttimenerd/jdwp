@@ -1,8 +1,10 @@
 package jdwp.util;
 
-import jdwp.*;
 import jdwp.JDWP.CommandVisitor;
+import jdwp.JDWP.Metadata;
 import jdwp.JDWP.ReplyVisitor;
+import jdwp.*;
+import jdwp.VirtualMachineCmds.IDSizesRequest;
 
 public class TestReply extends AbstractTestParsedPacket implements Reply {
 
@@ -47,6 +49,11 @@ public class TestReply extends AbstractTestParsedPacket implements Reply {
     }
 
     @Override
+    public boolean isAffectedBy(Request<?> other) {
+        return false;
+    }
+
+    @Override
     public void accept(ReplyVisitor visitor) {
         throw new UnsupportedOperationException();
     }
@@ -54,5 +61,10 @@ public class TestReply extends AbstractTestParsedPacket implements Reply {
     @Override
     public ParsedPacket withNewId(int id) {
         return new TestReply(id);
+    }
+
+    @Override
+    public Metadata getMetadata() {
+        return IDSizesRequest.METADATA;
     }
 }

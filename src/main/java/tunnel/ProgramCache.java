@@ -1,11 +1,12 @@
 package tunnel;
 
+import ch.qos.logback.classic.Logger;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import jdwp.EventCmds.Events;
 import jdwp.ParsedPacket;
 import jdwp.Request;
-import tunnel.synth.program.AST.AssignmentStatement;
+import org.slf4j.LoggerFactory;
 import tunnel.synth.program.AST.EventsCall;
 import tunnel.synth.program.AST.PacketCall;
 import tunnel.synth.program.AST.RequestCall;
@@ -27,6 +28,7 @@ import static jdwp.util.Pair.p;
  */
 public class ProgramCache implements Consumer<Program> {
 
+    public final static Logger LOG = (Logger) LoggerFactory.getLogger("ProgramCache");
     public enum Mode {
         /**
          * always use the last cached program
@@ -125,11 +127,17 @@ public class ProgramCache implements Consumer<Program> {
                 .max((p1, p2) -> Float.compare(p1.second, p2.second));
         if (best.isPresent() && best.get().second > 0) {
             var origin = best.get().first.getValue();
-            var prog = origin.setCause(packet);
+            Program prog;
+            try {
+                prog = origin.setCause(packet);
+            } catch (AssertionError e) {
+                LOG.warn("Failed to set cause " + packet + " for " + origin);
+                return Optional.empty();
+            }
             // remove statements that are deemed to be to costly
-            prog = prog.removeStatementsTransitively(s -> s instanceof AssignmentStatement &&
+            /*prog = prog.removeStatementsTransitively(s -> s instanceof AssignmentStatement &&
                     ((AssignmentStatement) s).getExpression() instanceof RequestCall &&
-                    ((RequestCall) ((AssignmentStatement) s).getExpression()).getCost() > maxCostForSimilar);
+                    ((RequestCall) ((AssignmentStatement) s).getExpression()).getCost() > maxCostForSimilar);*/
             if (removedSimilars.contains(origin)) { // this similar program already failed
                 return Optional.empty();
             }

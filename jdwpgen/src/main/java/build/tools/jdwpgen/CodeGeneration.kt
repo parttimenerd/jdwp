@@ -1,7 +1,6 @@
 package build.tools.jdwpgen
 
-import build.tools.jdwpgen.MetadataNode.StateProperty
-import build.tools.jdwpgen.MetadataNode.StatePropertySet
+import build.tools.jdwpgen.MetadataNode.*
 import com.grosner.kpoet.*
 import com.squareup.javapoet.*
 import javax.lang.model.element.Modifier
@@ -193,7 +192,8 @@ internal object CodeGeneration {
                 _return("$replyClassName.parse(ps)")
             }
 
-            genMetadataCode(cmd.metadata, costFile, cmd)
+            genMetadataSetterCode(cmd.metadata, costFile, cmd)
+            genMetadataGetterCode(cmd.metadata, null)
 
             genVisitorAccept(requestVisitorName)
             genReturningVisitorAccept(returningRequestVisitorName)
@@ -237,7 +237,7 @@ internal object CodeGeneration {
                 param("PacketInputStream", "ps")
             ) {
                 `if`("ps.errorCode() != 0") {
-                    _return("new ReplyOrError<>(ps.id(), ps.flags(), ps.errorCode())")
+                    _return("new ReplyOrError<>(ps.id(), ps.flags(), ${cmd.requestClassName}.METADATA, ps.errorCode())")
                 }.`else` {
                     for (f in fields) {
                         addCode(f.genJavaRead(f.javaType() + " " + f.name()) + "\n")
@@ -248,6 +248,8 @@ internal object CodeGeneration {
                     )
                 }.end()
             }
+
+            genMetadataGetterCode(cmd.metadata, requestClassName)
 
             genToString(replyClassName, fields)
             genEquals(replyClassName, fields)
@@ -478,7 +480,8 @@ internal object CodeGeneration {
             genCombinedTypeGet(fields)
 
             metadataNode?.let {
-                genMetadataCode(it, null, null)
+                genMetadataSetterCode(it, null, null)
+                genMetadataGetterCode(it, null)
             }
 
             genToString(alt.name(), fields)
@@ -685,45 +688,75 @@ internal object CodeGeneration {
         _return("visitor.visit(this)")
     }
 
-    private fun TypeSpec.Builder.genMetadataCode(
+    private data class ExtraMetadataField(val typeName: TypeName, val name: String,
+                                          val description: String, val methodName: String,
+                                          val codeGenerator: (CommandNode?, MetadataNode) -> String)
+
+    private val extraMetadataFields = listOf<ExtraMetadataField>(
+        ExtraMetadataField(TypeName.INT, "commandSet", "", "getCommandSet"
+        ) { cmd, md -> if (cmd == null) "-1" else (cmd.parent as CommandSetNode).nameNode.value() },
+        ExtraMetadataField(TypeName.INT, "command", "", "getCommand",
+            { cmd, md -> if (cmd == null) "-1" else cmd.nameNode.value()}),
+        ExtraMetadataField(TypeName.LONG, "affectsBits", "The bitmask of affected properties",
+            "getAffectsBits"
+        ) { cmd, md -> "0b0" + (md.get("Affects") as StatePropertySet).bitfield.toString(2) + "L" },
+        ExtraMetadataField(TypeName.LONG, "affectedByBits", "The bitmask of affected by properties",
+            "getAffectedByBits"
+        ) { cmd, md -> "0b0" + (md.get("AffectedBy") as StatePropertySet).bitfield.toString(2) + "L" },
+        ExtraMetadataField(TypeName.BOOLEAN, "affectedByTime", "", "isAffectedByTime",
+        ) { cmd, md -> (md.get("AffectedBy") as StatePropertySet).properties.contains(StateProperty.TIME).L }
+    )
+
+    private fun metadataFields(costFile: CostFile?) = entries.map { entry ->
+        ExtraMetadataField(
+            entry.typeName, entry.nodeName.lowercaseFirstCharacter(), entry.description,
+            (if (entry.typeName == TypeName.BOOLEAN) entry.nodeName.lowercaseFirstCharacter() else "get" + entry.nodeName)
+        ) { cmd, md ->
+            val value = md.get(entry.nodeName) as Any
+            if (entry.nodeName.equals("Cost")) {
+                (if (costFile == null) "0"
+                else if (value == 0) costFile!!.getCost(
+                    Integer.parseInt((cmd!!.parent as CommandSetNode).nameNode.value()),
+                    Integer.parseInt(cmd!!.nameNode.value())
+                ).L else value.L) + "f"
+            } else if (value is String) value.S
+            else if (value is StatePropertySet) {
+                if (value.properties.isEmpty()) "Set.of()"
+                else "Set.of(${value.properties.joinToString(", ") { "StateProperty.${it.name}" }})"
+            } else if (value is MetadataNode.ReplyLikeErrorList) {
+                if (value.errorConstants.isEmpty()) "List.<Integer>of()"
+                else "List.of(${value.errorConstants.joinToString(", ") { "JDWP.Error.${it}" }})"
+            } else value.L
+        }
+    } + extraMetadataFields
+
+    private fun TypeSpec.Builder.genMetadataSetterCode(
         metadata: MetadataNode,
         costFile: CostFile?,
         cmd: CommandNode?
+    ): TypeSpec.Builder =
+        `public static final field`(bg(METADATA_CLASSNAME), "METADATA") {
+            addJavadoc("Metadata for this request")
+            `=`(
+                "new ${METADATA_CLASSNAME}(${metadataFields(costFile).joinToString(", ") {
+                    it.codeGenerator(cmd, metadata)
+                }})"
+            )
+            this
+        }
+
+    private fun TypeSpec.Builder.genMetadataGetterCode(
+        metadata: MetadataNode,
+        cmdClassName: String?
     ): TypeSpec.Builder {
-        for ((entry, value) in metadata.entryValues.entries) {
-            if (entry.nodeName.equals("Cost") && costFile == null) {
-                continue
-            }
-            `public static final field`(entry.typeName, entry.constantName) {
-                addJavadoc(entry.description)
-                `=`(
-                    if (entry.nodeName.equals("Cost")) {
-                        (if (value == 0) costFile!!.getCost(
-                            Integer.parseInt((cmd!!.parent as CommandSetNode).nameNode.value()),
-                            Integer.parseInt(cmd.nameNode.value())
-                        ).L else value.L) + "f"
-                    } else if (value is String) value.S
-                    else if (value is StatePropertySet) {
-                        if (value.properties.isEmpty()) "Set.of()"
-                        else "EnumSet.of(${value.properties.joinToString(", ") { "StateProperty.${it.name}" }})"
-                    } else value.L
-                )
-            }
-            `public`(entry.typeName, entry.methodName) {
-                `@Override`()
-                addJavadoc(entry.description)
-                _return(entry.constantName)
-            }
-        }
 
-        `public`(TypeName.LONG, "getAffectsBits") {
-            `@Override`()
-            _return("0b0" + (metadata.get("Affects") as StatePropertySet).bitfield.toString(2) + "L")
-        }
+        val METADATA_FIELD_NAME = "${if (cmdClassName != null) "$cmdClassName." else ""}METADATA"
 
-        `public`(TypeName.LONG, "getAffectedByBits") {
-            `@Override`()
-            _return("0b0" + (metadata.get("AffectedBy") as StatePropertySet).bitfield.toString(2) + "L")
+        for (field in metadataFields(null).filterNot { it.methodName.contains("Command") }) {
+            `public`(field.typeName, field.methodName) {
+                if (field.description.isNotEmpty()) addJavadoc(field.description)
+                _return("$METADATA_FIELD_NAME.${field.name}")
+            }
         }
 
         `public`(TypeName.BOOLEAN, "isAffectedBy", param(pt("jdwp.Request"), "other")) {
@@ -731,11 +764,56 @@ internal object CodeGeneration {
             _return("(getAffectedByBits() & other.getAffectsBits()) != 0")
         }
 
-        `public`(TypeName.BOOLEAN, "isAffectedByTime") {
-            `@Override`()
-            _return((metadata.get("AffectedBy") as StatePropertySet).properties.contains(StateProperty.TIME).L)
+        `public`(TypeName.BOOLEAN, "isReplyLikeError", param(TypeName.INT, "errorCode")) {
+            _return("$METADATA_FIELD_NAME.isReplyLikeError(errorCode)")
         }
+
+        `public`(bg(METADATA_CLASSNAME), "getMetadata") {
+            `@Override`()
+            _return(METADATA_FIELD_NAME)
+        }
+
         return this
+    }
+
+    private fun genMetadataClass() = `public static class`(METADATA_CLASSNAME) {
+        implements(bg("ToCode"))
+        val fields = metadataFields(null)
+        for (field in fields) {
+            `public final field`(field.typeName, field.name) {
+                if (field.description.isNotEmpty()) addJavadoc(field.description)
+                this
+            }
+            `public`(field.typeName, field.methodName) {
+                if (field.description.isNotEmpty()) addJavadoc(field.description)
+                _return(field.name)
+            }
+        }
+        `public`(TypeName.BOOLEAN, "isReplyLikeError", param(TypeName.INT, "errorCode")) {
+            _return("replyLikeErrors.contains(errorCode)")
+        }
+        `constructor`(fields.map { param(it.typeName, it.name) }) {
+            fields.forEach {
+                addStatement("this.${it.name} = ${it.name}")
+            }
+            this
+        }
+        `public`(bg("String"), "toCode") {
+            `@Override`()
+            _return("JDWP.getCommandSetName(commandSet) + \"Cmds.\" + JDWP.getCommandName(commandSet, command) + \"Request.METADATA\"")
+        }
+        this
+    }
+
+    private fun genMetadataGetterInterface() = `public interface`("WithMetadata") {
+        val fields = metadataFields(null)
+        for (field in fields.filterNot { it.methodName.contains("Command") }) {
+            `default`(field.typeName, field.methodName) {
+                _return("getMetadata().${field.name}")
+            }
+        }
+        `public abstract`(bg(METADATA_CLASSNAME), "getMetadata")
+        this
     }
 
     @JvmStatic
@@ -873,8 +951,8 @@ internal object CodeGeneration {
                 _return("commandSetNameToByte.get(commandSetName)")
             }
 
-            `public static`(bg("String"), "getCommandSetName", param(TypeName.BYTE, "commandSet")) {
-                _return("commandSetByteToName.get(commandSet)")
+            `public static`(bg("String"), "getCommandSetName", param(TypeName.INT, "commandSet")) {
+                _return("commandSetByteToName.get((byte)commandSet)")
             }
 
             `public static`(
@@ -885,49 +963,48 @@ internal object CodeGeneration {
             }
 
             `public static`(
-                bg("String"), "getCommandName", param(TypeName.BYTE, "commandSet"),
-                param(TypeName.BYTE, "command")
+                bg("String"), "getCommandName", param(TypeName.INT, "commandSet"),
+                param(TypeName.INT, "command")
             ) {
-                _return("commandByteToName.get(commandSet).get(command)")
+                _return("commandByteToName.get((byte)commandSet).get((byte)command)")
             }
 
-            for (entry in MetadataNode.entries) {
-                `private static final field`(
-                    ParameterizedTypeName.get(
-                        bg("Map"), bg("Integer"), ParameterizedTypeName.get(
-                            bg("Map"), bg("Integer"),
-                            entry.boxedTypeName
-                        )
-                    ), "commandTo${entry.nodeName}"
-                ) {
-                    `=`("Map.ofEntries(${
-                        nodes.joinToString(", ") {
-                            "Map.entry(${it.nameNode.value()}, Map.ofEntries(${
-                                it.components.filterIsInstance<CommandNode>().filter { c -> !c.isEventNode }
-                                    .joinToString(", ") { c ->
-                                        "Map.entry(${c.nameNode.value()}, ${c.parent.name()}.${c.requestClassName}.${entry.constantName})"
-                                    }
-                            }))"
-                        }
-                    })")
-                }
-
-                `public static`(
-                    entry.typeName, entry.methodName, param(TypeName.INT, "commandSet"),
-                    param(TypeName.INT, "command")
-                ) {
-                    addJavadoc(entry.description)
-                    _return("commandTo${entry.nodeName}.get(commandSet).get(command)")
-                }
-
-                `public static`(
-                    entry.typeName, entry.methodName, param("String", "commandSetName"),
-                    param("String", "commandName")
-                ) {
-                    addJavadoc(entry.description)
-                    _return("commandTo${entry.nodeName}.get(getCommandSetByte(commandSetName)).get(getCommandByte(commandSetName, commandName))")
-                }
+            `private static final field`(
+                ParameterizedTypeName.get(
+                    bg("Map"), bg("Integer"), ParameterizedTypeName.get(
+                        bg("Map"), bg("Integer"),
+                        bg(METADATA_CLASSNAME)
+                    )
+                ), "commandToMetadata"
+            ) {
+                `=`("Map.ofEntries(${
+                    nodes.joinToString(", ") {
+                        "Map.entry(${it.nameNode.value()}, Map.ofEntries(${
+                            it.components.filterIsInstance<CommandNode>().filter { c -> !c.isEventNode }
+                                .joinToString(", ") { c ->
+                                    "Map.entry(${c.nameNode.value()}, ${c.parent.name()}.${c.requestClassName}.METADATA)"
+                                }
+                        }))"
+                    }
+                })")
             }
+
+            `public static`(
+                bg(METADATA_CLASSNAME), "getMetadata", param(TypeName.INT, "commandSet"),
+                param(TypeName.INT, "command")
+            ) {
+                _return("commandToMetadata.get(commandSet).get(command)")
+            }
+
+            `public static`(
+                bg(METADATA_CLASSNAME), "getMetadata", param("String", "commandSetName"),
+                param("String", "commandName")
+            ) {
+                _return("commandToMetadata.get(getCommandSetByte(commandSetName)).get(getCommandByte(commandSetName, commandName))")
+            }
+
+            addType(genMetadataClass())
+            addType(genMetadataGetterInterface())
 
             for (node in root.constantSetNodes) {
                 addType(genConstantClass(node))

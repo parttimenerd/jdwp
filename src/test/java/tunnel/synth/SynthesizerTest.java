@@ -5,6 +5,7 @@ import jdwp.ArrayReferenceCmds.LengthRequest;
 import jdwp.ClassTypeCmds.SuperclassReply;
 import jdwp.ClassTypeCmds.SuperclassRequest;
 import jdwp.*;
+import jdwp.JDWP.Error;
 import jdwp.ObjectReferenceCmds.ReferenceTypeReply;
 import jdwp.ObjectReferenceCmds.ReferenceTypeRequest;
 import jdwp.Reference.*;
@@ -374,6 +375,47 @@ public class SynthesizerTest {
                         "      (case (wrap \"byte\" 76)\n" +
                         "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
                         "        (= var2 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
+                program.toPrettyString());
+        // can we parse it?
+        Program.parse(program.toPrettyString());
+    }
+
+    @Test
+    public void testTypeSwitchLoopSynthesisWithAbsentInformationError() {
+        var arrayReference = Reference.array(1L);
+        var objectReference = Reference.object(2L);
+        var partition = new Partition(null, List.of(
+                p(new GetValuesRequest(1, Reference.thread(1L), Reference.frame(1L),
+                                new ListValue<>(new SlotInfo(wrap(1), wrap((byte) Type.INT.getTag())))),
+                        new GetValuesReply(1, new ListValue<>(Type.LIST, List.of(wrap(1), wrap(2),
+                                arrayReference, objectReference)))),
+                p(new ReferenceTypeRequest(2, arrayReference),
+                        new ReferenceTypeReply(2, wrap((byte) '['), Reference.klass(3L))),
+                p(new ReferenceTypeRequest(3, objectReference),
+                        new ReferenceTypeReply(3, wrap((byte) 'L'), Reference.klass(3L))),
+                p(new LengthRequest(4, arrayReference), new LengthReply(4, wrap(0))),
+                p(new SourceDebugExtensionRequest(5, Reference.klass(3L)),
+                        new ReplyOrError<>(5, SourceDebugExtensionRequest.METADATA, (short)Error.ABSENT_INFORMATION)),
+                p(new SuperclassRequest(6, Reference.classType(3L)), new SuperclassReply(6, Reference.classType(4L)))
+        ));
+        var program = Synthesizer.synthesizeProgram(partition, Synthesizer.DEFAULT_OPTIONS);
+        assertEquals("(\n" +
+                        "  (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 1) (\"thread\")=(wrap " +
+                        "\"thread\" 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 0 \"slot\")=(wrap " +
+                        "\"int\" 1)))\n" +
+                        "  (for iter0 (get var0 \"values\") \n" +
+                        "    (switch (getTagForValue iter0)\n" +
+                        "      (case (wrap \"byte\" 91)\n" +
+                        "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var2 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
+                        "        (= var3 (request ReferenceType SourceDebugExtension (\"refType\")=(get var1 " +
+                        "\"typeID\")))\n" +
+                        "        (= var4 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\"))))\n" +
+                        "      (case (wrap \"byte\" 76)\n" +
+                        "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var2 (request ReferenceType SourceDebugExtension (\"refType\")=(get var1 " +
+                        "\"typeID\")))\n" +
+                        "        (= var3 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
                 program.toPrettyString());
         // can we parse it?
         Program.parse(program.toPrettyString());

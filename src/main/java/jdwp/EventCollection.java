@@ -90,6 +90,11 @@ public interface EventCollection extends Request<NullReply>, Reply {
         }
 
         @Override
+        public boolean isAffectedBy(Request<?> other) {
+            return false;
+        }
+
+        @Override
         public void accept(ReplyVisitor visitor) {
 
         }
@@ -117,6 +122,56 @@ public interface EventCollection extends Request<NullReply>, Reply {
         @Override
         public Reply withNewId(int id) {
             throw new AssertionError();
+        }
+
+        @Override
+        public boolean onlyReads() {
+            return false;
+        }
+
+        @Override
+        public float getCost() {
+            return 0;
+        }
+
+        @Override
+        public boolean invalidatesReplyCache() {
+            return false;
+        }
+
+        @Override
+        public Set<StateProperty> getAffectedBy() {
+            return null;
+        }
+
+        @Override
+        public Set<StateProperty> getAffects() {
+            return null;
+        }
+
+        @Override
+        public List<Integer> getReplyLikeErrors() {
+            return null;
+        }
+
+        @Override
+        public long getAffectsBits() {
+            return 0;
+        }
+
+        @Override
+        public long getAffectedByBits() {
+            return 0;
+        }
+
+        @Override
+        public boolean isAffectedByTime() {
+            return false;
+        }
+
+        @Override
+        public Metadata getMetadata() {
+            return null;
         }
     }
 
@@ -147,7 +202,7 @@ public interface EventCollection extends Request<NullReply>, Reply {
 
     @Override
     default boolean invalidatesReplyCache() {
-        return getEvents().stream().anyMatch(e -> e.invalidatesReplyCache());
+        return getEvents().stream().anyMatch(WithMetadata::invalidatesReplyCache);
     }
 
     @Override
@@ -158,5 +213,22 @@ public interface EventCollection extends Request<NullReply>, Reply {
     @Override
     default long getAffectedByBits() {
         return getEvents().stream().mapToLong(EventInstance::getAffectedByBits).reduce(0, (a, b) -> a | b);
+    }
+
+    /** events do not have errors */
+    @Override
+    default List<Integer> getReplyLikeErrors() {
+        return List.of();
+    }
+
+    default boolean isReplyLikeError(int errorCode) {
+        return false;
+    }
+
+    @Override
+    default Metadata getMetadata() {
+        return new Metadata(onlyReads(), getCost(), invalidatesReplyCache(), getAffectedBy(), getAffects(),
+                getReplyLikeErrors(), EventCmds.COMMAND_SET, Events.COMMAND, getAffectedByBits(), getAffectsBits(),
+                isAffectedByTime());
     }
 }

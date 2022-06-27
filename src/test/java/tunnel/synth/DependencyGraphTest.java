@@ -1,9 +1,11 @@
 package tunnel.synth;
 
 import jdwp.*;
+import jdwp.JDWP.Error;
 import jdwp.MethodCmds.VariableTableReply;
 import jdwp.MethodCmds.VariableTableRequest;
 import jdwp.Reference.*;
+import jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest;
 import jdwp.StackFrameCmds.GetValuesReply;
 import jdwp.StackFrameCmds.GetValuesRequest;
 import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
@@ -381,6 +383,26 @@ public class DependencyGraphTest {
                         new jdwp.ArrayReferenceCmds.LengthReply(372, PrimitiveValue.wrap(0)))));
         var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
         assertEquals(5, graph.getAllNodes().size());
+    }
+
+    @Test
+    public void testPartitionWithReplyLikeErrors() {
+        var partition = new Partition(Either.right(new jdwp.EventCmds.Events(5, PrimitiveValue.wrap((byte) 2),
+                new ListValue<>(Type.LIST, List.of(new EventCmds.Events.Breakpoint(PrimitiveValue.wrap(41),
+                        new ThreadReference(1L), new Location(new ClassTypeReference(1070L),
+                        new MethodReference(105553126474952L), PrimitiveValue.wrap((long) 5))))))), List.of(
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(353, new ThreadReference(1L)),
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(353, PrimitiveValue.wrap(1))),
+                p(new SourceDebugExtensionRequest(354, new ClassReference(1070L)),
+                        new ReplyOrError<>(354, SourceDebugExtensionRequest.METADATA, (short)Error.ABSENT_INFORMATION)),
+                p(new jdwp.StackFrameCmds.GetValuesRequest(367, new ThreadReference(1L), new FrameReference(131072L),
+                                new ListValue<>(Type.LIST,
+                                        List.of())),
+                        new jdwp.StackFrameCmds.GetValuesReply(367, new ListValue<>(Type.LIST,
+                                List.of(new ArrayReference(1072L), new ObjectReference(1073L),
+                                        PrimitiveValue.wrap(0)))))));
+        var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
+        assertEquals(4, graph.getAllNodes().size());
     }
 
     static TestRequest request(int id, Value value) {

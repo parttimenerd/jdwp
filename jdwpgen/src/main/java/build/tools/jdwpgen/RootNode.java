@@ -88,6 +88,7 @@ class RootNode extends AbstractNamedNode {
         writer.println();
         writer.println("import java.util.*;");
         writer.println("import jdwp.util.Pair;");
+        writer.println("import tunnel.util.ToCode;");
         writer.println("import static jdwp.util.Pair.p;");
         writer.println("import static jdwp.PrimitiveValue.*;");
         writer.println();
