@@ -669,6 +669,71 @@ public class SynthesizerTest {
                 "=map0 (\"thread\")=(wrap \"thread\" 1))))", Synthesizer.synthesizeProgram(partition).toPrettyString());
     }
 
+    @Test
+    public void testWithInhomogenousList() {
+        var partition = new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(2260891,
+                PrimitiveValue.wrap((byte) 1), PrimitiveValue.wrap((byte) 2), new ListValue
+                <>(Type.LIST, List.of(new EventRequestCmds.SetRequest.Step(new ThreadReference(1L),
+                        PrimitiveValue.wrap(1), PrimitiveValue.wrap(0)), new
+                        EventRequestCmds.SetRequest.ClassExclude(PrimitiveValue.wrap("com.sun.*")),
+                new EventRequestCmds.SetRequest.ClassExclude(PrimitiveValue.wrap("org.codehaus.groovy.*")), new
+                        EventRequestCmds.SetRequest.ClassExclude(PrimitiveValue.wrap("groovy.*")),
+                new EventRequestCmds.SetRequest.Count(PrimitiveValue.wrap(1)))))), List.of(
+                p(new jdwp.EventRequestCmds.SetRequest(2260891, PrimitiveValue.wrap((byte) 1),
+                                PrimitiveValue.wrap((byte) 2), new ListValue<>(Type.LIST, List.of(new
+                                        EventRequestCmds.SetRequest.Step(new ThreadReference(1L),
+                                        PrimitiveValue.wrap(1),
+                                        PrimitiveValue.wrap(0)), new EventRequestCmds.SetRequest.ClassExclude(
+                                        PrimitiveValue.wrap("com.sun.*")), new EventRequestCmds.SetRequest.ClassExclude(
+                                        PrimitiveValue.wrap("org.codehaus.groovy.*")),
+                                new EventRequestCmds.SetRequest.ClassExclude(PrimitiveValue.wrap("groovy.*")), new
+                                        EventRequestCmds.SetRequest.Count(PrimitiveValue.wrap(1))))),
+                        new ReplyOrError<>(2260891,
+                                new jdwp.EventRequestCmds.SetReply(2260891, PrimitiveValue.wrap(85)))),
+                p(new jdwp.ThreadReferenceCmds.NameRequest(2260894, new ThreadReference(1L)),
+                        new ReplyOrError<>(2260894, new jdwp.ThreadReferenceCmds.NameReply(2260894,
+                                PrimitiveValue.wrap("main")))),
+                p(new jdwp.ThreadReferenceCmds.StatusRequest(2260895, new ThreadReference(1L)),
+                        new ReplyOrError<>(2260895, new jdwp.ThreadReferenceCmds.StatusReply(2260895,
+                                PrimitiveValue.wrap(1), PrimitiveValue.wrap(1)))),
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(2260893, new ThreadReference(1L)),
+                        new ReplyOrError<>(2260893, new jdwp.ThreadReferenceCmds.FrameCountReply(2260893,
+                                PrimitiveValue.wrap(3)))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(2260896, new ThreadReference(1L), PrimitiveValue.wrap(0)
+                        , PrimitiveValue.wrap(1)), new ReplyOrError<>(2260896, new
+                        jdwp.ThreadReferenceCmds.FramesReply(2260896, new ListValue<>(Type.LIST,
+                        List.of(new ThreadReferenceCmds.FramesReply.Frame(new FrameReference(2555904L), new
+                                Location(new ClassTypeReference(1079L), new MethodReference(5257610320L),
+                                PrimitiveValue.wrap((long) 6))))))))));
+        assertEquals("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 1) (\"suspendPolicy\")=(wrap" +
+                        " \"byte\" 2) (\"modifiers\" 0 \"depth\")=(wrap \"int\" 0) (\"modifiers\" 0 \"kind\")=(wrap " +
+                        "\"string\" \"Step\") (\"modifiers\" 0 \"size\")=(wrap \"int\" 1) (\"modifiers\" 0 " +
+                        "\"thread\")=(wrap \"thread\" 1) (\"modifiers\" 1 \"classPattern\")=(wrap \"string\" \"com" +
+                        ".sun.*\") (\"modifiers\" 1 \"kind\")=(wrap \"string\" \"ClassExclude\") (\"modifiers\" 2 " +
+                        "\"classPattern\")=(wrap \"string\" \"org.codehaus.groovy.*\") (\"modifiers\" 2 \"kind\")=" +
+                        "(wrap \"string\" \"ClassExclude\") (\"modifiers\" 3 \"classPattern\")=(wrap \"string\" " +
+                        "\"groovy.*\") (\"modifiers\" 3 \"kind\")=(wrap \"string\" \"ClassExclude\") (\"modifiers\" 4" +
+                        " \"count\")=(wrap \"int\" 1) (\"modifiers\" 4 \"kind\")=(wrap \"string\" \"Count\")))\n" +
+                        "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 1) (\"suspendPolicy\")=" +
+                        "(wrap \"byte\" 2) (\"modifiers\" 0 \"depth\")=(wrap \"int\" 0) (\"modifiers\" 0 \"kind\")=" +
+                        "(wrap \"string\" \"Step\") (\"modifiers\" 0 \"size\")=(wrap \"int\" 1) (\"modifiers\" 0 " +
+                        "\"thread\")=(wrap \"thread\" 1) (\"modifiers\" 1 \"classPattern\")=(wrap \"string\" \"com" +
+                        ".sun.*\") (\"modifiers\" 1 \"kind\")=(wrap \"string\" \"ClassExclude\") (\"modifiers\" 2 " +
+                        "\"classPattern\")=(wrap \"string\" \"org.codehaus.groovy.*\") (\"modifiers\" 2 \"kind\")=" +
+                        "(wrap \"string\" \"ClassExclude\") (\"modifiers\" 3 \"classPattern\")=(wrap \"string\" " +
+                        "\"groovy.*\") (\"modifiers\" 3 \"kind\")=(wrap \"string\" \"ClassExclude\") (\"modifiers\" 4" +
+                        " \"count\")=(wrap \"int\" 1) (\"modifiers\" 4 \"kind\")=(wrap \"string\" \"Count\")))\n" +
+                        "  (= var1 (request ThreadReference Name (\"thread\")=(get cause \"modifiers\" 0 \"thread\"))" +
+                        ")\n" +
+                        "  (= var2 (request ThreadReference Status (\"thread\")=(get cause \"modifiers\" 0 " +
+                        "\"thread\")))\n" +
+                        "  (= var3 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) (\"startFrame\")=" +
+                        "(wrap \"int\" 0) (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
+                        "  (= var4 (request ThreadReference FrameCount (\"thread\")=(get cause \"modifiers\" 0 " +
+                        "\"thread\"))))",
+                Synthesizer.synthesizeProgram(partition).toPrettyString());
+    }
+
     private static void assertNodeListEquals(List<Node> first, List<Node> second) {
         assertEquals(first.size(), second.size());
         for (int i = 0; i < first.size(); i++) {

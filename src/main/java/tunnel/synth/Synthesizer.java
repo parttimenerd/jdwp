@@ -316,6 +316,10 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 var propToAcc = indexToPropertyToAccessors.computeIfAbsent(i, x -> new HashMap<>());
                 for (String property : properties) {
                     if (!propToAcc.containsKey(property)) {
+                        if (!((CombinedValue) listValue.get(i)).containsKey(property)) { // lists might contain
+                            // different types
+                            return null; // but we do not support it (yet)
+                        }
                         propToAcc.put(property, List.of(new TaggedFunctionCallOrBasicValue(null,
                                 (BasicValue) ((CombinedValue) listValue.get(i)).get(property))));
                     }
@@ -1255,7 +1259,6 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 return null;
             }
             var reqStatements = createRequestCallStatements(headerNode);
-            List<Statement> ret = new ArrayList<>(reqStatements.subList(0, reqStatements.size() - 1));
             return new SynthResult(List.of(new Recursion(recName, options.maxNumberOfRecCalls, ident(nodeName),
                     (RequestCall) ((AssignmentStatement) reqStatements.get(reqStatements.size() - 1)).getExpression()
                     , merged)), usedNodes);

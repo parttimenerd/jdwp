@@ -148,7 +148,7 @@ public class ValueTest {
         }
 
         @Override
-        protected boolean containsKey(String key) {
+        public boolean containsKey(String key) {
             return key.equals("values");
         }
 

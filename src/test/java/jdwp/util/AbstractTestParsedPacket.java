@@ -43,7 +43,7 @@ public abstract class AbstractTestParsedPacket extends AbstractParsedPacket {
     }
 
     @Override
-    protected boolean containsKey(String key) {
+    public boolean containsKey(String key) {
         return values.containsKey(key);
     }
 }

@@ -9,6 +9,7 @@ import jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest;
 import jdwp.StackFrameCmds.GetValuesReply;
 import jdwp.StackFrameCmds.GetValuesRequest;
 import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
+import jdwp.Value.BasicListValue;
 import jdwp.Value.BasicValue;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
@@ -403,6 +404,25 @@ public class DependencyGraphTest {
                                         PrimitiveValue.wrap(0)))))));
         var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
         assertEquals(4, graph.getAllNodes().size());
+    }
+
+    @Test
+    public void testShortArrayLength() {
+        var partition = new Partition(null, List.of(
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(2260662, new ArrayReference(1104L)),
+                        new ReplyOrError<>(2260662, new jdwp.ArrayReferenceCmds.LengthReply(2260662,
+                                PrimitiveValue.wrap(9)))),
+                p(new jdwp.ArrayReferenceCmds.GetValuesRequest(2260663, new ArrayReference(1104L),
+                                PrimitiveValue.wrap(0), PrimitiveValue.wrap(9)),
+                        new ReplyOrError<>(2260663, new jdwp.ArrayReferenceCmds.GetValuesReply(2260663,
+                                new BasicListValue<>(Type.LIST, List.of(PrimitiveValue.wrap((byte) 40),
+                                        PrimitiveValue.wrap((byte) 40), PrimitiveValue.wrap((byte) 61),
+                                        PrimitiveValue.wrap((byte) 32), PrimitiveValue.wrap((byte) 105),
+                                        PrimitiveValue.wrap((byte) 32), PrimitiveValue.wrap((byte) 48),
+                                        PrimitiveValue.wrap((byte) 41), PrimitiveValue.wrap((byte) 41))))))));
+        var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
+        var layers = graph.computeLayers();
+        assertEquals(2, layers.size());
     }
 
     static TestRequest request(int id, Value value) {

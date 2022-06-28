@@ -13,9 +13,7 @@ import jdwp.EventCmds.Events.*;
 import jdwp.EventRequestCmds.SetRequest;
 import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.JDWP.SuspendPolicy;
-import jdwp.MethodCmds.IsObsoleteReply;
-import jdwp.MethodCmds.LineTableReply;
-import jdwp.MethodCmds.VariableTableWithGenericRequest;
+import jdwp.MethodCmds.*;
 import jdwp.PrimitiveValue.IntValue;
 import jdwp.PrimitiveValue.StringValue;
 import jdwp.ReferenceTypeCmds.*;
@@ -793,6 +791,14 @@ class JDWPTest {
         testReplyParsing(JDWP.ArrayReference.SetValues::new,
                 new ArrayReferenceCmds.SetValuesReply(0),
                 (o, r) -> assertEquals(0, r.getKeys().size()));
+    }
+
+    @Test
+    @Tag("basic")
+    public void testMethodReference_BytecodesReplyParsing() {
+        testReplyParsing(JDWP.ArrayReference.SetValues::new,
+                new BytecodesReply(0, new ByteList((byte) 1, (byte) 2)),
+                (o, r) -> assertArrayEquals(new byte[]{1, 2}, r.bytes.bytes));
     }
 
     @Test

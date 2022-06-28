@@ -14,13 +14,6 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static jdwp.PrimitiveValue.BasicGroup;
-import static jdwp.PrimitiveValue.BasicScalarValue;
-import static jdwp.PrimitiveValue.BasicValue;
-import static jdwp.PrimitiveValue.ByteList;
-import static jdwp.PrimitiveValue.TaggedBasicValue;
-import static jdwp.PrimitiveValue.Type;
-import static jdwp.PrimitiveValue.WalkableValue;
 import static jdwp.PrimitiveValue.*;
 import static jdwp.Value.BasicGroup.BYTE;
 import static jdwp.Value.BasicGroup.STRING;
@@ -60,6 +53,7 @@ public abstract class Functions {
         integerWrapper.put("field", p(FieldReference.class, Reference::field));
         integerWrapper.put("frame", p(FrameReference.class, Reference::frame));
         integerWrapper.put("classObject", p(ClassObjectReference.class, Reference::classObject));
+        integerWrapper.put("void", p(VoidValue.class, x -> VoidValue.VALUE));
 
         classToWrapperName.putAll(integerWrapper.entrySet().stream()
                 .collect(Collectors.toMap(e -> e.getValue().first, Entry::getKey)));

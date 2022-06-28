@@ -4,6 +4,7 @@ import jdwp.*;
 import jdwp.ClassTypeCmds.SuperclassReply;
 import jdwp.ClassTypeCmds.SuperclassRequest;
 import jdwp.EventCmds.Events;
+import jdwp.PrimitiveValue.VoidValue;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ThreadReference;
 import jdwp.ReferenceTypeCmds.InterfacesReply;
@@ -276,7 +277,8 @@ public class ProgramTest {
                 {"(wrap 'int' 10)", wrap(10)},
                 {"(wrap 'object' 10)", Reference.object(10)},
                 {"(wrap 'boolean' 1)", wrap(true)},
-                {"(wrap 'class-type' 1129)", new ClassTypeReference(1129L)}
+                {"(wrap 'class-type' 1129)", new ClassTypeReference(1129L)},
+                {"(wrap 'void' 0)", new VoidValue()}
         };
     }
 

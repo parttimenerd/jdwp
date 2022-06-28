@@ -1663,9 +1663,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (method methodID "The method.")
         )
         (Reply
-            (Repeat bytes
-                (byte bytecode "A Java bytecode.")
-            )
+            (bytes bytes "Java bytecode")
         )
         (ErrorSet
             (Error INVALID_CLASS     "refType is not the ID of a reference "

@@ -73,7 +73,7 @@ public class Location extends CombinedValue {
     }
 
     @Override
-    protected boolean containsKey(String key) {
+    public boolean containsKey(String key) {
         return KEYS.contains(key);
     }
 

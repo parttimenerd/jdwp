@@ -36,7 +36,7 @@ public class Evaluator {
         }
 
         @Override
-        protected boolean containsKey(String key) {
+        public boolean containsKey(String key) {
             return entries.containsKey(key);
         }
 

@@ -150,7 +150,7 @@ public abstract class Value implements ToCode {
 
         public abstract Stream<K> getKeyStream();
         public abstract Value get(K key);
-        protected abstract boolean containsKey(K key);
+        public abstract boolean containsKey(K key);
 
         public List<Pair<K, Value>> getValues() {
             return getKeyStream().map(k -> p(k, get(k))).collect(Collectors.toList());
@@ -439,7 +439,7 @@ public abstract class Value implements ToCode {
         }
 
         @Override
-        protected boolean containsKey(Integer key) {
+        public boolean containsKey(Integer key) {
             return key >= 0 && key < values.size();
         }
 

@@ -402,7 +402,7 @@ public class DependencyGraph {
                     i == 0 && partition.getCause() != null && origin.first().equals(partition.getCause().get());
             ContainedValues requestValues = containedValues.get(origin).first; // use the request
             Map<BasicValue, DoublyTaggedBasicValue<?, ?>> usedCauseValues;
-            if (!isCause) {
+            if (!isCause && !causeValues.isEmpty()) {
                 // only check for cause values if the current request is not (!) the cause request itself
                 usedCauseValues = new HashMap<>();
                 for (Map.Entry<BasicValue, List<TaggedBasicValue<?>>> e : requestValues.entrySet()) {
@@ -499,7 +499,7 @@ public class DependencyGraph {
         return accessPaths.stream().filter(p -> areAccessPathsCompatible(value, p)).collect(Collectors.toList());
     }
 
-    private static boolean areAccessPathsCompatible(TaggedBasicValue<?> first, AccessPath second) {
+    public static boolean areAccessPathsCompatible(TaggedBasicValue<?> first, AccessPath second) {
         if (first.getValue() instanceof PrimitiveValue.IntValue || first.getValue() instanceof PrimitiveValue.ByteValue) {
             return areAccessPathsCompatible(first.getPath(), second);
         }
@@ -511,7 +511,7 @@ public class DependencyGraph {
      * <p>
      * Important: this contains domain specific knowledge about the property names
      */
-    private static boolean areAccessPathsCompatible(AccessPath first, AccessPath second) {
+    public static boolean areAccessPathsCompatible(AccessPath first, AccessPath second) {
         String firstString = first.getLastStringElementOrEmpty();
         String secondString = second.getLastStringElementOrEmpty();
         return doPropertyNamesMatch(firstString, secondString);
@@ -525,7 +525,9 @@ public class DependencyGraph {
     private static boolean doPropertyNamesMatch(String propertyName, String propertyName2) {
         propertyName = normalizePropertyName(propertyName);
         propertyName2 = normalizePropertyName(propertyName2);
-        return firstUncapitalizedPart(propertyName).equals(firstUncapitalizedPart(propertyName2)) ||
+        var parts = getCamelCaseParts(propertyName);
+        var parts2 = getCamelCaseParts(propertyName2);
+        return parts.stream().anyMatch(parts2::contains) ||
                 ((propertyName.contains("value") || propertyName.contains("Value") || propertyName.contains("arg")) &&
                         (propertyName2.contains("value") || propertyName2.contains("Value") || propertyName2.equals(
                                 "arg")));
@@ -538,15 +540,20 @@ public class DependencyGraph {
         return propertyName.replaceAll("count", "length");
     }
 
-    private static String firstUncapitalizedPart(String propertyName) {
+    private static Set<String> getCamelCaseParts(String propertyName) {
         var sb = new StringBuilder();
+        Set<String> ret = new HashSet<>();
         for (int i : propertyName.getBytes(StandardCharsets.UTF_8)) {
             if (i >= 'A' && i <= 'Z') {
-                return sb.toString();
+                ret.add(sb.toString().toLowerCase());
+                sb.setLength(0);
             }
             sb.append((char) i);
         }
-        return sb.toString();
+        if (sb.length() > 0) {
+            ret.add(sb.toString().toLowerCase());
+        }
+        return ret;
     }
 
     void add(Pair<Request<?>, ReplyOrError<?>> origin, Map<Pair<Request<?>, ReplyOrError<?>>, List<DoublyTaggedBasicValue<?, ?>>> dependsOn,

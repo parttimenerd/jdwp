@@ -208,7 +208,7 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
     }
 
     @Override
-    protected boolean containsKey(String key) {
+    public boolean containsKey(String key) {
         return reply != null && reply.asCombined().containsKey(key);
     }
 
@@ -227,10 +227,6 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
 
     @Override
     public int hashCode() {
-        int result = id;
-        result = 31 * result + (int) flags;
-        result = 31 * result + (reply != null ? reply.hashCode() : 0);
-        result = 31 * result + (int) errorCode;
         return Objects.hash(flags, reply, errorCode, getCommand(), getCommandSet());
     }
 

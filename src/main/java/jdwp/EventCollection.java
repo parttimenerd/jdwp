@@ -110,7 +110,7 @@ public interface EventCollection extends Request<NullReply>, Reply {
         }
 
         @Override
-        protected boolean containsKey(String key) {
+        public boolean containsKey(String key) {
             return false;
         }
 
@@ -197,7 +197,7 @@ public interface EventCollection extends Request<NullReply>, Reply {
 
     @Override
     default boolean isAffectedByTime() {
-        return getEvents().stream().anyMatch(e -> e.isAffectedByTime());
+        return getEvents().stream().anyMatch(WithMetadata::isAffectedByTime);
     }
 
     @Override

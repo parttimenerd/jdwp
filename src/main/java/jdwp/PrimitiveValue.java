@@ -308,7 +308,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
             Type.registerType(VoidValue.class, Type.VOID);
         }
 
-        protected VoidValue() {
+        public VoidValue() {
             super(Type.VOID, 0);
         }
 
