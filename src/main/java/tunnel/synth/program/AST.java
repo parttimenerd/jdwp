@@ -1123,10 +1123,11 @@ public interface AST {
     @AllArgsConstructor
     class CaseStatement extends Statement
             implements CompoundStatement<CaseStatement>, PartiallyMergeable<CaseStatement> {
-        private final Expression expression;
+        /** a null value states that this case is the default case */
+        private final @Nullable Expression expression;
         private final Body body;
 
-        CaseStatement(Expression expression, List<Statement> body) {
+        CaseStatement(@Nullable Expression expression, List<Statement> body) {
             this(expression, new Body(body));
         }
 
@@ -1143,9 +1144,9 @@ public interface AST {
         public String toPrettyString(String indent, String innerIndent) {
             String subIndent = innerIndent + indent;
             return String.format(
-                    "%s(case %s%s%s)",
+                    "%s(%s%s%s)",
                     indent,
-                    expression,
+                    expression == null ? "default" : ("case " + expression),
                     innerIndent.isEmpty() ? (body.isEmpty() ? "" : " ") : "\n",
                     body.toPrettyString(subIndent, innerIndent));
         }
@@ -1154,7 +1155,7 @@ public interface AST {
             if (getHashes().get(this).equals(other.getHashes().get(other))) {
                 var newBody = body.merge(collected, other.body);
                 if (newBody.size() > 0) {
-                    return List.of(new CaseStatement(expression.replaceIdentifiersConv(collected), newBody));
+                    return List.of(new CaseStatement(expression != null ? expression.replaceIdentifiersConv(collected) : null, newBody));
                 }
             }
             return List.of(this.replaceIdentifiersConv(collected), other.replaceIdentifiersConv(collected));
@@ -1184,14 +1185,18 @@ public interface AST {
 
         @Override
         public List<Expression> getSubExpressions() {
-            return List.of(expression);
+            return expression == null ? List.of() : List.of(expression);
         }
 
         @Override
         public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
             return new CaseStatement(
-                    expression.replaceIdentifiersConv(identifierReplacer),
+                    expression == null ? null : expression.replaceIdentifiersConv(identifierReplacer),
                     body.replaceIdentifiersConv(identifierReplacer));
+        }
+
+        public boolean hasExpression() {
+            return expression != null;
         }
     }
 

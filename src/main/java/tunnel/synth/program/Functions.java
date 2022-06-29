@@ -372,6 +372,10 @@ public abstract class Functions {
         public BasicValue transform(VM vm, BasicValue value) {
             return (BasicValue)evaluate(vm, List.of(value));
         }
+
+        public boolean returnsTag() {
+            return result == BYTE;
+        }
     }
 
     /**

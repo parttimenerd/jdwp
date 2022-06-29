@@ -316,20 +316,19 @@ public class Evaluator {
                                     e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
                                     "switch expression evaluation failed", e);
                         }
-                        Map<Value, CaseStatement> cases = switchStatement.getCases().stream()
-                                .collect(Collectors.toMap(s -> {
-                                    try {
-                                        return evaluate(scope, s.getExpression());
-                                    } catch (AssertionError | Exception e) {
-                                        addToNotEvaluated(s);
-                                        throw new EvaluationAbortException(
-                                                e instanceof EvaluationAbortException &&
-                                                        ((EvaluationAbortException) e).discard,
-                                                "switch case expression evaluation failed", e);
-                                    }
-                                }, s -> s));
-                        if (cases.containsKey(expression)) {
-                            cases.get(expression).getBody().accept(this);
+                        for (CaseStatement aCase : switchStatement.getCases()) {
+                            try {
+                                if (aCase.getExpression() == null || evaluate(scope, aCase.getExpression()).equals(expression)) {
+                                    aCase.getBody().accept(this);
+                                    return;
+                                }
+                            } catch (AssertionError | Exception e) {
+                                addToNotEvaluated(aCase);
+                                throw new EvaluationAbortException(
+                                        e instanceof EvaluationAbortException &&
+                                                ((EvaluationAbortException) e).discard,
+                                        "switch case expression evaluation failed", e);
+                            }
                         }
                     }
 

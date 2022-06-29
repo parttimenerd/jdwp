@@ -238,9 +238,16 @@ public class Parser {
     }
 
     CaseStatement parseCaseStatement() {
-        expect("case ");
-        skipWhitespace();
-        var expression = parseExpression();
+        var start = parseIdentifier();
+        Expression expression = null;
+        if (start.getName().equals("case")) {
+            skipWhitespace();
+            expression = parseExpression();
+        } else {
+            if (!start.getName().equals("default")) {
+                throw new SyntaxError(line, column, "Expected case or default");
+            }
+        }
         skipWhitespace();
         var body = parseBlock();
         return new CaseStatement(expression, body);

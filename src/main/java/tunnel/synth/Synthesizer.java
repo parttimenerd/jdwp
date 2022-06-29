@@ -1059,12 +1059,15 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 loopBody = mergeBodies(iterationBodies.keySet().stream()
                         .sorted().map(iterationBodies::get).collect(Collectors.toList()));
             } else {
-                loopBody = new Body(List.of(new SwitchStatement(switchExpression.switchExpression,
-                        switchExpression.iterationsPerSwitchExpression.entrySet().stream()
-                                .sorted(Comparator.comparing(e -> e.getValue().stream().mapToInt(x -> x).max().orElse(0)))
-                                .map(e -> new CaseStatement(e.getKey(), mergeBodies(e.getValue().stream()
-                                        .map(iterationBodies::get).collect(Collectors.toList()))))
-                                .collect(Collectors.toList()))));
+                var cases = switchExpression.iterationsPerSwitchExpression.entrySet().stream()
+                        .sorted(Comparator.comparing(e -> e.getValue().stream().mapToInt(x -> x).max().orElse(0)))
+                        .map(e -> new CaseStatement(e.getKey(), mergeBodies(e.getValue().stream()
+                                .map(iterationBodies::get).collect(Collectors.toList()))))
+                        .collect(Collectors.toCollection(ArrayList::new));
+                var bodies = cases.stream().map(c -> c.getBody()).collect(Collectors.toList());
+                var defCase = switchExpression.mergeBodiesForDefault ? mergeBodies(bodies) : overlapBodies(bodies);
+                cases.add(new CaseStatement(null, defCase));
+                loopBody = new Body(List.of(new SwitchStatement(switchExpression.switchExpression, cases)));
             }
             return new Loop(ident(iter), GET_FUNCTION.createCall(nodeName, field), loopBody);
         }
@@ -1073,6 +1076,14 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         private static class FoundSwitchVariable {
             Expression switchExpression;
             Map<Expression, List<Integer>> iterationsPerSwitchExpression;
+
+            /**
+             * or just overlap
+             *
+             * idea: overlap for tag based switch expression and merge for everything else to get the default
+             * body
+             */
+            boolean mergeBodiesForDefault;
         }
 
         /**
@@ -1156,7 +1167,8 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             return new FoundSwitchVariable(switchExpression,
                     commonFields.get(best.first).get(best.second).entrySet().stream()
                             .collect(Collectors.toMap(e -> Functions.createWrapperFunctionCall(e.getKey()),
-                                    Entry::getValue)));
+                                    Entry::getValue)),
+                    best.second.map(BasicValueTransformer::returnsTag).orElse(false));
         }
 
         /**
@@ -1177,6 +1189,14 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             var body = bodies.get(0);
             for (var i = 1; i < bodies.size(); i++) {
                 body = body.merge(bodies.get(i));
+            }
+            return body;
+        }
+
+        private Body overlapBodies(List<Body> bodies) {
+            var body = bodies.get(0);
+            for (var i = 1; i < bodies.size(); i++) {
+                body = body.overlap(bodies.get(i));
             }
             return body;
         }

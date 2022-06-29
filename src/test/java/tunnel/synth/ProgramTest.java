@@ -631,6 +631,15 @@ public class ProgramTest {
     }
 
     @Test
+    public void testEvaluateSwitchStatementWithDefault() {
+        var program = Program.parse("((= x 1) (switch (const x) (case 0 (= v (collect 2))) (default (= v (collect 1)))" +
+                "))");
+        var funcs = new RecordingFunctions();
+        new Evaluator(vm, funcs).evaluate(program);
+        assertEquals(List.of(wrap(1L)), funcs.values);
+    }
+
+    @Test
     public void testEvaluateSwitchStatement2() {
         var program = Program.parse("((= x 3) (switch (const x) (case 1 (= v (collect 2))) (case 2 (= v (collect 3)))" +
                 "))");

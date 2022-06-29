@@ -250,7 +250,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
 
             @Override
             public Hashed<Statement> visit(CaseStatement caseStatement) {
-                return Hashed.create(caseStatement, (byte) 0, CASE, hash(caseStatement.getExpression()));
+                return Hashed.create(caseStatement, (byte) 0, CASE, caseStatement.hasExpression() ? hash(caseStatement.getExpression()) : 0);
             }
 
             @Override

@@ -376,7 +376,11 @@ public class SynthesizerTest {
                         "        (= var3 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\"))))\n" +
                         "      (case (wrap \"byte\" 76)\n" +
                         "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
-                        "        (= var2 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
+                        "        (= var2 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\"))))\n" +
+                        "      (default\n" +
+                        "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var2 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
+                        "        (= var3 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
                 program.toPrettyString());
         // can we parse it?
         Program.parse(program.toPrettyString());
@@ -417,7 +421,13 @@ public class SynthesizerTest {
                         "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
                         "        (= var2 (request ReferenceType SourceDebugExtension (\"refType\")=(get var1 " +
                         "\"typeID\")))\n" +
-                        "        (= var3 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
+                        "        (= var3 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\"))))\n" +
+                        "      (default\n" +
+                        "        (= var1 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var2 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
+                        "        (= var3 (request ReferenceType SourceDebugExtension (\"refType\")=(get var1 " +
+                        "\"typeID\")))\n" +
+                        "        (= var4 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))))))",
                 program.toPrettyString());
         // can we parse it?
         Program.parse(program.toPrettyString());
@@ -454,128 +464,100 @@ public class SynthesizerTest {
 
     @Test
     public void testLargeSynthesis() {
-        Partition partition = new Partition(Either.right(new jdwp.EventCmds.Events(5,
-                PrimitiveValue.wrap((byte) 2),
-                new ListValue<>(Type.LIST, List.of(new
-                        EventCmds.Events.Breakpoint(PrimitiveValue.wrap(42), new ThreadReference(1L),
-                        new Location(new ClassTypeReference(1070L), new MethodReference(105553136387016L),
-                                PrimitiveValue.wrap((long) 5))))))), List.of(
-                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(20408, new ThreadReference(1L)),
-                        new jdwp.ThreadReferenceCmds.FrameCountReply(20408, PrimitiveValue.wrap(1))),
-                p(new jdwp.ThreadReferenceCmds.NameRequest(20409, new ThreadReference(1L)),
-                        new jdwp.ThreadReferenceCmds.NameReply(20409, PrimitiveValue.wrap("main"))),
-                p(new jdwp.ThreadReferenceCmds.StatusRequest(20410, new ThreadReference(1L)),
-                        new jdwp.ThreadReferenceCmds.StatusReply(20410, PrimitiveValue.wrap(1),
-                                PrimitiveValue.wrap(1))),
-                p(new jdwp.ThreadReferenceCmds.FramesRequest(20411, new ThreadReference(1L), PrimitiveValue.wrap(0),
-                        PrimitiveValue.wrap(1)), new
-                        jdwp.ThreadReferenceCmds.FramesReply(20411, new ListValue<>(Type.LIST,
-                        List.of(new ThreadReferenceCmds.FramesReply.Frame(new FrameReference(131072L), new Location
-                                (new ClassTypeReference(1070L), new MethodReference(105553136387016L),
-                                        PrimitiveValue.wrap((long) 5))))))),
-                p(new jdwp.ThreadReferenceCmds.ThreadGroupRequest(20412, new ThreadReference(1L)),
-                        new jdwp.ThreadReferenceCmds.ThreadGroupReply(20412, new ThreadGroupReference(
-                                1071L))),
-                p(new jdwp.ThreadGroupReferenceCmds.NameRequest(20413, new ThreadGroupReference(1071L)),
-                        new jdwp.ThreadGroupReferenceCmds.NameReply(20413, PrimitiveValue.wrap(
-                                "main"))),
-                p(new jdwp.ClassTypeCmds.SuperclassRequest(20414, new ClassTypeReference(1070L)),
-                        new jdwp.ClassTypeCmds.SuperclassReply(20414, new ClassTypeReference(1058L))),
-                p(new jdwp.MethodCmds.IsObsoleteRequest(20415, new ClassReference(1070L),
-                        new MethodReference(105553136387016L)), new jdwp.MethodCmds.IsObsoleteReply(20415,
-                        PrimitiveValue.wrap(false))),
-                p(new jdwp.ReferenceTypeCmds.FieldsWithGenericRequest(20416, new ClassReference(1070L)),
-                        new jdwp.ReferenceTypeCmds.FieldsWithGenericReply(20416, new ListValue<>
-                                (Type.LIST, List.of()))),
-                p(new jdwp.MethodCmds.VariableTableWithGenericRequest(20417, new ClassReference(1070L),
-                        new MethodReference(105553136387016L)), new
-                        jdwp.MethodCmds.VariableTableWithGenericReply(20417, PrimitiveValue.wrap(1),
-                        new ListValue<>(Type.LIST, List.of(new
-                                        MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 0),
-                                        PrimitiveValue.wrap("args"), PrimitiveValue.wrap("[Ljava/lang/String;"),
-                                        PrimitiveValue.wrap(""), PrimitiveValue.wrap(11), PrimitiveValue.wrap(0)),
-                                new MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 3),
-                                        PrimitiveValue.wrap("s"), PrimitiveValue.wrap("Ljava/lang/String;"),
-                                        PrimitiveValue.wrap(""),
-                                        PrimitiveValue.wrap(8), PrimitiveValue.wrap(1)), new
-                                        MethodCmds.VariableTableWithGenericReply.SlotInfo(PrimitiveValue.wrap((long) 5),
-                                        PrimitiveValue.wrap("i"), PrimitiveValue.wrap("I"), PrimitiveValue.wrap(""),
-                                        PrimitiveValue.wrap(6), PrimitiveValue.wrap(2)))))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20418, new ClassReference(1070L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20418, new ListValue<>(Type.LIST,
-                                List.of()))),
-                p(new jdwp.ReferenceTypeCmds.FieldsWithGenericRequest(20419, new ClassReference(1058L)),
-                        new jdwp.ReferenceTypeCmds.FieldsWithGenericReply(20419, new ListValue<>
-                                (Type.LIST, List.of()))),
-                p(new jdwp.ClassTypeCmds.SuperclassRequest(20420, new ClassTypeReference(1058L)),
-                        new jdwp.ClassTypeCmds.SuperclassReply(20420, new ClassTypeReference(0L))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20421, new ClassReference(1058L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20421, new ListValue<>(Type.LIST,
-                                List.of()))),
-                p(new jdwp.StackFrameCmds.GetValuesRequest(20422, new ThreadReference(1L),
-                        new FrameReference(131072L), new ListValue<>(Type.LIST, List.of(new
-                                StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(0),
-                                PrimitiveValue.wrap((byte) 91)),
-                        new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(
-                                1), PrimitiveValue.wrap((byte) 76)),
-                        new StackFrameCmds.GetValuesRequest.SlotInfo(PrimitiveValue.wrap(2),
-                                PrimitiveValue.wrap((byte) 73))))), new
-                        jdwp.StackFrameCmds.GetValuesReply(20422, new ListValue<>(Type.LIST,
-                        List.of(new ArrayReference(1072L), new ObjectReference(1073L), PrimitiveValue.wrap(0))))),
-                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(20423, new ObjectReference(1072L)),
-                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(20423,
-                                PrimitiveValue.wrap((byte) 3), new ClassReference(920L))),
-                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(20424, new ObjectReference(1073L)),
-                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(20424,
-                                PrimitiveValue.wrap((byte) 1), new ClassReference(1052L))),
-                p(new jdwp.ArrayReferenceCmds.LengthRequest(20425, new ArrayReference(1072L)),
-                        new jdwp.ArrayReferenceCmds.LengthReply(20425, PrimitiveValue.wrap(0))),
-                p(new jdwp.ArrayReferenceCmds.LengthRequest(20426, new ArrayReference(1072L)),
-                        new jdwp.ArrayReferenceCmds.LengthReply(20426, PrimitiveValue.wrap(0))),
-                p(new jdwp.ArrayReferenceCmds.LengthRequest(20427, new ArrayReference(1072L)),
-                        new jdwp.ArrayReferenceCmds.LengthReply(20427, PrimitiveValue.wrap(0))),
-                p(new jdwp.ClassTypeCmds.SuperclassRequest(20428, new ClassTypeReference(1052L)),
-                        new jdwp.ClassTypeCmds.SuperclassReply(20428, new ClassTypeReference(1058L))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20429, new ClassReference(1052L)),
+        Partition partition = new Partition(Either.right(new jdwp.EventCmds.Events(5, wrap((byte) 2),
+                new ListValue<>(Type.LIST, List.of(new EventCmds.Events.Breakpoint(wrap(42), thread(1L),
+                        new Location(classType(1070L), method(105553136387016L), wrap(5L))))))), List.of(
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(20408, thread(1L)), new ReplyOrError<>(20408,
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(20408, wrap(1)))),
+                p(new jdwp.ThreadReferenceCmds.NameRequest(20409, thread(1L)), new ReplyOrError<>(20409,
+                        new jdwp.ThreadReferenceCmds.NameReply(20409, wrap("main")))),
+                p(new jdwp.ThreadReferenceCmds.StatusRequest(20410, thread(1L)), new ReplyOrError<>(20410,
+                        new jdwp.ThreadReferenceCmds.StatusReply(20410, wrap(1), wrap(1)))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(20411, thread(1L), wrap(0), wrap(1)),
+                        new ReplyOrError<>(20411, new jdwp.ThreadReferenceCmds.FramesReply(20411,
+                                new ListValue<>(Type.LIST,
+                                List.of(new ThreadReferenceCmds.FramesReply.Frame(frame(131072L),
+                                        new Location(classType(1070L),
+                                        method(105553136387016L), wrap(5L)))))))),
+                p(new jdwp.ThreadReferenceCmds.ThreadGroupRequest(20412, thread(1L)), new ReplyOrError<>(20412,
+                        new jdwp.ThreadReferenceCmds.ThreadGroupReply(20412, threadGroup(1071L)))),
+                p(new jdwp.ThreadGroupReferenceCmds.NameRequest(20413, threadGroup(1071L)), new ReplyOrError<>(20413,
+                        new jdwp.ThreadGroupReferenceCmds.NameReply(20413, wrap("main")))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20414, classType(1070L)), new ReplyOrError<>(20414,
+                        new jdwp.ClassTypeCmds.SuperclassReply(20414, classType(1058L)))),
+                p(new jdwp.MethodCmds.IsObsoleteRequest(20415, klass(1070L), method(105553136387016L)),
+                        new ReplyOrError<>(20415, new jdwp.MethodCmds.IsObsoleteReply(20415,
+PrimitiveValue.wrap(false)))),
+                p(new jdwp.ReferenceTypeCmds.FieldsWithGenericRequest(20416, klass(1070L)), new ReplyOrError<>(20416,
+                        new jdwp.ReferenceTypeCmds.FieldsWithGenericReply(20416, new ListValue<>(Type.LIST,
+                                List.of())))),
+                p(new jdwp.MethodCmds.VariableTableWithGenericRequest(20417, klass(1070L), method(105553136387016L)),
+                        new ReplyOrError<>(20417, new jdwp.MethodCmds.VariableTableWithGenericReply(20417, wrap(1),
+                                new ListValue<>(Type.LIST,
+List.of(new MethodCmds.VariableTableWithGenericReply.SlotInfo(wrap(0L),
+                                                wrap("args"), wrap("[Ljava/lang/String;"), wrap(""), wrap(11), wrap(0)),
+                                        new MethodCmds.VariableTableWithGenericReply.SlotInfo(wrap(3L), wrap("s"),
+wrap("Ljava/lang" +
+                                                "/String;"), wrap(""), wrap(8), wrap(1)),
+                                        new MethodCmds.VariableTableWithGenericReply.SlotInfo(wrap(5L), wrap("i"),
+                                                wrap("I"), wrap(""),
+                                                wrap(6), wrap(2))))))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20418, klass(1070L)), new ReplyOrError<>(20418,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20418, new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ReferenceTypeCmds.FieldsWithGenericRequest(20419, klass(1058L)), new ReplyOrError<>(20419,
+                        new jdwp.ReferenceTypeCmds.FieldsWithGenericReply(20419, new ListValue<>(Type.LIST,
+                         List.of())))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20420, classType(1058L)), new ReplyOrError<>(20420,
+                        new jdwp.ClassTypeCmds.SuperclassReply(20420, classType(0L)))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20421, klass(1058L)), new ReplyOrError<>(20421,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20421, new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.StackFrameCmds.GetValuesRequest(20422, thread(1L), frame(131072L),
+                                new ListValue<>(Type.LIST, List.of(new StackFrameCmds.GetValuesRequest.SlotInfo(wrap(0),
+                                                wrap((byte) 91)),
+                                        new StackFrameCmds.GetValuesRequest.SlotInfo(wrap(1), wrap((byte) 76)),
+                                        new StackFrameCmds.GetValuesRequest.SlotInfo(wrap(2), wrap((byte) 73))))),
+                        new ReplyOrError<>(20422, new jdwp.StackFrameCmds.GetValuesReply(20422,
+                         new ListValue<>(Type.LIST
+                                , List.of(array(1072L), object(1073L), wrap(0)))))),
+                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(20423, object(1072L)), new ReplyOrError<>(20423,
+                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(20423, wrap((byte) 3), klass(920L)))),
+                p(new jdwp.ObjectReferenceCmds.ReferenceTypeRequest(20424, object(1073L)), new ReplyOrError<>(20424,
+                        new jdwp.ObjectReferenceCmds.ReferenceTypeReply(20424, wrap((byte) 1), klass(1052L)))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(20425, array(1072L)), new ReplyOrError<>(20425,
+                        new jdwp.ArrayReferenceCmds.LengthReply(20425, wrap(0)))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(20426, array(1072L)), new ReplyOrError<>(20426,
+                        new jdwp.ArrayReferenceCmds.LengthReply(20426, wrap(0)))),
+                p(new jdwp.ArrayReferenceCmds.LengthRequest(20427, array(1072L)), new ReplyOrError<>(20427,
+                        new jdwp.ArrayReferenceCmds.LengthReply(20427, wrap(0)))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20428, classType(1052L)), new ReplyOrError<>(20428,
+                        new jdwp.ClassTypeCmds.SuperclassReply(20428, classType(1058L)))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20429, klass(1052L)), new ReplyOrError<>(20429,
                         new jdwp.ReferenceTypeCmds.InterfacesReply(20429, new ListValue<>(Type.LIST,
-                                List.of(new InterfaceTypeReference(1057L), new InterfaceTypeReference(1056L),
-                                        new InterfaceTypeReference(1055L), new InterfaceTypeReference(1054L), new
-                                                InterfaceTypeReference(1053L))))),
-                p(new jdwp.ClassTypeCmds.SuperclassRequest(20432, new ClassTypeReference(1052L)),
-                        new jdwp.ClassTypeCmds.SuperclassReply(20432, new ClassTypeReference(1058L))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20433, new ClassReference(1052L)),
+                                List.of(interfaceType(1057L), interfaceType(1056L), interfaceType(1055L),
+                                 interfaceType(1054L),
+                                        interfaceType(1053L)))))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20432, classType(1052L)), new ReplyOrError<>(20432,
+                        new jdwp.ClassTypeCmds.SuperclassReply(20432, classType(1058L)))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20433, klass(1052L)), new ReplyOrError<>(20433,
                         new jdwp.ReferenceTypeCmds.InterfacesReply(20433, new ListValue<>(Type.LIST,
-                                List.of(new InterfaceTypeReference(1057L), new InterfaceTypeReference(1056L),
-                                        new InterfaceTypeReference(1055L), new InterfaceTypeReference(1054L), new
-                                                InterfaceTypeReference(1053L))))),
-                p(new jdwp.ClassTypeCmds.SuperclassRequest(20434, new ClassTypeReference(1052L)),
-                        new jdwp.ClassTypeCmds.SuperclassReply(20434, new ClassTypeReference(1058L))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20435, new ClassReference(1052L)),
+                                List.of(interfaceType(1057L), interfaceType(1056L), interfaceType(1055L),
+                                        interfaceType(1054L),
+                                        interfaceType(1053L)))))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(20434, classType(1052L)), new ReplyOrError<>(20434,
+                        new jdwp.ClassTypeCmds.SuperclassReply(20434, classType(1058L)))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20435, klass(1052L)), new ReplyOrError<>(20435,
                         new jdwp.ReferenceTypeCmds.InterfacesReply(20435, new ListValue<>(Type.LIST,
-                                List.of(new InterfaceTypeReference(1057L), new InterfaceTypeReference(1056L),
-                                        new InterfaceTypeReference(1055L), new InterfaceTypeReference(1054L), new
-                                                InterfaceTypeReference(1053L))))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20445, new ClassReference(1057L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20445, new ListValue<>(Type.LIST,
-                                List.of()))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20446, new ClassReference(1056L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20446, new ListValue<>(Type.LIST,
-                                List.of()))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20447, new ClassReference(1055L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20447, new ListValue<>(Type.LIST,
-                                List.of()))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20457, new ClassReference(1055L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20457, new ListValue<>(Type.LIST,
-                                List.of()))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20458, new ClassReference(1054L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20458, new ListValue<>(Type.LIST,
-                                List.of()))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20459, new ClassReference(1053L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20459, new ListValue<>(Type.LIST,
-                                List.of()))),
-                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20454, new ClassReference(1053L)),
-                        new jdwp.ReferenceTypeCmds.InterfacesReply(20454, new ListValue<>(Type.LIST,
-                                List.of())))));
+                                List.of(interfaceType(1057L), interfaceType(1056L), interfaceType(1055L),
+                                        interfaceType(1054L),
+                                        interfaceType(1053L)))))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20445, klass(1057L)), new ReplyOrError<>(20445,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20445, new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20446, klass(1056L)), new ReplyOrError<>(20446,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20446, new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20458, klass(1054L)), new ReplyOrError<>(20458,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20458, new ListValue<>(Type.LIST, List.of())))),
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(20459, new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20454, klass(1053L)), new ReplyOrError<>(20454,
         assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")" +
                         "=(wrap \"string\" \"Breakpoint\") (\"events\" 0 \"requestID\")=(wrap \"int\" 42) (\"events\"" +
                         " 0 \"thread\")=" +
@@ -623,6 +605,12 @@ public class SynthesizerTest {
                         "        (= var15 (request ReferenceType Interfaces (\"refType\")=(get var13 \"typeID\")))\n" +
                         "        (for iter2 (get var15 \"interfaces\") \n" +
                         "          (= var16 (request ReferenceType Interfaces (\"refType\")=iter2)))\n" +
+                        "        (= var16 (request ClassType Superclass (\"clazz\")=(get var13 \"typeID\"))))\n" +
+                        "      (default\n" +
+                        "        (= var13 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
+                        "        (= var14 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
+                        "        (= var15 (request ReferenceType Interfaces (\"refType\")=(get var13 \"typeID\")))\n" +
+                        "        (for iter2 (get var15 \"interfaces\") \n" +
                         "        (= var16 (request ClassType Superclass (\"clazz\")=(get var13 \"typeID\")))))))",
                 Synthesizer.synthesizeProgram(partition).toPrettyString());
     }
@@ -1158,6 +1146,122 @@ new ReplyOrError<>(2276716, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2
                         "\"typeID\"))\n" +
                         "    (= var14 (request ReferenceType Interfaces (\"refType\")=(get var13 \"superclass\")))\n" +
                         "    (reccall var15 recursion1 (\"clazz\")=(get var13 \"superclass\"))))",
+                Synthesizer.synthesizeProgram(partition).toPrettyString());
+    }
+
+    @Test
+    public void testExpectDefaultCaseForSwitchCaseWithNonSigtypeExpression() {
+        var partition = new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(2276385, wrap((byte) 1),
+                wrap((byte) 2), new ListValue<>(Type.LIST, List.of(new EventRequestCmds.SetRequest.Step(thread(1L),
+                 wrap(1),
+                wrap(0)), new EventRequestCmds.SetRequest.Count(wrap(1)))))), List.of(
+                p(new jdwp.EventRequestCmds.SetRequest(2276385, wrap((byte) 1), wrap((byte) 2),
+                        new ListValue<>(Type.LIST, List.of(new EventRequestCmds.SetRequest.Step(thread(1L), wrap(1),
+                                wrap(0)), new EventRequestCmds.SetRequest.Count(wrap(1))))), new ReplyOrError<>(2276385,
+                        new jdwp.EventRequestCmds.SetReply(2276385, wrap(103)))),
+                p(new jdwp.ThreadReferenceCmds.NameRequest(2276388, thread(1L)), new ReplyOrError<>(2276388,
+                        new jdwp.ThreadReferenceCmds.NameReply(2276388, wrap("main")))),
+                p(new jdwp.ThreadReferenceCmds.StatusRequest(2276389, thread(1L)), new ReplyOrError<>(2276389,
+                        new jdwp.ThreadReferenceCmds.StatusReply(2276389, wrap(1), wrap(1)))),
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(2276387, thread(1L)), new ReplyOrError<>(2276387,
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(2276387, wrap(7)))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(2276390, thread(1L), wrap(0), wrap(1)),
+                        new ReplyOrError<>(2276390, new jdwp.ThreadReferenceCmds.FramesReply(2276390,
+                                new ListValue<>(Type.LIST,
+                                        List.of(new ThreadReferenceCmds.FramesReply.Frame(frame(3473408L),
+                                        new Location(classType(884L), method(105553141047024L), wrap(0L)))))))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(2276391, klass(884L)),
+                        new ReplyOrError<>(2276391, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2276391,
+                                new ListValue<>(Type.LIST,
+                                        List.of(new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141158272L), wrap(
+                                                        "hash"), wrap("(Ljava/lang/Object;)I"), wrap(""), wrap(24)),
+                                                new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334504L), wrap(
+                                                        "comparableClassFor"), wrap("(Ljava/lang/Object;)" +
+                                                        "Ljava/lang/Class;"), wrap(
+                                                        "(Ljava/lang/Object;)Ljava/lang/Class<*>;"), wrap(8)),
+                                                new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334512L), wrap("compareComparables"), wrap("(Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/Object;)I"), wrap("(Ljava/lang/Class<*>;Ljava/lang/Object;Ljava/lang/Object;)I"), wrap(8)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334464L), wrap("tableSizeFor"), wrap("(I)I"), wrap(""), wrap(24)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334240L), wrap("<init>"), wrap("(IF)V"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334256L), wrap("<init>"), wrap("(I)V"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141047024L), wrap("<init>"), wrap("()V"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334248L), wrap("<init>"), wrap("(Ljava/util/Map;)V"), wrap("(Ljava/util/Map<+TK;+TV;>;)V"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141122656L), wrap("putMapEntries"), wrap("(Ljava/util/Map;Z)V"), wrap("(Ljava/util/Map<+TK;+TV;>;Z)V"), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334344L), wrap("size"), wrap("()I"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334312L), wrap("isEmpty"), wrap("()Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141158224L), wrap("get"), wrap("(Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(Ljava/lang/Object;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141158216L), wrap("getNode"), wrap("(Ljava/lang/Object;)Ljava/util/HashMap$Node;"), wrap("(Ljava/lang/Object;)Ljava/util/HashMap$Node<TK;TV;>;"), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334416L), wrap("containsKey"), wrap("(Ljava/lang/Object;)Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334280L), wrap("put"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(TK;TV;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334488L), wrap("putVal"), wrap("(ILjava/lang/Object;Ljava/lang/Object;ZZ)Ljava/lang/Object;"), wrap("(ITK;TV;ZZ)TV;"), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334520L), wrap("resize"), wrap("()[Ljava/util/HashMap$Node;"), wrap("()[Ljava/util/HashMap$Node<TK;TV;>;"), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334496L), wrap("treeifyBin"), wrap("([Ljava/util/HashMap$Node;I)V"), wrap("([Ljava/util/HashMap$Node<TK;TV;>;I)V"), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334368L), wrap("putAll"), wrap("(Ljava/util/Map;)V"), wrap("(Ljava/util/Map<+TK;+TV;>;)V"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334272L), wrap("remove"), wrap("(Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(Ljava/lang/Object;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334168L), wrap("removeNode"), wrap("(ILjava/lang/Object;Ljava/lang/Object;ZZ)Ljava/util/HashMap$Node;"), wrap("(ILjava/lang/Object;Ljava/lang/Object;ZZ)Ljava/util/HashMap$Node<TK;TV;>;"), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334304L), wrap("clear"), wrap("()V"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334440L), wrap("containsValue"), wrap("(Ljava/lang/Object;)Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334432L), wrap("keySet"), wrap("()Ljava/util/Set;"), wrap("()Ljava/util/Set<TK;>;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334200L), wrap("prepareArray"), wrap("([Ljava/lang/Object;)[Ljava/lang/Object;"), wrap("<T:Ljava/lang/Object;>([TT;)[TT;"), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334208L), wrap("keysToArray"), wrap("([Ljava/lang/Object;)[Ljava/lang/Object;"), wrap("<T:Ljava/lang/Object;>([TT;)[TT;"), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334216L), wrap("valuesToArray"), wrap("([Ljava/lang/Object;)[Ljava/lang/Object;"), wrap("<T:Ljava/lang/Object;>([TT;)[TT;"), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334288L), wrap("values"), wrap("()Ljava/util/Collection;"), wrap("()Ljava/util/Collection<TV;>;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334360L), wrap("entrySet"), wrap("()Ljava/util/Set;"), wrap("()Ljava/util/Set<Ljava/util/Map$Entry<TK;TV;>;>;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334448L), wrap("getOrDefault"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(Ljava/lang/Object;TV;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334376L), wrap("putIfAbsent"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(TK;TV;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334264L), wrap("remove"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334320L), wrap("replace"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Z"), wrap("(TK;TV;TV;)Z"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334328L), wrap("replace"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(TK;TV;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334424L), wrap("computeIfAbsent"), wrap("(Ljava/lang/Object;Ljava/util/function/Function;)Ljava/lang/Object;"), wrap("(TK;Ljava/util/function/Function<-TK;+TV;>;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334456L), wrap("computeIfPresent"), wrap("(Ljava/lang/Object;Ljava/util/function/BiFunction;)Ljava/lang/Object;"), wrap("(TK;Ljava/util/function/BiFunction<-TK;-TV;+TV;>;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334384L), wrap("compute"), wrap("(Ljava/lang/Object;Ljava/util/function/BiFunction;)Ljava/lang/Object;"), wrap("(TK;Ljava/util/function/BiFunction<-TK;-TV;+TV;>;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334352L), wrap("merge"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/util/function/BiFunction;)Ljava/lang/Object;"), wrap("(TK;TV;Ljava/util/function/BiFunction<-TV;-TV;+TV;>;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334408L), wrap("forEach"), wrap("(Ljava/util/function/BiConsumer;)V"), wrap("(Ljava/util/function/BiConsumer<-TK;-TV;>;)V"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334336L), wrap("replaceAll"), wrap("(Ljava/util/function/BiFunction;)V"), wrap("(Ljava/util/function/BiFunction<-TK;-TV;+TV;>;)V"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334296L), wrap("clone"), wrap("()Ljava/lang/Object;"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334472L), wrap("loadFactor"), wrap("()F"), wrap(""), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334480L), wrap("capacity"), wrap("()I"), wrap(""), wrap(16)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334400L), wrap("writeObject"), wrap("(Ljava/io/ObjectOutputStream;)V"), wrap(""), wrap(2)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334392L), wrap("readObject"), wrap("(Ljava/io/ObjectInputStream;)V"), wrap(""), wrap(2)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141122664L), wrap("newNode"), wrap("(ILjava/lang/Object;Ljava/lang/Object;Ljava/util/HashMap$Node;)Ljava/util/HashMap$Node;"), wrap("(ITK;TV;Ljava/util/HashMap$Node<TK;TV;>;)Ljava/util/HashMap$Node<TK;TV;>;"), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334224L), wrap("replacementNode"), wrap("(Ljava/util/HashMap$Node;Ljava/util/HashMap$Node;)Ljava/util/HashMap$Node;"), wrap("(Ljava/util/HashMap$Node<TK;TV;>;Ljava/util/HashMap$Node<TK;TV;>;)Ljava/util/HashMap$Node<TK;TV;>;"), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334232L), wrap("newTreeNode"), wrap("(ILjava/lang/Object;Ljava/lang/Object;Ljava/util/HashMap$Node;)Ljava/util/HashMap$TreeNode;"), wrap("(ITK;TV;Ljava/util/HashMap$Node<TK;TV;>;)Ljava/util/HashMap$TreeNode<TK;TV;>;"), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334160L), wrap("replacementTreeNode"), wrap("(Ljava/util/HashMap$Node;Ljava/util/HashMap$Node;)Ljava/util/HashMap$TreeNode;"), wrap("(Ljava/util/HashMap$Node<TK;TV;>;Ljava/util/HashMap$Node<TK;TV;>;)Ljava/util/HashMap$TreeNode<TK;TV;>;"), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334184L), wrap("reinitialize"), wrap("()V"), wrap(""), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141122672L), wrap("afterNodeAccess"), wrap("(Ljava/util/HashMap$Node;)V"), wrap("(Ljava/util/HashMap$Node<TK;TV;>;)V"), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141122680L), wrap("afterNodeInsertion"), wrap("(Z)V"), wrap(""), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334176L), wrap("afterNodeRemoval"), wrap("(Ljava/util/HashMap$Node;)V"), wrap("(Ljava/util/HashMap$Node<TK;TV;>;)V"), wrap(0)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(5099334192L), wrap("internalWriteEntries"), wrap("(Ljava/io/ObjectOutputStream;)V"), wrap(""), wrap(0))))))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(2276393, klass(884L)), new ReplyOrError<>(2276393,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(2276393, new ListValue<>(Type.LIST,
+                                List.of(interfaceType(1015L), interfaceType(1045L), interfaceType(1057L)))))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(2276394, klass(1015L)), new ReplyOrError<>(2276394,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(2276394, new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(2276395, klass(1015L)),
+                        new ReplyOrError<>(2276395, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2276395,
+                                new ListValue<>(Type.LIST,
+                                        List.of(new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132744L), wrap("size")
+                                                        , wrap("()I"), wrap(""), wrap(1025)),
+                                                new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132712L), wrap("isEmpty"),
+                                                        wrap("()Z"), wrap(""), wrap(1025)),
+                                                new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132896L), wrap("containsKey"
+                                                ), wrap("(Ljava/lang/Object;)Z"), wrap(""), wrap(1025)),
+                                                new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132920L), wrap(
+                                                        "containsValue"), wrap("(Ljava/lang/Object;)Z"), wrap(""),
+                                                         wrap(1025)),
+                                                new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132656L), wrap(
+                                                        "get"), wrap("(Ljava/lang/Object;)Ljava/lang/Object;"), wrap(
+                                                                "(Ljava/lang" +
+                                                        "/Object;)TV;"), wrap(1025)),
+                                                new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132664L), wrap("put"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(TK;TV;)TV;"), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132640L), wrap("remove"), wrap("(Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(Ljava/lang/Object;)TV;"), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132856L), wrap("putAll"), wrap("(Ljava/util/Map;)V"), wrap("(Ljava/util/Map<+TK;+TV;>;)V"), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132704L), wrap("clear"), wrap("()V"), wrap(""), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132912L), wrap("keySet"), wrap("()Ljava/util/Set;"), wrap("()Ljava/util/Set<TK;>;"), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132680L), wrap("values"), wrap("()Ljava/util/Collection;"), wrap("()Ljava/util/Collection<TV;>;"), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132848L), wrap("entrySet"), wrap("()Ljava/util/Set;"), wrap("()Ljava/util/Set<Ljava/util/Map$Entry<TK;TV;>;>;"), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132672L), wrap("equals"), wrap("(Ljava/lang/Object;)Z"), wrap(""), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132688L), wrap("hashCode"), wrap("()I"), wrap(""), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132928L), wrap("getOrDefault"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(Ljava/lang/Object;TV;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132888L), wrap("forEach"), wrap("(Ljava/util/function/BiConsumer;)V"), wrap("(Ljava/util/function/BiConsumer<-TK;-TV;>;)V"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132736L), wrap("replaceAll"), wrap("(Ljava/util/function/BiFunction;)V"), wrap("(Ljava/util/function/BiFunction<-TK;-TV;+TV;>;)V"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132864L), wrap("putIfAbsent"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(TK;TV;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132648L), wrap("remove"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132728L), wrap("replace"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Z"), wrap("(TK;TV;TV;)Z"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132720L), wrap("replace"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(TK;TV;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132904L), wrap("computeIfAbsent"), wrap("(Ljava/lang/Object;Ljava/util/function/Function;)Ljava/lang/Object;"), wrap("(TK;Ljava/util/function/Function<-TK;+TV;>;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132936L), wrap("computeIfPresent"), wrap("(Ljava/lang/Object;Ljava/util/function/BiFunction;)Ljava/lang/Object;"), wrap("(TK;Ljava/util/function/BiFunction<-TK;-TV;+TV;>;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132872L), wrap("compute"), wrap("(Ljava/lang/Object;Ljava/util/function/BiFunction;)Ljava/lang/Object;"), wrap("(TK;Ljava/util/function/BiFunction<-TK;-TV;+TV;>;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132840L), wrap("merge"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/util/function/BiFunction;)Ljava/lang/Object;"), wrap("(TK;TV;Ljava/util/function/BiFunction<-TV;-TV;+TV;>;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132776L), wrap("of"), wrap("()Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>()Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132792L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132784L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132768L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132760L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132752L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132832L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132824L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132816L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132808L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132800L), wrap("of"), wrap("(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;TK;TV;)Ljava/util/Map<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132944L), wrap("ofEntries"), wrap("([Ljava/util/Map$Entry;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>([Ljava/util/Map$Entry<+TK;+TV;>;)Ljava/util/Map<TK;TV;>;"), wrap(137)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132880L), wrap("entry"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Map$Entry;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(TK;TV;)Ljava/util/Map$Entry<TK;TV;>;"), wrap(9)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(4557132696L), wrap("copyOf"), wrap("(Ljava/util/Map;)Ljava/util/Map;"), wrap("<K:Ljava/lang/Object;V:Ljava/lang/Object;>(Ljava/util/Map<+TK;+TV;>;)Ljava/util/Map<TK;TV;>;"), wrap(9))))))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(2276396, klass(1045L)), new ReplyOrError<>(2276396,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(2276396, new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(2276397, klass(1045L)),
+                        new ReplyOrError<>(2276397, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2276397,
+                                new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(2276398, klass(1057L)),
+                        new ReplyOrError<>(2276398, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2276398,
+                                new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(2276399, classType(884L)), new ReplyOrError<>(2276399,
+                        new jdwp.ClassTypeCmds.SuperclassReply(2276399, classType(969L)))),
+                p(new jdwp.ReferenceTypeCmds.InterfacesRequest(2276400, klass(969L)), new ReplyOrError<>(2276400,
+                        new jdwp.ReferenceTypeCmds.InterfacesReply(2276400, new ListValue<>(Type.LIST,
+                                List.of(interfaceType(1015L)))))),
+                p(new jdwp.ClassTypeCmds.SuperclassRequest(2276401, classType(969L)), new ReplyOrError<>(2276401, new jdwp.ClassTypeCmds.SuperclassReply(2276401, classType(1058L)))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(2276402, klass(969L)), new ReplyOrError<>(2276402, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2276402, new ListValue<>(Type.LIST, List.of(new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553141047016L), wrap("<init>"), wrap("()V"), wrap(""), wrap(4)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167178000L), wrap("size"), wrap("()I"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177992L), wrap("isEmpty"), wrap("()Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167178040L), wrap("containsValue"), wrap("(Ljava/lang/Object;)Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167178024L), wrap("containsKey"), wrap("(Ljava/lang/Object;)Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177928L), wrap("get"), wrap("(Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(Ljava/lang/Object;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177936L), wrap("put"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(TK;TV;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177920L), wrap("remove"), wrap("(Ljava/lang/Object;)Ljava/lang/Object;"), wrap("(Ljava/lang/Object;)TV;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167178016L), wrap("putAll"), wrap("(Ljava/util/Map;)V"), wrap("(Ljava/util/Map<+TK;+TV;>;)V"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177984L), wrap("clear"), wrap("()V"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167178032L), wrap("keySet"), wrap("()Ljava/util/Set;"), wrap("()Ljava/util/Set<TK;>;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177960L), wrap("values"), wrap("()Ljava/util/Collection;"), wrap("()Ljava/util/Collection<TV;>;"), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167178008L), wrap("entrySet"), wrap("()Ljava/util/Set;"), wrap("()Ljava/util/Set<Ljava/util/Map$Entry<TK;TV;>;>;"), wrap(1025)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177944L), wrap("equals"), wrap("(Ljava/lang/Object;)Z"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177968L), wrap("hashCode"), wrap("()I"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177952L), wrap("toString"), wrap("()Ljava/lang/String;"), wrap(""), wrap(1)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167177976L), wrap("clone"), wrap("()Ljava/lang/Object;"), wrap(""), wrap(4)), new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553167178048L), wrap("eq"), wrap("(Ljava/lang/Object;Ljava/lang/Object;)Z"), wrap(""), wrap(10))))))),
+                p(new jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest(2276403, klass(884L)), new ReplyOrError<>(2276403, ReferenceTypeCmds.SourceDebugExtensionRequest.METADATA, 101)),
+                p(new jdwp.MethodCmds.LineTableRequest(2276404, klass(884L), method(105553141047024L)), new ReplyOrError<>(2276404, new jdwp.MethodCmds.LineTableReply(2276404, wrap(0L), wrap(10L), new ListValue<>(Type.LIST, List.of(new MethodCmds.LineTableReply.LineInfo(wrap(0L), wrap(469)), new MethodCmds.LineTableReply.LineInfo(wrap(4L), wrap(470)), new MethodCmds.LineTableReply.LineInfo(wrap(10L), wrap(471))))))),
+                p(new jdwp.ReferenceTypeCmds.SourceFileRequest(2276405, klass(884L)), new ReplyOrError<>(2276405, new jdwp.ReferenceTypeCmds.SourceFileReply(2276405, wrap("HashMap.java"))))));
+        assertEquals("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 1) (\"suspendPolicy\")=(wrap" +
+                " \"byte\" 2) (\"modifiers\" 0 \"depth\")=(wrap \"int\" 0) (\"modifiers\" 0 \"kind\")=(wrap \"string\" " +
+                "\"Step\") (\"modifiers\" 0 \"size\")=(wrap \"int\" 1) (\"modifiers\" 0 \"thread\")=(wrap \"thread\" 1) " +
+           "(\"modifiers\" 1 \"count\")=(wrap \"int\" 1) (\"modifiers\" 1 \"kind\")=(wrap \"string\" \"Count\")))\n" +
+                "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 1) (\"suspendPolicy\")=(wrap " +
+                 "\"byte\" 2) (\"modifiers\" 0 \"depth\")=(wrap \"int\" 0) (\"modifiers\" 0 \"kind\")=(wrap " +
+                  "\"string\" \"Step\") (\"modifiers\" 0 \"size\")=(wrap \"int\" 1) (\"modifiers\" 0 \"thread\")=" +
+                   "(wrap \"thread\" 1) (\"modifiers\" 1 \"count\")=(wrap \"int\" 1) (\"modifiers\" 1 \"kind\")=(wrap" +
+                " \"string\" \"Count\")))\n" +
+                "  (= var1 (request ThreadReference Name (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
+                "  (= var2 (request ThreadReference Status (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
+                "  (= var3 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) (\"startFrame\")=(wrap " +
+                 "\"int\" 0) (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
+                "  (= var4 (request ThreadReference FrameCount (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))" +
+                 "\n" +
+                "  (= var5 (request ReferenceType SourceFile (\"refType\")=(get var3 \"frames\" 0 \"location\" " +
+                 "\"declaringType\")))\n" +
+                "  (= var7 (request ReferenceType Interfaces (\"refType\")=(get var3 \"frames\" 0 \"location\" " +
+                 "\"declaringType\")))\n" +
+                "  (for iter1 (get var7 \"interfaces\") \n" +
+                "    (switch iter1\n" +
+                "      (case (wrap \"interface-type\" 1015)\n" +
+                "        (= var8 (request ReferenceType Interfaces (\"refType\")=iter1))\n" +
+                "        (= var9 (request ReferenceType MethodsWithGeneric (\"refType\")=iter1)))\n" +
+                "      (case (wrap \"interface-type\" 1045)\n" +
+                "        (= var8 (request ReferenceType Interfaces (\"refType\")=iter1))\n" +
+                "        (= var9 (request ReferenceType MethodsWithGeneric (\"refType\")=iter1)))\n" +
+                "      (case (wrap \"interface-type\" 1057)\n" +
+                "        (= var8 (request ReferenceType MethodsWithGeneric (\"refType\")=iter1)))\n" +
+                "      (default\n" +
+                "        (= var9 (request ReferenceType MethodsWithGeneric (\"refType\")=iter1)))))\n" +
+                "  (= var8 (request ReferenceType SourceDebugExtension (\"refType\")=(get var3 \"frames\" 0 " +
+                 "\"location\" \"declaringType\")))\n" +
+                "  (= var9 (request ReferenceType MethodsWithGeneric (\"refType\")=(get var3 \"frames\" 0 " +
+                 "\"location\" \"declaringType\")))\n" +
+                "  (rec recursion1 1000 var10 (request ClassType Superclass (\"clazz\")=(get var3 \"frames\" 0 " +
+                 "\"location\" \"declaringType\"))\n" +
+                "    (= var11 (request ReferenceType Interfaces (\"refType\")=(get var10 \"superclass\")))\n" +
+                "    (= var12 (request ReferenceType MethodsWithGeneric (\"refType\")=(get var10 \"superclass\")))\n" +
+                "    (reccall var13 recursion1 (\"clazz\")=(get var10 \"superclass\")))\n" +
+                "  (= var12 (request Method LineTable (\"methodID\")=(get var3 \"frames\" 0 \"location\" " +
+                 "\"methodRef\") (\"refType\")=(get var3 \"frames\" 0 \"location\" \"declaringType\"))))",
                 Synthesizer.synthesizeProgram(partition).toPrettyString());
     }
     private static void assertNodeListEquals(List<Node> first, List<Node> second) {
