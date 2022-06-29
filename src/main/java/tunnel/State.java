@@ -217,10 +217,14 @@ public class State {
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isLeft()) {
-                    var program = Synthesizer.synthesizeProgram(partition);
-                    LOG.info("Synthesized client program: {}", program.toPrettyString());
-                    programCache.accept(program);
-                    storeProgramCache();
+                    try {
+                        var program = Synthesizer.synthesizeProgram(partition);
+                        LOG.info("Synthesized client program: {}", program.toPrettyString());
+                        programCache.accept(program);
+                        storeProgramCache();
+                    } catch (AssertionError err) {
+                        LOG.error("Error synthesizing program for partition {}", formatter.format(partition), err);
+                    }
                 }
             } else {
                 LOG.error("omit because of missing cause");
@@ -232,11 +236,15 @@ public class State {
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isRight()) {
-                    var program = Synthesizer.synthesizeProgram(partition);
-                    LOG.info("Synthesized server program: {}", program.toPrettyString());
-                    programCache.accept(program);
-                    storeProgramCache();
-                    programsToSendToServer.add(program);
+                    try {
+                        var program = Synthesizer.synthesizeProgram(partition);
+                        LOG.info("Synthesized server program: {}", program.toPrettyString());
+                        programCache.accept(program);
+                        storeProgramCache();
+                        programsToSendToServer.add(program);
+                    } catch (AssertionError err) {
+                        LOG.error("Error synthesizing program for partition {}", formatter.format(partition), err);
+                    }
                 }
             } else {
                 LOG.error("omit because of missing cause");
@@ -255,7 +263,6 @@ public class State {
             @Override
             public void onReply(WrappedPacket<Request<?>> request, WrappedPacket<ReplyOrError<?>> reply) {
                 if (request.getPacket() instanceof EvaluateProgramRequest) {
-                    var evaluateProgramRequest = (EvaluateProgramRequest) request.getPacket();
                     if (reply.getPacket().isReply()) {
                         var repl = BasicTunnel.parseEvaluateProgramReply(vm,
                                 (EvaluateProgramReply) reply.getPacket().getReply());
@@ -263,7 +270,6 @@ public class State {
                         return;
                     }
                 }
-                System.out.println("--------------- Partitioner onReply: " + reply);
                 partitioner.onReply(request, reply);
             }
 

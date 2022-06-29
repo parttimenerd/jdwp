@@ -13,8 +13,8 @@ public class ProgramHashesTest {
 
     @ParameterizedTest
     @CsvSource({
-            "(= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\")))," +
-            "(= var0 (request ThreadReference FrameCount (\"thread\")=(get cause \"events\" 0 \"thread\"))) ",
+            "(= var1 (request ThreadReference Name (\"thread\")=(get 1 \"events\" 0 \"thread\")))," +
+            "(= var0 (request ThreadReference FrameCount (\"thread\")=(get 1 \"events\" 0 \"thread\"))) ",
             "(= ret (func)),(= ret (func2))"
     })
     public void testNoCollision(String first, String second) {
@@ -24,9 +24,9 @@ public class ProgramHashesTest {
 
     @ParameterizedTest
     @CsvSource({
-            "((= ret2 func)), ((= ret func))",
-            "((= ret2 func) (= y ret2)), ((= ret func) (= x ret))",
-            "((switch x (case \"a\"))),((switch x (case \"b\")))"
+            "((= ret2 1)), ((= ret 1))",
+            "((= ret2 1) (= y ret2)), ((= ret 1) (= x ret))",
+            "((switch 1 (case \"a\"))),((switch 1 (case \"b\")))"
     })
     public void testHashesOfLastStatementEqual(String firstProgram, String secondProgram) {
         var first = Program.parse(firstProgram);

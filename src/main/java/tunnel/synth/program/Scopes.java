@@ -84,4 +84,12 @@ public class Scopes<V> {
     public boolean contains(String variable) {
         return topScope.contains(variable);
     }
+
+    public boolean hasParent() {
+        return topScope.parent != null;
+    }
+
+    public BasicScope<V> getParent() {
+        return topScope.parent;
+    }
 }

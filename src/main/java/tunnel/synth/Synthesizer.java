@@ -134,7 +134,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         private Map<String, Integer> nameCounts;
         private final Map<Integer, Map<AccessPath, Expression>> preHandledAccessPaths;
         private final Map<Class<? extends Request<?>>,
-                Function<List<CallProperty>, ? extends Statement>> preHandledRequestClasses;
+                BiFunction<Identifier, List<CallProperty>, ? extends Statement>> preHandledRequestClasses;
 
         public NodeNames(SynthesizerOptions options) {
             this.options = options;
@@ -587,7 +587,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                     .collect(Collectors.toList());
             if (preHandledRequestClasses.containsKey(origin.first.getClass())) {
                 var preHandled = preHandledRequestClasses.get(origin.first.getClass());
-                statements.add(preHandled.apply(props));
+                statements.add(preHandled.apply(ident(get(node)), props));
             } else {
                 statements.add(new AssignmentStatement(ident(get(node)),
                         new RequestCall(request.getCommandSetName(), request.getCommandName(), props)));
@@ -897,7 +897,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                                     x -> new HashMap<>())
                             .put(recursionBody.recursiveReplyPath, iterName);
                     nodeNames.preHandledRequestClasses.put((Class<? extends Request<?>>) request.getClass(),
-                            props -> new RecRequestCall(recName, props));
+                            (variable, props) -> new RecRequestCall(variable, recName, props));
                     var program = processNodes(nodeNames, layers, nodes).first.getBody();
                     if (merged == null) {
                         merged = program;
@@ -1241,7 +1241,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 nodeNames.copyPreHandledAndNameCounts(this);
                 nodeNames.names.put(recursionBody.headerNode, nodeName);
                 nodeNames.preHandledRequestClasses.put((Class<? extends Request<?>>) request.getClass(),
-                        props -> new RecRequestCall(recName, props));
+                        (variable, props) -> new RecRequestCall(variable, recName, props));
                 nodeNames.preHandledAccessPaths
                         .computeIfAbsent(recursionBody.headerNode.getId(), x -> new HashMap<>())
                         .put(recursionBody.recursiveReplyPath, GET_FUNCTION.createCall(ident(nodeName),

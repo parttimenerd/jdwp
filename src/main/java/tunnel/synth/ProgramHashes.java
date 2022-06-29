@@ -150,6 +150,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
     }
 
     public long getOrParent(Identifier name) {
+        //assert !name.isGlobalVariable(); // we currently do not support global variables
         return name.isGlobalVariable() ? name.hashCode() : getOrParent(name.getSource()).hash();
     }
 
@@ -182,6 +183,13 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
 
             private long collectSubExpressionHashes(Expression expression) {
                 return Hashed.hash(expression.getSubExpressions().stream().mapToLong(e -> e.accept(this)).toArray());
+            }
+
+            @Override
+            public Long visit(PacketCall request) {
+                byte commandSet = JDWP.getCommandSetByte(request.getCommandSet());
+                byte command = JDWP.getCommandByte(request.getCommandSet(), request.getCommand());
+                return Hashed.hash(command, commandSet, collectSubExpressionHashes(request));
             }
         });
     }
@@ -220,7 +228,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
                     }
                 });
                 if (assignment.isCause()) {
-                    return new Hashed<>(Hashed.hash(0, hashed.hash()), statement);
+                    return new Hashed<>(Hashed.hash((byte) 0, hashed.hash()), statement);
                 }
                 return hashed;
             }
@@ -232,28 +240,31 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
 
             @Override
             public Hashed<Statement> visit(MapCallStatement mapCall) {
-                return Hashed.create(mapCall, 0, MAP_CALL, hash(mapCall.getIterable()));
+                return Hashed.create(mapCall, (byte) 0, MAP_CALL, hash(mapCall.getIterable()));
             }
 
             @Override
             public Hashed<Statement> visit(SwitchStatement switchStatement) {
-                return Hashed.create(switchStatement, 0, SWITCH, hash(switchStatement.getExpression()));
+                return Hashed.create(switchStatement, (byte) 0, SWITCH, hash(switchStatement.getExpression()));
             }
 
             @Override
             public Hashed<Statement> visit(CaseStatement caseStatement) {
-                return Hashed.create(caseStatement, 0, CASE, hash(caseStatement.getExpression()));
+                return Hashed.create(caseStatement, (byte) 0, CASE, hash(caseStatement.getExpression()));
             }
 
             @Override
             public Hashed<Statement> visit(Recursion recursion) {
-                return Hashed.create(recursion, 0, RECURSION, hash(recursion.getRequest()));
+                return Hashed.create(recursion, (byte) 0, RECURSION, hash(recursion.getRequest()));
             }
 
             @Override
             public Hashed<Statement> visit(RecRequestCall recCall) {
-                return Hashed.create(recCall, 0, REC_CALL,
-                        recCall.getName().getSource() != null ? recCall.getName().getSource().accept(this).hash() : 0);
+                var argHash = Hashed.hash(recCall.getArguments().stream().mapToLong(x -> hash(x)).toArray());
+                return Hashed.create(recCall, (byte) 0, REC_CALL,
+                        (recCall.getName().getSource() != null ?
+                                recCall.getName().getSource().accept(this).hash()
+                                : 0) * Hashed.LARGE_PRIME + argHash);
             }
         });
     }

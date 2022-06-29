@@ -121,11 +121,11 @@ public class ProgramTest {
                 {"()", List.<Statement>of()},
                 {"((= ret 1))", List.of(new AssignmentStatement(ident("ret"), literal(1)))},
                 {
-                        "((for iter iterable\n  (= ret 1)))",
+                        "((for iter 1\n  (= ret 1)))",
                         List.of(
                                 new Loop(
                                         ident("iter"),
-                                        ident("iterable"),
+                                        literal(1),
                                         List.of(new AssignmentStatement(ident("ret"), literal(1)))))
                 }
         };
@@ -173,15 +173,15 @@ public class ProgramTest {
     @CsvSource({
             "((= ret (func))),((= ret (func))),((= ret (func)))",
             "((= ret (func2))),((= ret (func))),((= ret (func2)) (= ret (func)))",
-            "((= ret (func2)) (for iter iterable (= iter 1)))," +
+            "((= ret (func2)) (for iter 1 (= iter 1)))," +
                     "((= ret (func)))," +
-                    "((= ret (func2)) (for iter iterable (= iter 1)) (= ret (func))))",
-            "((for iter iterable (= iter 1)))," +
-                    "((for iter iterable (= iter 2)))," +
-                    "((for iter iterable (= iter 1) (= iter 2)))",
-            "((for iter iterable (= iter 1) (for iter2 iterable2)))," +
-                    "((for iter2 iterable2) (for iter iterable (= iter 2)))," +
-                    "((for iter2 iterable2) (for iter iterable (= iter 1) (for iter2 iterable2) (= iter 2)))",
+                    "((= ret (func2)) (for iter 1 (= iter 1)) (= ret (func))))",
+            "((for iter 1 (= iter 1)))," +
+                    "((for iter 1 (= iter 2)))," +
+                    "((for iter 1 (= iter 1) (= iter 2)))",
+            "((for iter 1 (= iter 1) (for iter2 2)))," +
+                    "((for iter2 2) (for iter 1 (= iter 2)))," +
+                    "((for iter2 2) (for iter 1 (= iter 1) (for iter2 2) (= iter 2)))",
             "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'b'))),((= x 1) (switch x (case 'a') (case 'b')" +
                     "))",
             "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a' (= y 1)))),((= x 1) (switch x (case 'a' (= " +
@@ -191,14 +191,14 @@ public class ProgramTest {
                     "((= x 1) (switch x (case 'a') (case 'b')) (switch (const 1) (case 'a'))) ",
             "((rec r 10 var100 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10)) " +
                     "(= y (request ReferenceType Interfaces ('refType')=(wrap 'klass' 11))) " +
-                    "(reccall r ('clazz')=(get var100 'superclass'))))," +
+                    "(reccall u r ('clazz')=(get var100 'superclass'))))," +
                     "((rec r 10 var101 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10))" +
                     "(= y (request ReferenceType Interfaces ('refType')=(get var101 'superclass')))" +
-                    "(reccall r ('clazz')=(get var101 'superclass'))))," +
+                    "(reccall u r ('clazz')=(get var101 'superclass'))))," +
                     "((rec r 10 var100 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10)) " +
                     "(= y (request ReferenceType Interfaces ('refType')=(wrap 'klass' 11))) " +
                     "(= y (request ReferenceType Interfaces ('refType')=(get var100 'superclass')))" +
-                    "(reccall r ('clazz')=(get var100 'superclass')))),"
+                    "(reccall u r ('clazz')=(get var100 'superclass')))),"
 
     })
     public void testMerge(String program1, String program2, String merge) {
@@ -210,14 +210,14 @@ public class ProgramTest {
 
     @ParameterizedTest
     @CsvSource({
-            "((= ret func)),((= ret func)),((= ret func))",
-            "((= ret func2)),((= ret func)),()",
-            "((= ret2 func) (= y (func2)) (= r ret2)),((= ret func) (= x (func)) (= r2 ret)),((= ret2 func) (= r " +
+            "((= ret 1)),((= ret 1)),((= ret 1))",
+            "((= ret 2)),((= ret 1)),()",
+            "((= ret2 1) (= y (2)) (= r ret2)),((= ret 1) (= x (1)) (= r2 ret)),((= ret2 1) (= r " +
                     "ret2))",
-            "((= ret2 func) (= r ret2)),((= ret func) (= r2 ret)),((= ret2 func) (= r ret2))",
-            "((for iter iterable (= iter 1))),((for iter iterable (= iter 2))),()",
-            "((for iter iterable (= iter 1))),((for iter iterable (= iter 1)))," +
-                    "((for iter iterable (= iter 1)))",
+            "((= ret2 1) (= r ret2)),((= ret 1) (= r2 ret)),((= ret2 1) (= r ret2))",
+            "((for iter 1 (= iter 1))),((for iter 1 (= iter 2))),()",
+            "((for iter 1 (= iter 1))),((for iter 1 (= iter 1)))," +
+                    "((for iter 1 (= iter 1)))",
             "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a'))),((= x 1))",
             "((= x 1) (switch x (case 'a' (= x 1)))),((= x 1) (switch x (case 'a' (= x 1)))),((= x 1) (switch x (case" +
                     " 'a' (= x 1))))",
@@ -408,12 +408,6 @@ public class ProgramTest {
     @Test
     public void testIdentifierWithAssignmentIsNotGlobal() {
         assertFalse(((AssignmentStatement)Statement.parse("(= ret func)")).getVariable().isGlobalVariable());
-    }
-
-    @Test
-    public void testIdentifierWithAssignmentIsNotGlobal2() {
-        assertFalse(((Identifier)((AssignmentStatement)Program.parse("((= ret func) (= x ret))")
-                .getBody().getLastStatement()).getExpression()).isGlobalVariable());
     }
 
     @Test
@@ -691,17 +685,18 @@ public class ProgramTest {
     public void testParseRecursionStatement() {
         var name = ident("r");
         var requestVar = ident("var100");
-        var recursion = (Recursion) new Recursion(name, 10, requestVar,
+        var recursion = new Program(null, List.of(new Recursion(name, 10, requestVar,
                 RequestCall.create(new SuperclassRequest(0, Reference.classType(10))), new Body(
                 new AssignmentStatement(ident("y"), RequestCall.create(new InterfacesRequest(1,
                         Reference.klass(11)))),
-                new RecRequestCall(name, List.of(new CallProperty(new AccessPath("clazz"),
+                new RecRequestCall(ident("x"), name, List.of(new CallProperty(new AccessPath("clazz"),
                         GET_FUNCTION.createCall(requestVar, new AccessPath("superclass")))))
-        )).initHashes(null);
-        assertEquals("(rec r 10 var100 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 10))\n" +
-                "  (= y (request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 11)))\n" +
-                "  (reccall r (\"clazz\")=(get var100 \"superclass\")))", recursion.toPrettyString());
-        assertEquals(recursion, Recursion.parse(recursion.toPrettyString()));
+        )))).initHashes(null);
+        assertEquals("(\n" +
+                "  (rec r 10 var100 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 10))\n" +
+                "    (= y (request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 11)))\n" +
+                "    (reccall x r (\"clazz\")=(get var100 \"superclass\"))))", recursion.toPrettyString());
+        assertEquals(recursion, Program.parse(recursion.toPrettyString()));
     }
 
     private static RecordingFunctions createRecordingFunctions(Partition partition) {
@@ -720,7 +715,7 @@ public class ProgramTest {
         var program = Program.parse("(\n" +
                 "  (rec recursion0 1000 var0 (request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 1))\n" +
                 "    (for iter0 (get var0 \"interfaces\") \n" +
-                "      (reccall recursion0 (\"refType\")=iter0))))");
+                "      (reccall u recursion0 (\"refType\")=iter0))))");
         BiFunction<Integer, List<Long>, Pair<InterfacesRequest, InterfacesReply>> interfacesCreator = (id,
                                                                                                        interfaces) ->
                 p(new InterfacesRequest(id, Reference.klass(id)),
@@ -742,7 +737,7 @@ public class ProgramTest {
     public void testEvaluateRecursionWithoutLoop() {
         var program = Program.parse("(\n" +
                 "  (rec recursion0 1000 var0 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 1))\n" +
-                "    (reccall recursion0 (\"clazz\")=(get var0 \"superclass\"))))");
+                "    (reccall u recursion0 (\"clazz\")=(get var0 \"superclass\"))))");
         BiFunction<Integer, Long, Pair<SuperclassRequest, SuperclassReply>> interfacesCreator = (id, superClass) ->
                 p(new SuperclassRequest(id, Reference.classType(id)), new SuperclassReply(id,
                         Reference.classType(superClass)));
@@ -756,6 +751,25 @@ public class ProgramTest {
     }
 
     @Test
+    public void testEvaluateRecursionWithoutLoop2() {
+        var program = Program.parse("(\n" +
+                "  (rec recursion0 1000 var0 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 1))\n" +
+                "    (reccall u recursion0 (\"clazz\")=(get var0 \"superclass\"))" +
+                "    (= x (collect u))))");
+        BiFunction<Integer, Long, Pair<SuperclassRequest, SuperclassReply>> interfacesCreator = (id, superClass) ->
+                p(new SuperclassRequest(id, Reference.classType(id)), new SuperclassReply(id,
+                        Reference.classType(superClass)));
+        var partition = new Partition(null, List.of(
+                interfacesCreator.apply(1, 2L),
+                interfacesCreator.apply(2, 3L),
+                interfacesCreator.apply(3, 0L)));
+        var funcs = createRecordingFunctions(partition);
+        new Evaluator(vm, funcs).evaluate(program);
+        assertEquals(partition.stream().map(p -> p.first).collect(Collectors.toList()), funcs.requests);
+        assertEquals(List.of(partition.get(1).second.asCombined()), funcs.values);
+    }
+
+    @Test
     public void testMergeWithDifferentNames() {
         assertEquals("((= x 1) (= z x))", Program.parse("((= x 1))")
                 .merge(Program.parse("((= y 1) (= z y))")).toString());
@@ -763,7 +777,7 @@ public class ProgramTest {
 
     @Test
     public void testParseCauseOnlyProgram() {
-        var program = new Program(new EventsCall("x", "y", List.of()), List.of());
+        var program = new Program(new EventsCall("Event", "Composite", List.of()), List.of());
         assertEquals(program, Program.parse(program.toPrettyString()));
     }
 }

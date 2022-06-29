@@ -774,6 +774,7 @@ public interface AST {
     class Loop extends Statement implements CompoundStatement<Loop>, PartiallyMergeable<Loop> {
         private final Identifier iter;
         private final Expression iterable;
+        @Setter
         private Body body;
 
         public Loop(Identifier iter, Expression iterable, Body body) {
@@ -871,16 +872,18 @@ public interface AST {
         private final int maxNumberOfCalls;
         private final Identifier requestVariable;
         private final RequestCall request;
+        @Setter
         private Body body;
 
         public Recursion(Identifier name, int maxNumberOfCalls,
                          Identifier requestVariable, RequestCall request, Body body) {
             this.name = name;
+            this.name.setSource(this);
             this.maxNumberOfCalls = maxNumberOfCalls;
             this.requestVariable = requestVariable;
+            this.requestVariable.setSource(this);
             this.request = request;
             this.body = body;
-            this.name.setSource(this);
         }
 
 
@@ -964,10 +967,13 @@ public interface AST {
     @EqualsAndHashCode(callSuper = false)
     class RecRequestCall extends Statement {
 
+        private final Identifier variable;
         private final Identifier name;
         private final List<CallProperty> arguments;
 
-        public RecRequestCall(Identifier name, List<CallProperty> arguments) {
+        public RecRequestCall(Identifier variable, Identifier name, List<CallProperty> arguments) {
+            this.variable = variable;
+            this.variable.setSource(this);
             this.name = name;
             this.arguments = arguments;
         }
@@ -984,7 +990,7 @@ public interface AST {
 
         @Override
         public String toPrettyString(String indent, String innerIndent) {
-            return String.format("%s(reccall %s%s%s)", indent, name,
+            return String.format("%s(reccall %s %s%s%s)", indent, variable, name,
                     arguments.isEmpty() ? "" : " ",
                     arguments.stream().map(CallProperty::toString).collect(Collectors.joining(" ")));
         }
@@ -992,6 +998,7 @@ public interface AST {
         @Override
         public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
             return new RecRequestCall(
+                    identifierReplacer.apply(variable),
                     identifierReplacer.apply(name),
                     arguments.stream().map(a -> a.<CallProperty>replaceIdentifiersConv(identifierReplacer))
                             .collect(Collectors.toList()));

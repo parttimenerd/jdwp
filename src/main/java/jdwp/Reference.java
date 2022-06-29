@@ -136,6 +136,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public static ObjectReference readTagged(PacketInputStream ps) {
             return new ObjectReference(Type.forPrimitive(ps.readByte()), ps.readObjectRef());
         }
+
+        @Override
+        public String toCode() {
+            return String.format("object(%sL)", value);
+        }
     }
 
     public static class ThreadReference extends Reference {
@@ -151,6 +156,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public BasicGroup getGroup() {
             return BasicGroup.THREAD_REF;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("thread(%sL)", value);
+        }
     }
 
     public static class ThreadGroupReference extends Reference {
@@ -165,6 +175,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         @Override
         public BasicGroup getGroup() {
             return BasicGroup.THREAD_GROUP_REF;
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("threadGroup(%sL)", value);
         }
     }
 
@@ -210,6 +225,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public static InterfaceTypeReference read(PacketInputStream ps) {
             return new InterfaceTypeReference(ps.readClassRef());
         }
+
+        @Override
+        public String toCode() {
+            return String.format("interfaceType(%sL)", value);
+        }
     }
 
     public static class ClassTypeReference extends TypeReference {
@@ -221,6 +241,12 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public static ClassTypeReference read(PacketInputStream ps) {
             return new ClassTypeReference(ps.readClassRef());
         }
+
+        @Override
+        public String toCode() {
+            return String.format("classType(%sL)", value);
+        }
+
     }
 
     public static class ArrayTypeReference extends TypeReference {
@@ -231,6 +257,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
         public static ArrayTypeReference read(PacketInputStream ps) {
             return new ArrayTypeReference(ps.readClassRef());
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("arrayType(%sL)", value);
         }
     }
 
@@ -249,6 +280,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public static TypeObjectReference read(PacketInputStream ps) {
             return new TypeObjectReference(ps.readClassRef());
         }
+
+        @Override
+        public String toCode() {
+            return String.format("typeObject(%sL)", value);
+        }
     }
 
     public static class ClassReference extends TypeObjectReference {
@@ -264,6 +300,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public static ClassReference read(PacketInputStream ps) {
             return new ClassReference(ps.readClassRef());
         }
+
+        @Override
+        public String toCode() {
+            return String.format("klass(%sL)", value);
+        }
     }
 
     public static class InterfaceReference extends TypeObjectReference {
@@ -278,6 +319,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
         public static InterfaceReference read(PacketInputStream ps) {
             return new InterfaceReference(ps.readClassRef());
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("interfac(%sL)", value);
         }
     }
 
@@ -299,6 +345,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public BasicGroup getGroup() {
             return BasicGroup.METHOD_REF;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("method(%sL)", value);
+        }
     }
 
     public static class ArrayReference extends ObjectReference {
@@ -313,6 +364,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
         public static ArrayReference read(PacketInputStream ps) {
             return new ArrayReference(ps.readObjectRef());
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("array(%sL)", value);
         }
     }
 
@@ -334,10 +390,15 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public BasicGroup getGroup() {
             return BasicGroup.MODULE_REF;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("module(%sL)", value);
+        }
     }
 
     public static class FieldReference extends Reference {
-        FieldReference(long val) {
+        public FieldReference(long val) {
             super(Type.OBJECT, val);
         }
 
@@ -362,6 +423,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public BasicGroup getGroup() {
             return BasicGroup.FIELD_REF;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("field(%sL)", value);
+        }
     }
 
     public static class FrameReference extends Reference {
@@ -382,6 +448,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public BasicGroup getGroup() {
             return BasicGroup.FRAME_REF;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("frame(%sL)", value);
+        }
     }
 
     public static class ClassLoaderReference extends Reference {
@@ -397,6 +468,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
         public BasicGroup getGroup() {
             return BasicGroup.CLASSLOADER_REF;
         }
+
+        @Override
+        public String toCode() {
+            return String.format("classLoader(%sL)", value);
+        }
     }
 
     public static class ClassObjectReference extends HeapReference {
@@ -406,6 +482,11 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
         public static ClassObjectReference read(PacketInputStream ps) {
             return new ClassObjectReference(ps.readObjectRef());
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("classObject(%sL)", value);
         }
     }
 

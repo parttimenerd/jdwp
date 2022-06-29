@@ -82,18 +82,23 @@ public class ValueTest {
 
     static Object[][] testToCodeMethodSource() {
         return new Object[][]{
-                {wrap(1), "PrimitiveValue.wrap(1)"},
+                {wrap(1), "wrap(1)"},
                 {new Location(Reference.classType(1), Reference.method(2), wrap(1L)),
-                        "new Location(new ClassTypeReference(1L), new MethodReference(2L), PrimitiveValue.wrap((long)1))"},
-                {new GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057), new IntValue(0)))),
-                        "new jdwp.ArrayReferenceCmds.GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057L), PrimitiveValue.wrap(0))))"},
+                        "new Location(classType(1L), method(2L), wrap(1L))"},
+                {new GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of(new ArrayReference(1057),
+                        new IntValue(0)))),
+                        "new jdwp.ArrayReferenceCmds.GetValuesReply(150156, new BasicListValue<>(Type.LIST, List.of" +
+                                "(array(1057L), wrap(0))))"},
                 {new EventCmds.Events.VMStart(wrap(1), Reference.thread(2)),
-                        "new EventCmds.Events.VMStart(PrimitiveValue.wrap(1), new ThreadReference(2L))"},
-                {wrap("test"), "PrimitiveValue.wrap(\"test\")"},
+                        "new EventCmds.Events.VMStart(wrap(1), thread(2L))"},
+                {wrap("test"), "wrap(\"test\")"},
                 {new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap("sun.instrument.InstrumentationImpl")),
-                        "new EventRequestCmds.SetRequest.ClassMatch(PrimitiveValue.wrap(\"sun.instrument.InstrumentationImpl\"))"},
-                {new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(new MethodReference(105553140349016L), PrimitiveValue.wrap("<init>"), PrimitiveValue.wrap("(JZZ)V"), PrimitiveValue.wrap(""), PrimitiveValue.wrap(2)),
-                        "new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(new MethodReference(105553140349016L), PrimitiveValue.wrap(\"<init>\"), PrimitiveValue.wrap(\"(JZZ)V\"), PrimitiveValue.wrap(\"\"), PrimitiveValue.wrap(2))"}
+                        "new EventRequestCmds.SetRequest.ClassMatch(wrap(\"sun.instrument.InstrumentationImpl\"))"},
+                {new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(new MethodReference(105553140349016L),
+                        PrimitiveValue.wrap("<init>"), PrimitiveValue.wrap("(JZZ)V"), PrimitiveValue.wrap(""),
+                        PrimitiveValue.wrap(2)),
+                        "new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(105553140349016L), wrap" +
+                                "(\"<init>\"), wrap(\"(JZZ)V\"), wrap(\"\"), wrap(2))"}
         };
     }
 

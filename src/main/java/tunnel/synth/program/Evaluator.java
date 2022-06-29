@@ -21,6 +21,7 @@ import java.util.stream.Stream;
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.Value.Type.OBJECT;
 import static jdwp.util.Pair.p;
+import static tunnel.synth.Analyser.LOG;
 import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
 public class Evaluator {
@@ -144,17 +145,32 @@ public class Evaluator {
      */
     private Pair<Scopes<Value>, Set<Statement>> evaluate(Scopes<Value> scope, Body body) {
         Map<Recursion, Integer> recursiveEvaluations = new HashMap<>();
-        Set<Statement> notEvaluated = new HashSet<>();
+        Stack<Set<Statement>> notEvaluatedScopes = new Stack<>();
+        notEvaluatedScopes.push(new HashSet<>());
+        var notEvaluated = new HashSet<Statement>();
         body.accept(
                 new StatementVisitor() {
 
+                    private void pushNotEvaluatedScope() {
+                        notEvaluatedScopes.push(new HashSet<>());
+                    }
+
+                    private void popNotEvaluatedScope() {
+                        notEvaluatedScopes.pop();
+                    }
+
                     private void addToNotEvaluated(Statement statement) {
-                        notEvaluated.addAll(body.getDependentStatementsAndAnchor(statement));
+                        notEvaluatedScopes.peek().addAll(body.getDependentStatementsAndAnchor(statement));
+                        notEvaluated.addAll(notEvaluatedScopes.peek());
+                    }
+
+                    private boolean isNotEvaluated(Statement statement) {
+                        return notEvaluatedScopes.peek().contains(statement);
                     }
 
                     @Override
                     public void visit(Loop loop) {
-                        if (notEvaluated.contains(loop)) {
+                        if (isNotEvaluated(loop)) {
                             return;
                         }
                         Value iterable;
@@ -181,7 +197,7 @@ public class Evaluator {
 
                     @Override
                     public void visit(AssignmentStatement assignment) {
-                        if (notEvaluated.contains(assignment)) {
+                        if (isNotEvaluated(assignment)) {
                             return;
                         }
                         try {
@@ -202,28 +218,33 @@ public class Evaluator {
 
                     @Override
                     public void visit(Body body) {
-                        if (notEvaluated.contains(body)) {
+                        if (isNotEvaluated(body)) {
                             return;
                         }
-                        for (int i = 0; i < body.getSubStatements().size(); i++) {
-                            var s = body.getSubStatements().get(i);
-                            try {
-                                s.accept(this);
-                            } catch (EvaluationAbortException e) {
-                                errorConsumer.accept(e);
-                                addToNotEvaluated(s);
-                                if (e.discard) {
-                                    for (int j = i + 1; j < body.getSubStatements().size(); j++) {
-                                        addToNotEvaluated(body.getSubStatements().get(j));
+                        pushNotEvaluatedScope();
+                        try {
+                            for (int i = 0; i < body.getSubStatements().size(); i++) {
+                                var s = body.getSubStatements().get(i);
+                                try {
+                                    s.accept(this);
+                                } catch (EvaluationAbortException e) {
+                                    errorConsumer.accept(e);
+                                    addToNotEvaluated(s);
+                                    if (e.discard) {
+                                        for (int j = i + 1; j < body.getSubStatements().size(); j++) {
+                                            addToNotEvaluated(body.getSubStatements().get(j));
+                                        }
+                                        throw e;
                                     }
-                                    throw e;
                                 }
                             }
+                        } finally {
+                            popNotEvaluatedScope();
                         }
                     }
 
                     public void visit(MapCallStatement mapCall) {
-                        if (notEvaluated.contains(mapCall)) {
+                        if (isNotEvaluated(mapCall)) {
                             return;
                         }
                         Value iterable;
@@ -283,7 +304,7 @@ public class Evaluator {
 
                     @Override
                     public void visit(SwitchStatement switchStatement) {
-                        if (notEvaluated.contains(switchStatement)) {
+                        if (isNotEvaluated(switchStatement)) {
                             return;
                         }
                         Value expression;
@@ -314,20 +335,14 @@ public class Evaluator {
 
                     @Override
                     public void visit(Recursion recursion) {
-                        visit(recursion, null);
+                        visit(recursion, null, null);
                     }
 
-                    private void visit(Recursion recursion, @Nullable List<CallProperty> newProperties) {
-                        if (notEvaluated.contains(recursion)) {
+                    private void visit(Recursion recursion, @Nullable List<CallProperty> newProperties, @Nullable Identifier headerAssignmentVar) {
+                        if (isNotEvaluated(recursion)) {
                             return;
                         }
-                        if (recursiveEvaluations.getOrDefault(recursion, 0) >= recursion.getMaxNumberOfCalls()) {
-                            addToNotEvaluated(recursion);
-                            throw new EvaluationAbortException(false,
-                                    String.format("Recursion depth exceeded in %s", recursion));
-                        }
                         scope.push();
-                        recursiveEvaluations.put(recursion, recursiveEvaluations.getOrDefault(recursion, 0) + 1);
                         Reply reply;
                         try {
                             var request = recursion.getRequest();
@@ -336,6 +351,9 @@ public class Evaluator {
                             }
                             reply = (Reply) evaluate(scope, request);
                             scope.put(recursion.getRequestVariable().getName(), reply.asCombined());
+                            if (headerAssignmentVar != null && scope.hasParent()) {
+                                scope.getParent().put(headerAssignmentVar.getName(), reply.asCombined());
+                            }
                         } catch (AssertionError | Exception e) {
                             addToNotEvaluated(recursion);
                             scope.pop();
@@ -343,22 +361,38 @@ public class Evaluator {
                                     e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
                                     "recursive header evaluation failed", e);
                         }
-                        if (reply.asCombined().getValues().stream()
-                                .anyMatch(p -> p.second instanceof Reference && ((Reference) p.second).value == 0)) {
+                        if (recursiveEvaluations.getOrDefault(recursion, 0) >= recursion.getMaxNumberOfCalls()) {
+                            scope.pop();
+                            addToNotEvaluated(recursion);
+                            throw new EvaluationAbortException(false,
+                                    String.format("Recursion depth exceeded in %s", recursion));
+                        }
+                        recursiveEvaluations.put(recursion, recursiveEvaluations.getOrDefault(recursion, 0) + 1);
+                        if (reply.hasNullReference()) {
                             scope.pop();
                             return; // 0 indicates the termination of the recursion (a 0 reference is usually invalid)
                         }
-                        recursion.getBody().accept(this);
+                        pushNotEvaluatedScope();
+                        try {
+                            recursion.getBody().accept(this);
+                        } catch(EvaluationAbortException ex){
+                            if(ex.discard){
+                                throw ex;
+                            }
+                            LOG.error("Evaluation of recursion body failed", ex);
+                        } finally {
+                            popNotEvaluatedScope();
+                        }
                         scope.pop();
                     }
 
                     @Override
                     public void visit(RecRequestCall recCall) {
-                        if (notEvaluated.contains(recCall)) {
+                        if (isNotEvaluated(recCall)) {
                             return;
                         }
                         var recursion = (Recursion) recCall.getName().getSource();
-                        visit(recursion, recCall.getArguments());
+                        visit(recursion, recCall.getArguments(), recCall.getVariable());
                     }
                 });
         return p(scope, notEvaluated);
@@ -383,7 +417,12 @@ public class Evaluator {
 
                     @Override
                     public Value visit(RequestCall requestCall) {
-                        return functions.processRequest((Request<?>) evaluatePacketCall(scope, requestCall));
+                        var value = functions.processRequest((Request<?>) evaluatePacketCall(scope, requestCall));
+                        if (value instanceof Reply && ((Reply) value).hasNullReference()) {
+                            throw new EvaluationAbortException(false,
+                                    "null reference in reply " + value + " for " + requestCall);
+                        }
+                        return value;
                     }
 
                     @Override

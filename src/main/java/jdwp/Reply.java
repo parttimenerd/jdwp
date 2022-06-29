@@ -22,4 +22,8 @@ public interface Reply extends ParsedPacket, WithMetadata {
     boolean isAffectedBy(Request<?> other);
 
     void accept(ReplyVisitor visitor);
+
+    default boolean hasNullReference() {
+        return asCombined().hasNullReference();
+    }
 }

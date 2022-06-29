@@ -181,6 +181,7 @@ public class Parser {
         skipWhitespace();
         currentRecs.push();
         currentRecs.put(name.toString(), name);
+        identifiers.put(requestVariable.toString(), requestVariable);
         var body = parseBlock();
         currentRecs.pop();
         identifiers.pop();
@@ -189,13 +190,15 @@ public class Parser {
 
     RecRequestCall parseRecCall() {
         skipWhitespace();
+        var variable = parseIdentifierAndRecord();
+        skipWhitespace();
         var name = parseIdentifier();
         if (!currentRecs.contains(name.getName())) {
             throw new SyntaxError(line, column, "Unknown recursion " + name);
         }
         skipWhitespace();
         List<CallProperty> arguments = parseCallPropertyList();
-        return new RecRequestCall(name, arguments);
+        return new RecRequestCall(variable, name, arguments);
     }
 
     MapCallStatement parseMapCallStatement() {

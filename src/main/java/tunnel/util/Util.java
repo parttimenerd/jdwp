@@ -32,4 +32,8 @@ public class Util {
             return 0;
         }
     }
+
+    public static <T> T or(T x, T y) {
+        return x == null ? y : x;
+    }
 }

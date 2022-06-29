@@ -393,6 +393,10 @@ public abstract class Value implements ToCode {
                     .map(p -> p.first)
                     .collect(Collectors.toList());
         }
+
+        public boolean hasNullReference() {
+            return getValues().stream().anyMatch(p -> p.second instanceof Reference && ((Reference) p.second).value == 0);
+        }
     }
 
     /**
@@ -815,7 +819,7 @@ public abstract class Value implements ToCode {
         @Override
         public String toCode() {
             return String.format("new ByteList(%s)",
-                    Arrays.asList(bytes).stream().map(b -> "" + b).collect(Collectors.joining(", ")));
+                    Arrays.asList(bytes).stream().map(b -> "(byte)" + b).collect(Collectors.joining(", ")));
         }
 
         @Override

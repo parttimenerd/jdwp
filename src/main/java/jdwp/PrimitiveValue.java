@@ -36,7 +36,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
 
     @Override
     public String toCode() {
-        return String.format("PrimitiveValue.wrap((%s)%s)",
+        return String.format("wrap((%s)%s)",
                 getClass().getSimpleName().replace("Value", "").toLowerCase(), value);
     }
 
@@ -187,7 +187,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
 
         @Override
         public String toCode() {
-            return String.format("PrimitiveValue.wrap(%s)", value);
+            return String.format("wrap(%s)", value);
         }
     }
 
@@ -212,6 +212,11 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         @Override
         public BasicGroup getGroup() {
             return BasicGroup.LONG;
+        }
+
+        @Override
+        public String toCode() {
+            return String.format("wrap(%sL)", value);
         }
     }
 
@@ -293,7 +298,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
 
         @Override
         public String toCode() {
-            return String.format("PrimitiveValue.wrap(\"%s\")", value);
+            return String.format("wrap(\"%s\")", value);
         }
 
         @Override
@@ -313,7 +318,6 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
         }
 
         public static final VoidValue VALUE = new VoidValue();
-
 
         @Override
         public void write(PacketOutputStream packetStream) {
