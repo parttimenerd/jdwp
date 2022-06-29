@@ -1193,7 +1193,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                     commonFields.get(best.first).get(best.second).entrySet().stream()
                             .collect(Collectors.toMap(e -> Functions.createWrapperFunctionCall(e.getKey()),
                                     Entry::getValue)),
-                    best.second.map(BasicValueTransformer::returnsTag).orElse(false));
+                    best.second.map(t -> !t.returnsTag()).orElse(false));
         }
 
         /**

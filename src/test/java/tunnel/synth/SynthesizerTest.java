@@ -564,18 +564,18 @@ wrap("Ljava/lang" +
            " \"declaringType\")=(wrap \"class-type\" 1070) (\"events\" 0 \"location\" \"methodRef\")=(wrap \"method\"" +
             " 105553136387016)))\n" +
                         "  (= var0 (request ReferenceType Interfaces (\"refType\")=(get cause \"events\" 0 " +
-                        "\"location\" \"declaringType\")))\n" +
+                         "\"location\" \"declaringType\")))\n" +
                         "  (= var1 (request ReferenceType FieldsWithGeneric (\"refType\")=(get cause \"events\" 0 " +
-                        "\"location\" \"declaringType\")))\n" +
+                         "\"location\" \"declaringType\")))\n" +
                         "  (rec recursion0 1000 var2 (request ClassType Superclass (\"clazz\")=(get cause \"events\" " +
-                        "0 \"location\" \"declaringType\"))\n" +
+                         "0 \"location\" \"declaringType\"))\n" +
                         "    (= var3 (request ReferenceType Interfaces (\"refType\")=(get var2 \"superclass\")))\n" +
                         "    (= var4 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var2 \"superclass\")" +
-                        "))\n" +
+                         "))\n" +
                         "    (reccall var5 recursion0 (\"clazz\")=(get var2 \"superclass\")))\n" +
                         "  (= var4 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
                         "  (= var5 (request ThreadReference Status (\"thread\")=(get cause \"events\" 0 \"thread\")))" +
-                        "\n" +
+                         "\n" +
                         "  (= var6 (request ThreadReference ThreadGroup (\"thread\")=(get cause \"events\" 0 " +
                          "\"thread\")))\n" +
                         "  (= var7 (request ThreadReference FrameCount (\"thread\")=(get cause \"events\" 0 " +
@@ -589,7 +589,7 @@ wrap("Ljava/lang" +
                          "\"location\" \"methodRef\") (\"refType\")=(get cause \"events\" 0 \"location\" " +
                           "\"declaringType\")))\n" +
                         "  (map map0 (get var11 \"slots\") 0 iter1 (\"sigbyte\")=(getTagForSignature (get iter1 " +
-                        "\"signature\")) (\"slot\")=(get iter1 \"slot\"))\n" +
+                         "\"signature\")) (\"slot\")=(get iter1 \"slot\"))\n" +
                         "  (= var12 (request StackFrame GetValues (\"frame\")=(get var8 \"frames\" 0 \"frameID\") " +
                          "(\"slots\")=map0 (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
                         "  (for iter0 (get var12 \"values\") \n" +
@@ -604,12 +604,7 @@ wrap("Ljava/lang" +
                         "          (= var16 (request ReferenceType Interfaces (\"refType\")=iter2)))\n" +
                         "        (= var16 (request ClassType Superclass (\"clazz\")=(get var13 \"typeID\"))))\n" +
                         "      (default\n" +
-                        "        (= var13 (request ObjectReference ReferenceType (\"object\")=iter0))\n" +
-                        "        (= var14 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
-                        "        (= var15 (request ReferenceType Interfaces (\"refType\")=(get var13 \"typeID\")))\n" +
-                        "        (for iter2 (get var15 \"interfaces\") \n" +
-                        "          (= var16 (request ReferenceType Interfaces (\"refType\")=iter2)))\n" +
-                        "        (= var16 (request ClassType Superclass (\"clazz\")=(get var13 \"typeID\")))))))",
+                        "        (= var13 (request ObjectReference ReferenceType (\"object\")=iter0))))))",
                 Synthesizer.synthesizeProgram(partition).toPrettyString());
     }
 
@@ -1108,34 +1103,33 @@ new ReplyOrError<>(2276716, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2
                   new ListValue<>(Type.LIST, List.of()))))));
 
         assertEquals("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 40) (\"suspendPolicy\")=" +
-                        "(wrap \"byte\" 1) (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"ThreadOnly\") (\"modifiers\"" +
-                        " 0 \"thread\")=" +
-                        "(wrap \"thread\" 1)))\n" +
+                        "(wrap \"byte\" 1) (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"ThreadOnly\") (\"modifiers\" 0 \"thread\")=" +
+          "(wrap \"thread\" 1)))\n" +
                         "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 40) (\"suspendPolicy\")=" +
                         "(wrap \"byte\" 1) (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"ThreadOnly\") " +
-                        "(\"modifiers\" 0 \"thread\")=(wrap \"thread\" 1)))\n" +
+                          "(\"modifiers\" 0 \"thread\")=(wrap \"thread\" 1)))\n" +
                         "  (= var1 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 961)))\n" +
                         "  (= var2 (request ThreadReference Name (\"thread\")=(get cause \"modifiers\" 0 \"thread\"))" +
                         ")\n" +
                         "  (= var3 (request ThreadReference Status (\"thread\")=(get cause \"modifiers\" 0 " +
-                        "\"thread\")))\n" +
-                        "  (= var4 (request ThreadReference Frames (\"length\")=(wrap \"int\" 4) (\"startFrame\")=" +
+                         "\"thread\")))\n" +
+                        "  (= var4 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) (\"startFrame\")=" +
                         "(wrap \"int\" 0) (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
-                        "  (= var5 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) (\"startFrame\")=" +
-                        "(wrap \"int\" 0) (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
-                        "  (= var6 (request ThreadReference FrameCount (\"thread\")=(get cause \"modifiers\" 0 " +
-                        "\"thread\")))\n" +
-                        "  (= var7 (request StackFrame ThisObject (\"frame\")=(get var5 \"frames\" 0 \"frameID\") " +
+                        "  (= var5 (request ThreadReference FrameCount (\"thread\")=(get cause \"modifiers\" 0 " +
+                         "\"thread\")))\n" +
+                        "  (= var6 (request ThreadReference Frames (\"length\")=(get var5 \"frameCount\") " +
+                        "(\"startFrame\")=(wrap \"int\" 0) (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
+                        "  (= var7 (request StackFrame ThisObject (\"frame\")=(get var4 \"frames\" 0 \"frameID\") " +
                         "(\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
                         "  (= var8 (request ObjectReference GetValues (\"object\")=(get var7 \"objectThis\") " +
                         "(\"fields\" 0 \"fieldID\")=(wrap \"field\" 50)))\n" +
-                        "  (= var9 (request StackFrame GetValues (\"frame\")=(get var4 \"frames\" 0 \"frameID\") " +
-                        "(\"thread\")=(get cause \"modifiers\" 0 \"thread\") (\"slots\" 0 \"sigbyte\")=" +
-                        "(getTagForValue (get var4 \"frames\" 0 \"frameID\")) (\"slots\" 0 \"slot\")=(wrap \"int\" " +
-                        "1)))\n" +
+                        "  (= var9 (request StackFrame GetValues (\"frame\")=(get var6 \"frames\" 0 \"frameID\") " +
+                         "(\"thread\")=(get cause \"modifiers\" 0 \"thread\") (\"slots\" 0 \"sigbyte\")=" +
+                          "(getTagForValue (get var6 \"frames\" 0 \"frameID\")) (\"slots\" 0 \"slot\")=(wrap \"int\" " +
+                           "1)))\n" +
                         "  (= var10 (request ObjectReference ReferenceType (\"object\")=(get var9 \"values\" 0)))\n" +
                         "  (rec recursion0 1000 var11 (request ReferenceType Interfaces (\"refType\")=(get var10 " +
-                        "\"typeID\"))\n" +
+                         "\"typeID\"))\n" +
                         "    (for iter0 (get var11 \"interfaces\") \n" +
                         "      (reccall var13 recursion0 (\"refType\")=iter0)\n" +
                         "      (= var12 (request ReferenceType MethodsWithGeneric (\"refType\")=iter0))\n" +
