@@ -537,7 +537,7 @@ public class DependencyGraph {
         if (propertyName.equals("sigbyte")) {
             return "refTypeTag";
         }
-        return propertyName.replaceAll("count", "length");
+        return propertyName.replaceAll("[Cc]ount", "Length");
     }
 
     private static Set<String> getCamelCaseParts(String propertyName) {

@@ -720,8 +720,8 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 var currentPath = new AccessPath(field, i);
                 for (Edge edge : node.getDependedByField(currentPath)) {
                     if (alreadyCapturedNodes.contains(edge.getTarget())) {
-                        skipOuter = true;
-                        break;
+                        //skipOuter = true; // I don't know why I aborted this loop before, but it seems to work without it
+                        continue;
                     }
                     alreadyCapturedNodes.add(edge.getTarget());
                     innerHeader.add(edge.getTarget());

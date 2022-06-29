@@ -559,13 +559,10 @@ wrap("Ljava/lang" +
                         new jdwp.ReferenceTypeCmds.InterfacesReply(20459, new ListValue<>(Type.LIST, List.of())))),
                 p(new jdwp.ReferenceTypeCmds.InterfacesRequest(20454, klass(1053L)), new ReplyOrError<>(20454,
         assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")" +
-                        "=(wrap \"string\" \"Breakpoint\") (\"events\" 0 \"requestID\")=(wrap \"int\" 42) (\"events\"" +
-                        " 0 \"thread\")=" +
-                        "(wrap \"thread\" 1) (\"events\" 0 \"location\" \"codeIndex\")=(wrap \"long\" 5) (\"events\" " +
-                        "0 \"location\"" +
-                        " \"declaringType\")=(wrap \"class-type\" 1070) (\"events\" 0 \"location\" \"methodRef\")=" +
-                        "(wrap \"method\"" +
-                        " 105553136387016)))\n" +
+                        "=(wrap \"string\" \"Breakpoint\") (\"events\" 0 \"requestID\")=(wrap \"int\" 42) (\"events\" 0 \"thread\")=" +
+                        "(wrap \"thread\" 1) (\"events\" 0 \"location\" \"codeIndex\")=(wrap \"long\" 5) (\"events\" 0 \"location\"" +
+           " \"declaringType\")=(wrap \"class-type\" 1070) (\"events\" 0 \"location\" \"methodRef\")=(wrap \"method\"" +
+            " 105553136387016)))\n" +
                         "  (= var0 (request ReferenceType Interfaces (\"refType\")=(get cause \"events\" 0 " +
                         "\"location\" \"declaringType\")))\n" +
                         "  (= var1 (request ReferenceType FieldsWithGeneric (\"refType\")=(get cause \"events\" 0 " +
@@ -580,21 +577,21 @@ wrap("Ljava/lang" +
                         "  (= var5 (request ThreadReference Status (\"thread\")=(get cause \"events\" 0 \"thread\")))" +
                         "\n" +
                         "  (= var6 (request ThreadReference ThreadGroup (\"thread\")=(get cause \"events\" 0 " +
-                        "\"thread\")))\n" +
-                        "  (= var7 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) (\"startFrame\")=" +
-                        "(wrap \"int\" 0) (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
-                        "  (= var8 (request ThreadReference FrameCount (\"thread\")=(get cause \"events\" 0 " +
-                        "\"thread\")))\n" +
-                        "  (= var9 (request Method IsObsolete (\"methodID\")=(get var7 \"frames\" 0 \"location\" " +
-                        "\"methodRef\") (\"refType\")=(get cause \"events\" 0 \"location\" \"declaringType\")))\n" +
-                        "  (= var10 (request Method VariableTableWithGeneric (\"methodID\")=(get var7 \"frames\" 0 " +
-                        "\"location\" \"methodRef\") (\"refType\")=(get cause \"events\" 0 \"location\" " +
-                        "\"declaringType\")))\n" +
-                        "  (= var11 (request ThreadGroupReference Name (\"group\")=(get var6 \"group\")))\n" +
-                        "  (map map0 (get var10 \"slots\") iter1 (\"sigbyte\")=(getTagForSignature (get iter1 " +
+                         "\"thread\")))\n" +
+                        "  (= var7 (request ThreadReference FrameCount (\"thread\")=(get cause \"events\" 0 " +
+                         "\"thread\")))\n" +
+                        "  (= var8 (request ThreadReference Frames (\"length\")=(get var7 \"frameCount\") " +
+                         "(\"startFrame\")=(wrap \"int\" 0) (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
+                        "  (= var9 (request ThreadGroupReference Name (\"group\")=(get var6 \"group\")))\n" +
+                        "  (= var10 (request Method IsObsolete (\"methodID\")=(get var8 \"frames\" 0 \"location\" " +
+                         "\"methodRef\") (\"refType\")=(get cause \"events\" 0 \"location\" \"declaringType\")))\n" +
+                        "  (= var11 (request Method VariableTableWithGeneric (\"methodID\")=(get var8 \"frames\" 0 " +
+                         "\"location\" \"methodRef\") (\"refType\")=(get cause \"events\" 0 \"location\" " +
+                          "\"declaringType\")))\n" +
+                        "  (map map0 (get var11 \"slots\") 0 iter1 (\"sigbyte\")=(getTagForSignature (get iter1 " +
                         "\"signature\")) (\"slot\")=(get iter1 \"slot\"))\n" +
-                        "  (= var12 (request StackFrame GetValues (\"frame\")=(get var7 \"frames\" 0 \"frameID\") " +
-                        "(\"slots\")=map0 (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
+                        "  (= var12 (request StackFrame GetValues (\"frame\")=(get var8 \"frames\" 0 \"frameID\") " +
+                         "(\"slots\")=map0 (\"thread\")=(get cause \"events\" 0 \"thread\")))\n" +
                         "  (for iter0 (get var12 \"values\") \n" +
                         "    (switch (getTagForValue iter0)\n" +
                         "      (case (wrap \"byte\" 91)\n" +
@@ -611,6 +608,7 @@ wrap("Ljava/lang" +
                         "        (= var14 (request ArrayReference Length (\"arrayObject\")=iter0))\n" +
                         "        (= var15 (request ReferenceType Interfaces (\"refType\")=(get var13 \"typeID\")))\n" +
                         "        (for iter2 (get var15 \"interfaces\") \n" +
+                        "          (= var16 (request ReferenceType Interfaces (\"refType\")=iter2)))\n" +
                         "        (= var16 (request ClassType Superclass (\"clazz\")=(get var13 \"typeID\")))))))",
                 Synthesizer.synthesizeProgram(partition).toPrettyString());
     }
@@ -651,14 +649,15 @@ wrap("Ljava/lang" +
                         jdwp.StackFrameCmds.GetValuesReply(20422, new ListValue<>(Type.LIST,
                         List.of(new ArrayReference(1072L), new ObjectReference(1073L), PrimitiveValue.wrap(0)))))));
         assertEquals("(\n" +
-                "  (= var0 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) (\"startFrame\")=(wrap " +
-                "\"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
-                "  (= var1 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
-                "  (= var2 (request Method VariableTableWithGeneric (\"methodID\")=(get var0 \"frames\" 0 " +
-                "\"location\" \"methodRef\") (\"refType\")=(get var0 \"frames\" 0 \"location\" \"declaringType\")))\n" +
-                "  (map map0 (get var2 \"slots\") iter0 (\"sigbyte\")=(getTagForSignature (get iter0 \"signature\")) " +
-                "(\"slot\")=(get iter0 \"slot\"))\n" +
-                "  (= var3 (request StackFrame GetValues (\"frame\")=(get var0 \"frames\" 0 \"frameID\") (\"slots\")" +
+                "  (= var0 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                "  (= var1 (request ThreadReference Frames (\"length\")=(get var0 \"frameCount\") (\"startFrame\")=" +
+                "(wrap \"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                "  (= var2 (request Method VariableTableWithGeneric (\"methodID\")=(get var1 \"frames\" 0 " +
+                "\"location\" \"methodRef\") (\"refType\")=(get var1 \"frames\" 0 \"location\" \"declaringType\")))" +
+                "\n" +
+                "  (map map0 (get var2 \"slots\") 0 iter0 (\"sigbyte\")=(getTagForSignature (get iter0 \"signature\")" +
+                ") (\"slot\")=(get iter0 \"slot\"))\n" +
+                "  (= var3 (request StackFrame GetValues (\"frame\")=(get var1 \"frames\" 0 \"frameID\") (\"slots\")" +
                 "=map0 (\"thread\")=(wrap \"thread\" 1))))", Synthesizer.synthesizeProgram(partition).toPrettyString());
     }
 
@@ -1150,6 +1149,46 @@ new ReplyOrError<>(2276716, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2
     }
 
     @Test
+    public void testSynthesizeLoop() {
+        var partition = new Partition(null, List.of(
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(2276482, thread(1L)), new ReplyOrError<>(2276482,
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(2276482, wrap(5)))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(2276494, thread(1L), wrap(0), wrap(5)),
+                        new ReplyOrError<>(2276494, new jdwp.ThreadReferenceCmds.FramesReply(2276494,
+                                new ListValue<>(Type.LIST,
+                                        List.of(new ThreadReferenceCmds.FramesReply.Frame(frame(4653056L),
+                                                        new Location(classType(1084L), method(105553140938200L),
+                                                                wrap(12L))),
+                                                new ThreadReferenceCmds.FramesReply.Frame(frame(4653057L),
+                                                        new Location(classType(1079L),
+                                                                method(5099358456L), wrap(4L))),
+                                                new ThreadReferenceCmds.FramesReply.Frame(frame(4653058L),
+                                                        new Location(classType(1079L), method(5099358520L), wrap(11L))),
+                                                new ThreadReferenceCmds.FramesReply.Frame(frame(4653059L),
+                                                        new Location(classType(1077L),
+                                                                method(105553141105552L), wrap(8L))),
+                                                new ThreadReferenceCmds.FramesReply.Frame(frame(4653060L),
+                                                        new Location(classType(1070L),
+                                                                method(105553141105544L), wrap(14L)))))))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(2276495, klass(1079L)),
+                        new ReplyOrError<>(2276495, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2276495,
+                                new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(2276500, klass(1077L)),
+                 new ReplyOrError<>(2276500,
+                        new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2276500, new ListValue<>(Type.LIST,
+                                List.of())))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(2276503, klass(1070L)), new ReplyOrError<>(2276503,
+                        new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2276503, new ListValue<>(Type.LIST, List.of()))))));
+        assertEquals("(\n" +
+                "  (= var0 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                "  (= var1 (request ThreadReference Frames (\"length\")=(get var0 \"frameCount\") (\"startFrame\")=" +
+                "(wrap \"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                "  (for iter0 (get var1 \"frames\") \n" +
+                "    (= var2 (request ReferenceType MethodsWithGeneric (\"refType\")=(get iter0 \"location\" " +
+                "\"declaringType\")))))", Synthesizer.synthesizeProgram(partition).toPrettyString());
+    }
+
+    @Test
     public void testExpectMapStatement() {
         var partition = new Partition(Either.left(new jdwp.EventRequestCmds.SetRequest(2276413,
                 PrimitiveValue.wrap((byte) 1), PrimitiveValue.wrap((byte) 2), new ListValue<>(Type.LIST,
@@ -1241,36 +1280,27 @@ new ReplyOrError<>(2276716, new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(2
                                 new ReplyOrError<>(2276427, new jdwp.ObjectReferenceCmds.ReferenceTypeReply(2276427,
                                         PrimitiveValue.wrap((byte) 1), new ClassReference(884L))))));
         assertEquals("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 1) (\"suspendPolicy\")=(wrap" +
-                        " \"byte\" 2) (\"modifiers\" 0 \"depth\")=(wrap \"int\" 0) (\"modifiers\" 0 \"kind\")=(wrap " +
-                        "\"string\" " +
-                        "\"Step\") (\"modifiers\" 0 \"size\")=(wrap \"int\" 1) (\"modifiers\" 0 \"thread\")=(wrap " +
-                        "\"thread\" 1) " +
-                        "(\"modifiers\" 1 \"count\")=(wrap \"int\" 1) (\"modifiers\" 1 \"kind\")=(wrap \"string\" " +
-                        "\"Count\")))\n" +
+                        " \"byte\" 2) (\"modifiers\" 0 \"depth\")=(wrap \"int\" 0) (\"modifiers\" 0 \"kind\")=(wrap \"string\" " +
+                        "\"Step\") (\"modifiers\" 0 \"size\")=(wrap \"int\" 1) (\"modifiers\" 0 \"thread\")=(wrap \"thread\" 1) " +
+                        "(\"modifiers\" 1 \"count\")=(wrap \"int\" 1) (\"modifiers\" 1 \"kind\")=(wrap \"string\" \"Count\")))\n" +
                         "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 1) (\"suspendPolicy\")=" +
-                        "(wrap " +
-                        "\"byte\" 2) (\"modifiers\" 0 \"depth\")=(wrap \"int\" 0) (\"modifiers\" 0 \"kind\")=(wrap " +
-                        "\"string\" \"Step\") (\"modifiers\" 0 \"size\")=(wrap \"int\" 1) (\"modifiers\" 0 " +
-                        "\"thread\")=" +
-                        "(wrap \"thread\" 1) (\"modifiers\" 1 \"count\")=(wrap \"int\" 1) (\"modifiers\" 1 \"kind\")=" +
-                        "(wrap" +
-                        " \"string\" \"Count\")))\n" +
-                        "  (= var1 (request ThreadReference Frames (\"length\")=(wrap \"int\" 7) (\"startFrame\")=" +
-                        "(wrap " +
-                        "\"int\" 0) (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
-                        "  (= var2 (request ThreadReference FrameCount (\"thread\")=(get cause \"modifiers\" 0 " +
-                        "\"thread\")))" +
-                        "\n" +
-                        "  (= var3 (request Method VariableTableWithGeneric (\"methodID\")=(get var1 \"frames\" 0 " +
-                        "\"location\" \"methodRef\") (\"refType\")=(get var1 \"frames\" 0 \"location\" " +
-                        "\"declaringType\")))" +
-                        "\n" +
-                        "  (= var4 (request StackFrame ThisObject (\"frame\")=(get var1 \"frames\" 0 \"frameID\") " +
+                        "(wrap \"byte\" 2) (\"modifiers\" 0 \"depth\")=(wrap \"int\" 0) (\"modifiers\" 0 \"kind\")=" +
+                          "(wrap \"string\" \"Step\") (\"modifiers\" 0 \"size\")=(wrap \"int\" 1) (\"modifiers\" 0 " +
+                        "\"thread\")=(wrap \"thread\" 1) (\"modifiers\" 1 \"count\")=(wrap \"int\" 1) " +
+                        "(\"modifiers\" 1 \"kind\")=(wrap \"string\" \"Count\")))\n" +
+                        "  (= var1 (request ThreadReference FrameCount (\"thread\")=(get cause \"modifiers\" 0 " +
+                         "\"thread\")))\n" +
+                        "  (= var2 (request ThreadReference Frames (\"length\")=(get var1 \"frameCount\") " +
+                         "(\"startFrame\")=(wrap \"int\" 0) (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
+                        "  (= var3 (request Method VariableTableWithGeneric (\"methodID\")=(get var2 \"frames\" 0 " +
+                        "\"location\" \"methodRef\") (\"refType\")=(get var2 \"frames\" 0 \"location\" " +
+                        "\"declaringType\")))\n" +
+                        "  (= var4 (request StackFrame ThisObject (\"frame\")=(get var2 \"frames\" 0 \"frameID\") " +
                         "(\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
-                        "  (map map0 (get var3 \"slots\") 1 iter1 (\"sigbyte\")=(getTagForSignature (get iter1 \"signature\")" +
-                        ") (\"slot\")=(get iter1 \"slot\"))\n" +
-                        "  (= var5 (request StackFrame GetValues (\"frame\")=(get var1 \"frames\" 0 \"frameID\") (\"slots\")" +
-                        "=map0 (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
+                        "  (map map0 (get var3 \"slots\") 1 iter1 (\"sigbyte\")=(getTagForSignature (get iter1 " +
+                        "\"signature\")) (\"slot\")=(get iter1 \"slot\"))\n" +
+                        "  (= var5 (request StackFrame GetValues (\"frame\")=(get var2 \"frames\" 0 \"frameID\") " +
+                        "(\"slots\")=map0 (\"thread\")=(get cause \"modifiers\" 0 \"thread\")))\n" +
                         "  (= var6 (request ObjectReference ReferenceType (\"object\")=(get var5 \"values\" 1))))",
                 Synthesizer.synthesizeProgram(partition).toPrettyString());
     }

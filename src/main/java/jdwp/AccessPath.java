@@ -45,6 +45,13 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
         return new AccessPath(newPath);
     }
 
+    public AccessPath append(AccessPath other) {
+        Object[] newPath = new Object[path.length + other.path.length];
+        System.arraycopy(path, 0, newPath, 0, path.length);
+        System.arraycopy(other.path, 0, newPath, path.length, other.path.length);
+        return new AccessPath(newPath);
+    }
+
     public AccessPath prepend(Object[] prefix) {
         Object[] newPath = new Object[prefix.length + path.length];
         System.arraycopy(prefix, 0, newPath, 0, prefix.length);

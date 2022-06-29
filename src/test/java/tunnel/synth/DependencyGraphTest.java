@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static jdwp.PrimitiveValue.wrap;
+import static jdwp.Reference.thread;
 import static jdwp.Value.Type.OBJECT;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.*;
@@ -420,6 +421,22 @@ public class DependencyGraphTest {
                                         PrimitiveValue.wrap((byte) 32), PrimitiveValue.wrap((byte) 105),
                                         PrimitiveValue.wrap((byte) 32), PrimitiveValue.wrap((byte) 48),
                                         PrimitiveValue.wrap((byte) 41), PrimitiveValue.wrap((byte) 41))))))));
+        var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
+        var layers = graph.computeLayers();
+        assertEquals(2, layers.size());
+    }
+
+    @Test
+    public void testFramesUseFrameCount() {
+        var partition = new Partition(null, List.of(
+                p(new jdwp.ThreadReferenceCmds.FrameCountRequest(2276482, thread(1L)), new ReplyOrError<>(2276482,
+                        new jdwp.ThreadReferenceCmds.FrameCountReply(2276482, wrap(5)))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(2276485, thread(1L), wrap(0), wrap(1)),
+                        new ReplyOrError<>(2276485, new jdwp.ThreadReferenceCmds.FramesReply(2276485,
+                                new ListValue<>(Type.LIST, List.of())))),
+                p(new jdwp.ThreadReferenceCmds.FramesRequest(2276494, thread(1L), wrap(0), wrap(5)),
+                        new ReplyOrError<>(2276494, new jdwp.ThreadReferenceCmds.FramesReply(2276494,
+                                new ListValue<>(Type.LIST, List.of()))))));
         var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
         var layers = graph.computeLayers();
         assertEquals(2, layers.size());
