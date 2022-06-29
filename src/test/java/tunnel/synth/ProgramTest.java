@@ -141,9 +141,9 @@ public class ProgramTest {
 
     @ParameterizedTest
     @CsvSource({
-            "(map var0 xs x ()=(get x 'a'))",
-            "(map var0 xs x ('a')=(get x 'a'))",
-            "(map var0 xs x ('a')=(get x 'a') ('b')=(get x 'b'))",
+            "(map var0 xs 0 x ()=(get x 'a'))",
+            "(map var0 xs 0 x ('a')=(get x 'a'))",
+            "(map var0 xs 0 x ('a')=(get x 'a') ('b')=(get x 'b'))",
             "(switch x)",
             "(switch x (case 'a'))",
             "(switch x (case 'a' (= var0 1)))",
@@ -156,9 +156,9 @@ public class ProgramTest {
 
     @ParameterizedTest
     @CsvSource({
-            "((= xs 1) (map var0 xs x ()=(get x 'a')))",
-            "((= xs 1) (map var0 xs x ('a')=(get x 'a')))",
-            "((= xs 1) (map var0 xs x ('a')=(get x 'a') ('b')=(get x 'b')))",
+            "((= xs 1) (map var0 xs 0 x ()=(get x 'a')))",
+            "((= xs 1) (map var0 xs 0 x ('a')=(get x 'a')))",
+            "((= xs 1) (map var0 xs 0 x ('a')=(get x 'a') ('b')=(get x 'b')))",
             "((= x 1) (switch x))",
             "((= x 1) (switch x (case 'a')))",
             "((= x 1) (switch x (case 'a' (= var0 1))))",
@@ -601,7 +601,7 @@ public class ProgramTest {
                 "1))) (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 32505856) (\"thread\")=(wrap " +
                 "\"thread\" 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 91) (\"slots\" 0 \"slot\")=(wrap \"int\" 0) " +
                 "(\"slots\" 1 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 1 \"slot\")=(wrap \"int\" 1)))\n" +
-                "(map xs (get cause 'slots') x ('a')=(get x 'sigbyte') ('b')=(get x 'slot')))");
+                "(map xs (get cause 'slots') 0 x ('a')=(get x 'sigbyte') ('b')=(get x 'slot')))");
         var scopes = new Evaluator(vm, new RecordingFunctions()).evaluate(program).first;
         assertEquals(new ListValue<>(new MapCallResultEntry(Map.of("a", wrap((byte) 91), "b", wrap(0))),
                 new MapCallResultEntry(Map.of("a", wrap((byte) 73), "b", wrap(1)))), scopes.get("xs"));
@@ -615,7 +615,7 @@ public class ProgramTest {
                 "1))) (= var0 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 32505856) (\"thread\")=(wrap " +
                 "\"thread\" 1) (\"slots\" 0 \"sigbyte\")=(wrap \"byte\" 91) (\"slots\" 0 \"slot\")=(wrap \"int\" 0) " +
                 "(\"slots\" 1 \"sigbyte\")=(wrap \"byte\" 73) (\"slots\" 1 \"slot\")=(wrap \"int\" 1)))\n" +
-                "(map xs (get cause 'slots') x ('x')=(get x 'sigbyte')))");
+                "(map xs (get cause 'slots') 0 x ('x')=(get x 'sigbyte')))");
         var scopes = new Evaluator(vm, new RecordingFunctions()).evaluate(program).first;
         assertEquals(new MapCallResult(List.of(new MapCallResultEntry(Map.of("x", wrap((byte) 91))),
                 new MapCallResultEntry(Map.of("x", wrap((byte) 73))))), scopes.get("xs"));
@@ -664,7 +664,7 @@ public class ProgramTest {
         var program = Program.parse("(\n" +
                 "  (= var0 (request Method VariableTable ('methodID')=(wrap 'method' 32505856) " +
                 "     ('refType')=(wrap 'klass' 10)))\n" +
-                "  (map map0 (get var0 'slots') iter0 ('sigbyte')=(getTagForSignature (get iter0 'signature')) " +
+                "  (map map0 (get var0 'slots') 0 iter0 ('sigbyte')=(getTagForSignature (get iter0 'signature')) " +
                 "     ('slot')=(get iter0 'slot'))\n" +
                 "  (= var1 (request StackFrame GetValues ('frame')=(wrap 'frame' 1) ('slots')=map0 " +
                 "     ('thread')=(wrap 'thread' 1))))");

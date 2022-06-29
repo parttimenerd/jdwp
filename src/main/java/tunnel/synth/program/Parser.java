@@ -208,12 +208,14 @@ public class Parser {
         skipWhitespace();
         var iterable = parseExpression();
         skipWhitespace();
+        var skip = (int)(long)parseInteger().value;
+        skipWhitespace();
         identifiers.push();
         var iter = parseIdentifier();
         skipWhitespace();
         List<CallProperty> arguments = parseCallPropertyList();
         identifiers.pop();
-        return new MapCallStatement(variable, iterable, iter, arguments);
+        return new MapCallStatement(variable, iterable, skip, iter, arguments);
     }
 
     SwitchStatement parseSwitchStatement() {

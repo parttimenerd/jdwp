@@ -240,7 +240,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
 
             @Override
             public Hashed<Statement> visit(MapCallStatement mapCall) {
-                return Hashed.create(mapCall, (byte) 0, MAP_CALL, hash(mapCall.getIterable()));
+                return Hashed.create(mapCall, (byte) 0, MAP_CALL, mapCall.getSkip(), hash(mapCall.getIterable()));
             }
 
             @Override

@@ -1201,7 +1201,7 @@ public interface AST {
     }
 
     /**
-     * (map variable iterable iter [call properties])
+     * (map variable iterable skip iter [call properties])
      * <p>
      * Currently, only single string and empty paths are supported
      */
@@ -1210,12 +1210,15 @@ public interface AST {
     class MapCallStatement extends Statement {
         private final Identifier variable;
         private final Expression iterable;
+        /** skip the first n elements of the iterable */
+        private final int skip;
         private final Identifier iter;
         private final List<CallProperty> arguments;
 
-        public MapCallStatement(Identifier variable, Expression iterable, Identifier iter,
+        public MapCallStatement(Identifier variable, Expression iterable, int skip, Identifier iter,
                                 List<CallProperty> arguments) {
             this.variable = variable;
+            this.skip = skip;
             this.iterable = iterable;
             this.iter = iter;
             this.arguments = arguments;
@@ -1253,7 +1256,7 @@ public interface AST {
 
         @Override
         public String toPrettyString(String indent, String innerIndent) {
-            return String.format("%s(map %s %s %s%s%s)", indent, variable, iterable, iter,
+            return String.format("%s(map %s %s %d %s%s%s)", indent, variable, iterable, skip, iter,
                     arguments.isEmpty() ? "" : " ",
                     arguments.stream().map(CallProperty::toString).collect(Collectors.joining(" ")));
         }
@@ -1268,6 +1271,7 @@ public interface AST {
             return new MapCallStatement(
                     identifierReplacer.apply(variable),
                     iterable.replaceIdentifiersConv(identifierReplacer),
+                    skip,
                     identifierReplacer.apply(iter),
                     arguments.stream().map(p -> p.<CallProperty>replaceIdentifiersConv(identifierReplacer))
                             .collect(Collectors.toList()));

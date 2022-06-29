@@ -331,28 +331,28 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             // we can now use these to try to synthesize a map call
             // the main idea is that we use the first list item as a base and compute the cut over all list items
             // for overlapping we consider two tagged function calls the same if
-            //    1. they have the access paths and the same target node (value false in the stored pair), or
+            //    1. they have the access paths and the same target node (value INT_MIN in the stored pair), or
             //    2. they have the same target node
             //      - and their access paths only differ in their prior to last entry,
             //      - with the condition that this is the list index
-            //      - we record this information with the value true in the stored pair
+            //      - we record this information with the value (offset) in the stored pair
             // property -> [(index == list index, function call / constant)]
-            Map<String, List<Pair<Boolean, TaggedFunctionCallOrBasicValue>>> propertyToAccessors = new HashMap<>();
+            Map<String, List<Pair<Integer, TaggedFunctionCallOrBasicValue>>> propertyToAccessors = new HashMap<>();
 
             for (var property : properties) { // for every property get the accessors / constants
-                List<Pair<Boolean, TaggedFunctionCallOrBasicValue>> base = null;
+                List<Pair<Integer, TaggedFunctionCallOrBasicValue>> base = null;
                 for (int i = 0; i < listValue.size(); i++) {
                     var targetIndex = i;
                     var accessorOrConstants = indexToPropertyToAccessors.get(i).get(property);
                     var pairs = accessorOrConstants.stream().map(a -> {
                         if (a.taggedFunctionCall != null) {
                             if (a.taggedFunctionCall.accessPath.size() <= 1 || a.taggedFunctionCall.accessPath.get(-2) instanceof String) {
-                                return p(false, a);
+                                return p(Integer.MIN_VALUE, a);
                             }
                             var originIndex = (int) a.taggedFunctionCall.accessPath.get(-2);
-                            return p(originIndex == targetIndex, a);
+                            return p(originIndex - targetIndex, a);
                         }
-                        return p(false, a);
+                        return p(Integer.MIN_VALUE, a);
                     }).collect(Collectors.toList());
                     if (i == 0) { // easy, we do not have to do any overlapping
                         base = pairs;
@@ -366,86 +366,107 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 }
                 propertyToAccessors.put(property, base);
             }
-            // we now have a map of all overlapping accessors for each property
-            // the goal now is to produce a map call statement
-            // the only thing that we do not know is whether the indexed property accessors have the same origin node
-            // this is important as we cannot iterate over multiple origins in a single map call
-            // fixing this would be simple, but it should not happen in practice, so we skip it for now
-            // the simple heuristic is that we choose the first origin node that we come cross.
-            // for choosing the accessors for every property we use the following preference hierarchy:
-            //   1. indexed property accessors with the same origin node
-            //   2. non indexed property accessors
-            //   3. basic values
-            Box<Pair<Node, AccessPath>> indexedOriginNode = new Box<>(null); // origin node, base path
-            Map<String, CallProperty> propertyToCallProperty = new HashMap<>();
-            var iterName = createNewName(ITER_NAME_PREFIX);
-            for (var property : properties) {
-                var accessors = propertyToAccessors.get(property).stream()
-                        .filter(p -> !p.first || indexedOriginNode.get() == null || // check for same origin if needed
-                                p.second.taggedFunctionCall.originNode.equals(indexedOriginNode.get().first))
-                        .max((f, s) -> {
-                            if (f == s) {
-                                return 0;
-                            }
-                            if (f.first) {
-                                return 1;
-                            }
-                            if (s.first) {
-                                return -1;
-                            }
-                            if (f.second.taggedFunctionCall != null) {
-                                return 1;
-                            }
-                            if (s.second.taggedFunctionCall != null) {
-                                return -1;
-                            }
-                            return 1;
-                        });
-                if (accessors.isPresent()) {
-                    var foundPair = accessors.get();
-                    if (foundPair.first) {
-                        indexedOriginNode.set(p(foundPair.second.taggedFunctionCall.originNode,
-                                foundPair.second.taggedFunctionCall.accessPath.subPath(0, -2)));
+            // possible skip values to test in the following
+            var possibleSkips = propertyToAccessors.values().stream().flatMap(List::stream)
+                    .map(p -> p.first).filter(i -> (int) i != Integer.MIN_VALUE).collect(Collectors.toList());
+            for (final int skip : possibleSkips) {
+                // we now have a map of all overlapping accessors for each property
+                // the goal now is to produce a map call statement
+                // the only thing that we do not know is whether the indexed property accessors have the same origin
+                // node
+                // this is important as we cannot iterate over multiple origins in a single map call
+                // fixing this would be simple, but it should not happen in practice, so we skip it for now
+                // the simple heuristic is that we choose the first origin node that we come cross.
+                // for choosing the accessors for every property we use the following preference hierarchy:
+                //   1. indexed property accessors with the same origin node
+                //   2. non indexed property accessors
+                //   3. basic values
+                Box<Pair<Node, AccessPath>> indexedOriginNode = new Box<>(null); // origin node, base path
+                Map<String, CallProperty> propertyToCallProperty = new HashMap<>();
+                var iterName = createNewName(ITER_NAME_PREFIX);
+                boolean continueOuter = false;
+                for (var property : properties) {
+                    if (continueOuter) {
+                        break;
                     }
-                    FunctionCall call;
-                    if (foundPair.second.basicValue != null) { // we have a constant value
-                        call = Functions.createWrapperFunctionCall(foundPair.second.basicValue);
-                    } else { // we have a function call
-                        if (foundPair.first) { // we have to process index accessors differently
-                            // we have to transform the accessor to make it use the iter variable instead of the node
-                            // access, but we have possibly transformers, so we have two cases
-                            var accessor = foundPair.second.taggedFunctionCall.functionCall;
-                            var accessorFunction = accessor.getFunction();
-                            if (accessorFunction instanceof BasicValueTransformer) {
-                                // if we have a basic transformer, it only affects its inner expression which should
-                                // be a get function call (by construction)
-                                var getCall = (FunctionCall) accessor.getArguments().get(0);
-                                call = ((BasicValueTransformer<?>) accessorFunction)
-                                        .createCall(subGetCall(foundPair.second.taggedFunctionCall.accessPath,
-                                                getCall, indexedOriginNode.get().second, iterName));
-                            } else {
-                                call = subGetCall(foundPair.second.taggedFunctionCall.accessPath,
-                                        foundPair.second.taggedFunctionCall.functionCall,
-                                        indexedOriginNode.get().second, iterName);
+                    var accessors = propertyToAccessors.get(property).stream()
+                            .filter(p -> p.first == Integer.MIN_VALUE || indexedOriginNode.get() == null || // check
+                                    // for same origin if needed
+                                    p.second.taggedFunctionCall.originNode.equals(indexedOriginNode.get().first))
+                            .max((f, s) -> {
+                                if (f == s) {
+                                    return 0;
+                                }
+                                if (f.first == skip) {
+                                    return 1;
+                                }
+                                if (s.first == skip) {
+                                    return -1;
+                                }
+                                if (f.second.taggedFunctionCall != null) {
+                                    return 1;
+                                }
+                                if (s.second.taggedFunctionCall != null) {
+                                    return -1;
+                                }
+                                return 1;
+                            });
+                    if (accessors.isPresent()) {
+                        var foundPair = accessors.get();
+                        if (foundPair.first != Integer.MIN_VALUE) {
+                            if (skip != foundPair.first) {
+                                continueOuter = true;
+                                continue;
                             }
-                        } else {
-                            call = foundPair.second.taggedFunctionCall.functionCall; // simple
+                            indexedOriginNode.set(p(foundPair.second.taggedFunctionCall.originNode,
+                                    foundPair.second.taggedFunctionCall.accessPath.subPath(0, -2)));
                         }
+                        FunctionCall call;
+                        if (foundPair.second.basicValue != null) { // we have a constant value
+                            call = Functions.createWrapperFunctionCall(foundPair.second.basicValue);
+                        } else { // we have a function call
+                            if (foundPair.first != Integer.MIN_VALUE) { // we have to process index accessors
+                                // differently
+                                // we have to transform the accessor to make it use the iter variable instead of the
+                                // node
+                                // access, but we have possibly transformers, so we have two cases
+                                var accessor = foundPair.second.taggedFunctionCall.functionCall;
+                                var accessorFunction = accessor.getFunction();
+                                if (accessorFunction instanceof BasicValueTransformer) {
+                                    // if we have a basic transformer, it only affects its inner expression which should
+                                    // be a get function call (by construction)
+                                    var getCall = (FunctionCall) accessor.getArguments().get(0);
+                                    call = ((BasicValueTransformer<?>) accessorFunction)
+                                            .createCall(subGetCall(foundPair.second.taggedFunctionCall.accessPath,
+                                                    getCall, indexedOriginNode.get().second, iterName));
+                                } else {
+                                    call = subGetCall(foundPair.second.taggedFunctionCall.accessPath,
+                                            foundPair.second.taggedFunctionCall.functionCall,
+                                            indexedOriginNode.get().second, iterName);
+                                }
+                            } else {
+                                call = foundPair.second.taggedFunctionCall.functionCall; // simple
+                            }
+                        }
+                        propertyToCallProperty.put(property, new CallProperty(new AccessPath(property), call));
+                    } else {
+                        // we could not find any valid overlap
+                        return null;
                     }
-                    propertyToCallProperty.put(property, new CallProperty(new AccessPath(property), call));
-                } else {
-                    // we could not find any valid overlap
-                    return null;
                 }
+                if (continueOuter) {
+                    continue;
+                }
+                String mapCallName = createNewName(MAP_CALL_NAME_PREFIX);
+                return new MapCallStatement(ident(mapCallName),
+                        Functions.GET_FUNCTION.createCall(
+                                get(indexedOriginNode.get().first),
+                                indexedOriginNode.get().second), skip,
+                        ident(iterName),
+                        propertyToCallProperty.entrySet().stream().sorted(Entry.comparingByKey())
+                                .map(Entry::getValue).collect(Collectors.toList()));
             }
-            String mapCallName = createNewName(MAP_CALL_NAME_PREFIX);
-            return new MapCallStatement(ident(mapCallName),
-                    Functions.GET_FUNCTION.createCall(
-                            get(indexedOriginNode.get().first),
-                            indexedOriginNode.get().second),
-                    ident(iterName),
-                    propertyToCallProperty.entrySet().stream().sorted(Entry.comparingByKey())
-                            .map(Entry::getValue).collect(Collectors.toList()));
+            return null;
         }
 
         /**
@@ -464,10 +485,10 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
          * find the overlaps between the passed two lists, as described before
          * TODO: might be problematic of other is not sorted
          */
-        private List<Pair<Boolean, TaggedFunctionCallOrBasicValue>>
+        private List<Pair<Integer, TaggedFunctionCallOrBasicValue>>
         overlapTaggedFunctionLists(
-                List<Pair<Boolean, TaggedFunctionCallOrBasicValue>> base,
-                List<Pair<Boolean, TaggedFunctionCallOrBasicValue>> other) {
+                List<Pair<Integer, TaggedFunctionCallOrBasicValue>> base,
+                List<Pair<Integer, TaggedFunctionCallOrBasicValue>> other) {
             if (base.isEmpty() || other.isEmpty()) { // the simple case
                 return List.of();
             }
@@ -475,9 +496,9 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             return base.stream().map(b -> {
                 TaggedFunctionCallOrBasicValue proper = null;
                 TaggedFunctionCallOrBasicValue underIsSameIndexFalseAssumption = null;
-                for (Pair<Boolean, TaggedFunctionCallOrBasicValue> o : other) {
-                    if (b.first) { // reference another array at the list index
-                        if (!o.first) {
+                for (Pair<Integer, TaggedFunctionCallOrBasicValue> o : other) {
+                    if (b.first > Integer.MIN_VALUE) { // reference another array at the list index with b.first offset
+                        if (o.first == Integer.MIN_VALUE) {
                             if (b.second.equals(o.second)) {
                                 underIsSameIndexFalseAssumption = b.second;
                                 // we mistakenly set the boolean to true if we do not find any other
@@ -487,6 +508,10 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                         // now we also know that o has to be a function call and not a basic value
                         assert b.second.taggedFunctionCall != null && o.second.taggedFunctionCall != null;
                         // now we only have to check that both have the same origin node and start with the same base
+                        // and have the same offset
+                        if (!b.first.equals(o.first)) {
+                            continue; // the offset differs
+                        }
                         AccessPath basePath = b.second.taggedFunctionCall.accessPath.subPath(0, -2);
                         if (o.second.taggedFunctionCall.originNode.equals(b.second.taggedFunctionCall.originNode) &&
                                 o.second.taggedFunctionCall.accessPath.startsWith(basePath)) {
@@ -502,7 +527,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                 if (proper != null) {
                     return p(b.first, b.second);
                 } else if (underIsSameIndexFalseAssumption != null) {
-                    return p(false, underIsSameIndexFalseAssumption);
+                    return p(Integer.MIN_VALUE, underIsSameIndexFalseAssumption);
                 }
                 return null;
             }).filter(Objects::nonNull).collect(Collectors.toList());
