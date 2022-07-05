@@ -1,5 +1,6 @@
 package tunnel.synth.program;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import jdwp.AccessPath;
 import jdwp.EventCmds.Events;
@@ -1280,12 +1281,40 @@ public interface AST {
 
 
     class SyntaxError extends RuntimeException {
+        private final int line;
+        private final int column;
+        private final String message;
+        private String program;
+
         public SyntaxError(int line, int column, String msg) {
             super(String.format("Error at %d.%d: %s", line, column, msg));
+            this.line = line;
+            this.column = column;
+            this.message = msg;
         }
 
-        public SyntaxError(String message, Exception e) {
-            super(message, e);
+        public void setProgram(String program) {
+            this.program = program;
+        }
+
+        @Override
+        public String toString() {
+            var lines = program.split("\n");
+            var line = lines[this.line - 1];
+            var start = 0;
+            var preString = "";
+            var length = line.length();
+            if (column > 100) {
+                start = column - 50;
+                preString = "...";
+                length = Math.min(length, column + 50);
+            }
+            preString = this.line + "." + this.column + ": " + preString;
+            var lineSegment = preString + line.substring(start, start + length) + (start + length < line.length() ? "..." : "");
+            var arrowColumn = preString.length() + this.column - start;
+            var arrowString = Strings.repeat(" ", arrowColumn) + "^";
+            var alignedMessage = Strings.repeat(" ", Math.min(arrowColumn - message.length() / 2, 150 - message.length())) + message;
+            return lineSegment + "\n" + arrowString + "\n" + alignedMessage;
         }
     }
 

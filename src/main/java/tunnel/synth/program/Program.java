@@ -93,7 +93,8 @@ public class Program extends Statement implements CompoundStatement<Program> {
         try {
             return new Parser(string).parseProgram();
         } catch (SyntaxError e) {
-            throw new SyntaxError("Error in program: " + string.replace("\n", "\\n"), e);
+            e.setProgram(string);
+            throw e;
         }
     }
 
