@@ -18,7 +18,7 @@ import java.net.InetSocketAddress;
  */
 @SuppressWarnings("CanBeFinal")
 @Command(name = "tunnel", mixinStandardHelpOptions = true, description = "tunnel",
-        subcommands = {PacketLogger.class})
+        subcommands = {PacketLogger.class, Demo.class})
 public class Main {
 
     // source: https://github.com/remkop/picocli/blob/main/picocli-examples/src/main/java/picocli/examples/typeconverter/InetSocketAddressConverterDemo.java
@@ -37,19 +37,19 @@ public class Main {
 
     public final static Logger LOG = (Logger) LoggerFactory.getLogger("JDWP-Tunnel");
 
-    @Option(names = {"--own", "--address"}, required = true, description = "open port",
+    @Option(names = {"--own", "--address"}, required = false, description = "open port",
             converter = InetSocketAddressConverter.class)
     @Getter
     private InetSocketAddress ownAddress;
 
-    @Option(names = "--jvm", required = true,
+    @Option(names = "--jvm", required = false,
             description = "JDWP address, if omitted use address of JDWP argument",
             converter = InetSocketAddressConverter.class)
     @Getter
     private InetSocketAddress jvmAddress;
 
-    @SuppressWarnings("FieldMayBeFinal")
     @Option(names = "--verbose")
+    @Getter
     private Level logLevel = Level.INFO;
 
     void setDefaultLogLevel() {

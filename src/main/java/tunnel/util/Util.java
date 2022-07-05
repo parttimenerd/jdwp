@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 public class Util {
@@ -35,5 +37,23 @@ public class Util {
 
     public static <T> T or(T x, T y) {
         return x == null ? y : x;
+    }
+
+    @SuppressWarnings({"unchecked"})
+    public static <T> List<List<T>> split(List<T> list, T splitter) {
+        var ret = new ArrayList<List<T>>();
+        var current = new ArrayList<T>();
+        for (T t : list) {
+            if (t.equals(splitter)) {
+                ret.add(current);
+                current = new ArrayList<>();
+            } else {
+                current.add(t);
+            }
+        }
+        if (current.size() > 0) {
+            ret.add(current);
+        }
+        return ret;
     }
 }

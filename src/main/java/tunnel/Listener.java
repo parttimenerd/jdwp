@@ -8,6 +8,7 @@ import jdwp.Request;
 import jdwp.util.Pair;
 import lombok.Getter;
 import tunnel.State.WrappedPacket;
+import tunnel.util.MultiColumnLogbackLayout;
 import tunnel.util.ToStringMode;
 
 import java.util.ArrayList;
@@ -135,7 +136,9 @@ public interface Listener {
 
         public ThreadedListener(L listener) {
             this.queue = new LinkedBlockingQueue<>();
+            var currentCol = MultiColumnLogbackLayout.getCurrentColumn();
             new Thread(() -> {
+                MultiColumnLogbackLayout.setCurrentColumn(currentCol);
                 while (!closed) {
                     try {
                         var elem = queue.take();

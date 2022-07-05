@@ -26,7 +26,7 @@ public class MultiColumnLogbackLayout extends PatternLayout {
 
     private static int width = 200;
     private static int columnCount = 1;
-    private static int currentColumn = 0;
+    private static ThreadLocal<Integer> currentColumn = new ThreadLocal<>();
     private static String columnSep = "|";
 
     private static boolean enabled = true;
@@ -40,8 +40,16 @@ public class MultiColumnLogbackLayout extends PatternLayout {
     }
 
     public static void setCurrentColumn(int column, int maxColumn) {
-        currentColumn = column;
+        currentColumn.set(column);
         columnCount = maxColumn;
+    }
+
+    public static void setCurrentColumn(int column) {
+        currentColumn.set(column);
+    }
+
+    public static int getCurrentColumn() {
+        return currentColumn.get();
     }
 
     // based ch.qos.logback.classic.pattern.RelativeTimeConverter
@@ -101,17 +109,16 @@ public class MultiColumnLogbackLayout extends PatternLayout {
         private String process(String prefix, String message) {
             int prefixWidth = prefix.length();
             int columnWidth = (width - prefixWidth) / columnCount - columnSep.length();
-            int columnPadding = columnWidth * currentColumn;
+            int columnPadding = columnWidth * currentColumn.get();
             String prefixPaddingStr = Strings.repeat(" ", prefixWidth);
             String columnPaddingStr = Strings.repeat(" ", columnWidth);
-            String pre = Strings.repeat(columnPaddingStr + columnSep, currentColumn);
-            String post = Strings.repeat(columnSep + columnPaddingStr, columnCount - currentColumn - 1);
+            String pre = Strings.repeat(columnPaddingStr + columnSep, currentColumn.get());
+            String post = Strings.repeat(columnSep + columnPaddingStr, columnCount - currentColumn.get() - 1);
             String paddedAndWrappedMessage = WordWrap.from(message).maxWidth(columnWidth)
                     .wrapToList().stream().filter(s -> !s.isBlank())
                     .map(s -> StringUtils.rightPad(s, columnWidth, " "))
                     .map(s -> s + post)
                     .collect(Collectors.joining("\n" + prefixPaddingStr + pre));
-
             return prefix + pre + paddedAndWrappedMessage;
         }
     }

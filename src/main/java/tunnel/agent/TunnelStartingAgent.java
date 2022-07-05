@@ -74,7 +74,7 @@ public class TunnelStartingAgent {
         return false;
     }
 
-    private static Path getJVMPath() {
+    public static Path getJVMPath() {
         Path path = Path.of(System.getProperties().getProperty("java.home"), "bin",
                 System.getProperty("os.name").startsWith("Win") ? "java.exe" : "java");
         if (!path.toFile().exists() || !path.toFile().canExecute()) {

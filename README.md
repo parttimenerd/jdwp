@@ -76,6 +76,14 @@ and at least 70% matching statements:
     -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 -cp target/tunnel.jar tunnel.EndlessLoop
 ```
 
+... run it standalone via the main CLI interface (helpful for debugging):
+```sh
+mvn package -Dmaven.test.skip=true -Dmaven.source.skip=true > /dev/null && \
+java -jar target/tunnel.jar demo --run "-cp target/tunnel.jar tunnel.EndlessLoop" --own 5015 \
+  --tunnel "logger --tunnel=server --packet-mode=short" \
+  --tunnel "logger --tunnel=client --packet-mode=short --cache-file=client.txt --log-columns=none"
+```
+
 What is done
 ------------
 - Generation of basic JDWP command classes for all commands of the JDK 17 spec
@@ -101,15 +109,9 @@ Ideas that did not work
 
 TODO
 ----
-- merge on programs should use hash trees to make it independent of variable names
-  - the program synthesizer guarantees that the order of the statements depends only on the structure 
-    of the dependency graph
-- test more
-- add second level program cache
-  - insert derived programs
+
 - look into generated programs and add sanity checks
   - i.e. ResumeRequests can never be the cause for something
-- "get thread dump" in IntelliJ does not work
 - implement tests with real OpenJDK
 - implement tester for OpenJDK to find bugs in JDWP error handling
   - the assumption that no valid JDWP packet can make the JVM segfault is false

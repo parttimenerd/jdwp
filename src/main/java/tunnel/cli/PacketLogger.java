@@ -25,7 +25,6 @@ import static tunnel.State.Mode.NONE;
  * This is the most basic endpoint that just logs a packets that go through it and
  * tries to parse them.
  */
-@SuppressWarnings({"FieldMayBeFinal", "CanBeFinal"})
 @Command(name = "logger", mixinStandardHelpOptions = true,
         description = "Log all packets that go through this tunnel.")
 public class PacketLogger implements Runnable {
