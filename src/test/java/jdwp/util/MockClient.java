@@ -3,6 +3,7 @@ package jdwp.util;
 import ch.qos.logback.classic.Logger;
 import jdwp.EventCmds.Events;
 import jdwp.*;
+import jdwp.EventCmds.Events.EventCommon;
 import lombok.SneakyThrows;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +54,14 @@ public class MockClient implements Closeable {
         request.toPacket(vm).write(serverOutputStream);
         while (!hasDataAvailable()) {}
         return request.parseReply(PacketInputStream.read(vm, serverInputStream));
+    }
+
+    @SneakyThrows
+    public EventCommon queryEvent(Request<?> request) {
+        request = request.withNewId(id++);
+        request.toPacket(vm).write(serverOutputStream);
+        while (!hasDataAvailable()) {}
+        return readEvents().events.get(0);
     }
 
     @SneakyThrows

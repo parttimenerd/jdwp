@@ -29,7 +29,6 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -368,7 +367,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
             }
             // possible skip values to test in the following
             var possibleSkips = propertyToAccessors.values().stream().flatMap(List::stream)
-                    .map(p -> p.first).filter(i -> (int) i != Integer.MIN_VALUE).collect(Collectors.toList());
+                    .map(p -> p.first).filter(i -> i != Integer.MIN_VALUE).collect(Collectors.toList());
             for (final int skip : possibleSkips) {
                 // we now have a map of all overlapping accessors for each property
                 // the goal now is to produce a map call statement
@@ -1089,7 +1088,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                         .map(e -> new CaseStatement(e.getKey(), mergeBodies(e.getValue().stream()
                                 .map(iterationBodies::get).collect(Collectors.toList()))))
                         .collect(Collectors.toCollection(ArrayList::new));
-                var bodies = cases.stream().map(c -> c.getBody()).collect(Collectors.toList());
+                var bodies = cases.stream().map(CaseStatement::getBody).collect(Collectors.toList());
                 var defCase = switchExpression.mergeBodiesForDefault ? mergeBodies(bodies) : overlapBodies(bodies);
                 cases.add(new CaseStatement(null, defCase));
                 loopBody = new Body(List.of(new SwitchStatement(switchExpression.switchExpression, cases)));

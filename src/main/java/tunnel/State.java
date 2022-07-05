@@ -112,6 +112,7 @@ public class State {
     private final Mode mode;
     private int currentRequestId;
     private final Map<Integer, WrappedPacket<Request<?>>> unfinished;
+    private final Set<Integer> ignoredUnfinished;
 
     private final Map<Integer, EvaluateProgramRequest> unfinishedEvaluateRequests;
     private final LinkedBlockingQueue<Program> programsToSendToServer = new LinkedBlockingQueue<>();
@@ -131,6 +132,7 @@ public class State {
     public State(VM vm, Mode mode, ReplyCache.Options replyCacheOptions, Formatter formatter) {
         this.vm = vm;
         this.unfinished = new HashMap<>();
+        this.ignoredUnfinished = new HashSet<>();
         this.listeners = new HashSet<>();
         this.replyCache = mode == Mode.SERVER ? new DisabledReplyCache(vm) : new ReplyCache(replyCacheOptions, vm);
         this.programCache = new ProgramCache();
@@ -290,6 +292,19 @@ public class State {
         listeners.forEach(l -> l.onRequest(request));
     }
 
+    public boolean isIgnoredUnfinished(int id) {
+        return ignoredUnfinished.contains(id);
+    }
+
+    public void removeIgnoredUnfinished(int id) {
+        ignoredUnfinished.remove(id);
+    }
+
+    public void ignoreUnfinished() {
+        ignoredUnfinished.addAll(unfinished.keySet());
+        unfinished.clear();
+    }
+
     public WrappedPacket<Request<?>> getUnfinishedRequest(int id) {
         var ret = unfinished.get(id);
         if (ret == null) {
@@ -334,9 +349,15 @@ public class State {
     }
 
     public @Nullable Either<Events, ReplyOrError<?>> readReply(InputStream inputStream,
-                                                               @Nullable OutputStream clientOutputStream) throws IOException {
+                                                               @Nullable OutputStream clientOutputStream,
+                                                               OutputStream serverOutputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream);
         if (ps.isReply()) {
+            if (ignoredUnfinished.contains(ps.id())) {
+                LOG.debug("Ignoring reply {}", ps.id());
+                ignoredUnfinished.remove(ps.id());
+                return null;
+            }
             if (unfinishedEvaluateRequests.containsKey(ps.id())) {
                 var reply = PacketError.call(() -> EvaluateProgramReply.parse(ps), ps);
                 LOG.debug(formatter.format(reply));
@@ -345,46 +366,14 @@ public class State {
                 unfinishedEvaluateRequests.remove(ps.id());
                 if (reply.isError()) {
                     LOG.error("Error in evaluate program reply: " + reply);
-                    addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), EvaluateProgramRequest.METADATA, (short) 1)));
+                    addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), EvaluateProgramRequest.METADATA,
+                            (short) 1)));
                     removeCachedProgram(Program.parse(program.getValue()));
                 } else {
                     var request = hasUnfinishedRequest(ps.id()) ? getUnfinishedRequest(ps.id()).getPacket() : null;
                     var realReply = reply.getReply();
-                    ReplyOrError<?> originalReply = null;
-                    assert clientOutputStream != null;
-                    for (var p : BasicTunnel.parseEvaluateProgramReply(vm, realReply)) {
-                        captureInformation(p.first, p.second);
-                        if (originalReply == null && p.first.equals(request)) {
-                            originalReply = (ReplyOrError<?>) p.second.withNewId(ps.id());
-                        }
-                        cache(p.first, p.second, p.second != originalReply);
-                        LOG.debug("put into reply cache: {} -> {}", formatter.format(p.first),
-                                formatter.format(p.second));
-                    }
-                    clientPartitioner.disable();
-                    serverPartitioner.disable();
-                    // now go through all unfinished requests and check (but only if is not the original request)
-                    for (WrappedPacket<Request<?>> value : new HashMap<>(unfinished).values()) {
-                        // might cause a concurrent modification exception
-                        var unfinishedRequest = value.packet;
-                        if (unfinishedRequest.getId() != ps.id()) {
-                            var cachedReply = replyCache.get(unfinishedRequest);
-                            if (cachedReply != null) {
-                                addReply(new WrappedPacket<>(cachedReply, System.currentTimeMillis()));
-                                writeReply(clientOutputStream, Either.right(cachedReply));
-                            }
-                        }
-                    }
-                    // handle the original request
-                    if (originalReply != null) {
-                        try {
-                            addReply(new WrappedPacket<>(originalReply, System.currentTimeMillis()));
-                        } catch (Exception e) {
-                            LOG.error("Failed to add reply to reply cache", e);
-                        }
-                    }
-                    clientPartitioner.enable();
-                    serverPartitioner.enable();
+                    ReplyOrError<?> originalReply = processReceivedRequestRepliesFromEvent(clientOutputStream, request,
+                            BasicTunnel.parseEvaluateProgramReply(vm, realReply), ps.id());
                     LOG.debug("original reply " + originalReply);
                     return originalReply == null ? null : Either.right(originalReply);
                 }
@@ -405,18 +394,93 @@ public class State {
             captureInformation(events);
             for (EventCommon event : events.events) {
                 if (event instanceof TunnelRequestReplies) {
-                    assert events.events.size() == 1; // is the only event in the list
-                    var parsed = BasicTunnel.parseTunnelRequestReplyEvent(vm, (TunnelRequestReplies)event);
-                    addEvent(new WrappedPacket<>(parsed.first));
-                    for (Pair<Request<?>, ReplyOrError<?>> p : parsed.second) {
-                        replyCache.put(p.first, p.second, true);
+                    try {
+                        assert events.events.size() == 1; // is the only event in the list
+                        var parsed = BasicTunnel.parseTunnelRequestReplyEvent(vm, (TunnelRequestReplies) event);
+                        var abortedRequestId = ((TunnelRequestReplies) event).abortedRequest.value;
+                        if (abortedRequestId == -1) {
+                            addEvent(new WrappedPacket<>(parsed.first));
+                            for (Pair<Request<?>, ReplyOrError<?>> p : parsed.second) {
+                                replyCache.put(p.first, p.second, true);
+                            }
+                        } else {
+                            // the event caused the abortion of an EvaluateProgramRequest
+                            // but we collected some requests before
+                            if (!parsed.second.isEmpty()) {
+                                // we did collect some replies
+                                processReceivedRequestRepliesFromEvent(clientOutputStream,
+                                        unfinished.entrySet().stream().filter(e -> unfinishedEvaluateRequests.containsKey(e.getKey()))
+                                                .map(e -> e.getValue().getPacket()).findFirst().get(),
+                                        parsed.second, abortedRequestId);
+                            } else if (unfinished.containsKey(abortedRequestId)) {
+                                // we have to resend the original request, as it apparently is still unfinished
+                                serverOutputStream.write(unfinished.get(abortedRequestId).packet.toPacket(vm).toByteArray());
+                                LOG.debug("Resending request {} as its triggered EvaluateProgramRequest was aborted",
+                                        formatter.format(unfinished.get(abortedRequestId).packet));
+                            }
+                            unfinishedEvaluateRequests.remove(abortedRequestId);
+                            // this order of statements ensures that the event can invalidate the appropriate cache
+                            // entries
+                            addEvent(new WrappedPacket<>(parsed.first));
+                        }
+                        return Either.left(parsed.first);
+                    } catch (Exception | AssertionError e) {
+                        LOG.error("Error in tunnel request reply event: " + e.getMessage(), e);
+                        throw new PacketError("Error in tunnel request reply event", e);
                     }
-                    return Either.left(parsed.first);
                 }
             }
             addEvent(new WrappedPacket<>(events));
             return Either.left(events);
         }
+    }
+
+    @Nullable
+    private ReplyOrError<?>
+    processReceivedRequestRepliesFromEvent(@Nullable OutputStream clientOutputStream,
+                                           Request<?> request, List<Pair<Request<?>, ReplyOrError<?>>> realReply,
+                                           int id) {
+        ReplyOrError<?> originalReply = null;
+        assert clientOutputStream != null;
+        for (var p : realReply) {
+            captureInformation(p.first, p.second);
+            if (originalReply == null && p.first.equals(request)) {
+                originalReply = (ReplyOrError<?>) p.second.withNewId(id);
+            }
+            if (p.first.onlyReads()) {
+                cache(p.first, p.second, p.second != originalReply);
+                LOG.debug("put into reply cache: {} -> {}", formatter.format(p.first),
+                        formatter.format(p.second));
+            }
+        }
+        clientPartitioner.disable();
+        serverPartitioner.disable();
+        // now go through all unfinished requests and check (but only if is not the original request)
+        for (WrappedPacket<Request<?>> value : new HashMap<>(unfinished).values()) {
+            // might cause a concurrent modification exception
+            var unfinishedRequest = value.packet;
+            if (unfinishedRequest.getId() != id) {
+                var cachedReply = replyCache.get(unfinishedRequest);
+                if (cachedReply != null) {
+                    addReply(new WrappedPacket<>(cachedReply, System.currentTimeMillis()));
+                    writeReply(clientOutputStream, Either.right(cachedReply));
+                }
+            }
+        }
+        // handle the original request
+        if (originalReply != null) {
+            try {
+                addReply(new WrappedPacket<>(originalReply, System.currentTimeMillis()));
+            } catch (Exception e) {
+                LOG.error("Failed to add reply to reply cache", e);
+            }
+        }
+        clientPartitioner.enable();
+        serverPartitioner.enable();
+        if (originalReply != null) { // add to partition
+            clientPartitioner.onReply(new WrappedPacket<>(request), new WrappedPacket<>(originalReply));
+        }
+        return originalReply;
     }
 
     public void captureInformation(Request<?> request, Reply reply) {
@@ -449,8 +513,11 @@ public class State {
         LOG.debug("Write {}", formatter.format((ParsedPacket)reply.get()));
         try {
             ((ParsedPacket)reply.get()).toPacket(vm).write(outputStream);
+            if (reply.isLeft() && reply.getLeft().events.get(0) instanceof TunnelRequestReplies) {
+                LOG.debug("Wrote TRR {}", reply.getLeft().events.get(0));
+            }
         } catch (Exception | AssertionError e) {
-            throw new PacketError(String.format("Failed to write reply or events %s", reply.<ParsedPacket>get()), e);
+            throw new PacketError(String.format("Failed to write reply or events %s in %s", reply.<ParsedPacket>get(), mode), e);
         }
     }
 
@@ -550,10 +617,10 @@ public class State {
     public Program reduceProgramToNonCachedRequests(Program program) {
         var notEvaluated = new Evaluator(vm, new Functions() {
             @Override
-            protected Value processRequest(Request<?> request) {
+            protected Optional<Value> processRequest(Request<?> request) {
                 var reply = replyCache.get(request);
                 if (reply != null) {
-                    return reply.asCombined();
+                    return Optional.of(reply.asCombined());
                 }
                 throw new EvaluationAbortException(false);
             }

@@ -168,7 +168,8 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
     @Override
     public String toCode() {
         if (isError()) {
-            return String.format("new ReplyOrError<>(%d, %s, %d)", id, metadata.toCode(), errorCode);
+            return String.format("new ReplyOrError<>(%d, %s, JDWP.Error.%s)", id, metadata.toCode(),
+                    JDWP.Error.getConstantName(getErrorCode()));
         }
         return String.format("new ReplyOrError<>(%d, %s)", id, reply.toCode());
     }
@@ -248,7 +249,8 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
     @Override
     public String toShortString() {
         return isReply() ? getReply().toShortString() :
-                String.format("Error(%d,%d%s)", getId(), getErrorCode(), isReplyLikeError() ? ",reply" : "");
+                String.format("Error(%d,%d%s)", getId(), getErrorCode(),
+                        JDWP.Error.getConstantName(getErrorCode()), isReplyLikeError() ? ",reply" : "");
     }
 
     public boolean isReplyLike() {

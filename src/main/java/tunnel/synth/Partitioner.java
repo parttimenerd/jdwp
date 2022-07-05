@@ -10,6 +10,7 @@ import jdwp.Request;
 import jdwp.TunnelCmds.EvaluateProgramRequest;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
 import tunnel.Listener;
@@ -268,11 +269,16 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
                     .distinct()
                     .collect(Collectors.toList()), conservative);
         }
+
+        public List<Request<?>> getRequests() {
+            return items.stream().map(p -> p.first).collect(Collectors.toList());
+        }
     }
 
     private static final Integer DEFAULT_TIMINGS_FACTOR = 100;
     private static final Integer DEFAULT_MIN_DIFFERENCE = 500;
     private final Timings timings;
+    @Getter
     private @Nullable Partition currentPartition;
 
     private boolean enabled = true;
@@ -379,9 +385,8 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             try {
                 if (request instanceof EvaluateProgramRequest) {
                     System.out.println("omit reply of " + request);
+                    // but this should never happen, as the partitioners should be disabled for EvaluateProgramRequests
                     return;
-                    // TODO: improve, as it splits up partitions
-                    // don't add these requests to partitions, as they are the result of caching in a different tunnel
                 }
                 if (currentPartition == null) {
                     startNewPartition("current partition is empty", Either.left(request));

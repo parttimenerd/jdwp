@@ -8,6 +8,7 @@ import jdwp.EventCmds.Events.ThreadDeath;
 import jdwp.EventCmds.Events.VMDeath;
 import jdwp.EventRequestCmds.SetReply;
 import jdwp.EventRequestCmds.SetRequest;
+import jdwp.JDWP.Error;
 import jdwp.JDWP.ReturningRequestVisitor;
 import jdwp.PacketError.SupplierWithError;
 import jdwp.Reference;
@@ -15,6 +16,8 @@ import jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest;
 import jdwp.Reply;
 import jdwp.ReplyOrError;
 import jdwp.Request;
+import jdwp.ThreadGroupReferenceCmds.NameRequest;
+import jdwp.ThreadReferenceCmds.NameReply;
 import jdwp.TunnelCmds.EvaluateProgramReply;
 import jdwp.TunnelCmds.EvaluateProgramReply.RequestReply;
 import jdwp.TunnelCmds.EvaluateProgramRequest;
@@ -24,10 +27,13 @@ import jdwp.Value.Type;
 import jdwp.VirtualMachineCmds.*;
 import jdwp.util.MockClient;
 import jdwp.util.MockVM;
+import jdwp.util.MockVM.ErrorCodeException;
 import jdwp.util.MockVM.MockVMThreaded;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.LoggerFactory;
 import tunnel.BasicTunnel;
 import tunnel.Listener;
@@ -46,6 +52,7 @@ import java.util.List;
 
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.Reference.klass;
+import static jdwp.Reference.threadGroup;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -451,10 +458,7 @@ public class BasicMockVMTest {
             assertEquals(List.of(classesRequest), tp.vm.getReceivedRequests());
             tp.vm.sendEvent(100, death); // should break the partition at the client tunnel
             assertEquals(death, tp.client.readEvents().events.get(0));
-            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100000), () -> {
-                // the propagation might need some time
-                while (tp.serverTunnel.getState().getProgramCache().size() != 1) ;
-            });
+            assertEqualsTimeout(1, () -> tp.serverTunnel.getState().getProgramCache().size());
             tp.vm.sendEvent(events);
             assertEquals(events, tp.client.readEvents());
             assertEquals(0, tp.clientTunnel.getState().getProgramCache().getClientPrograms().size());
@@ -475,11 +479,8 @@ public class BasicMockVMTest {
             assertEquals(List.of(classesRequest, classesRequest), tp.vm.getReceivedRequests());
             var classUnloadEvent = new ThreadDeath(wrap(1), Reference.thread(1));
             tp.vm.sendEvent(0, classUnloadEvent); // invalidate the caches
-            Thread.sleep(10);
-            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100), () -> {
-                while (tp.clientTunnel.getState().getReplyCache().size() > 0) Thread.yield();
-            });
-            assertEquals(new ReplyCache(tp.vm.vm), tp.clientTunnel.getState().getReplyCache());
+            assertEqualsTimeout(0, () -> tp.serverTunnel.getState().getReplyCache().size(), Duration.ofSeconds(1));
+            assertEqualsTimeout(new ReplyCache(tp.vm.vm), () -> tp.clientTunnel.getState().getReplyCache());
             assertEquals(new Events(0, wrap((byte) 2), new ListValue<>(classUnloadEvent)), tp.client.readEvents());
         }
     }
@@ -556,8 +557,137 @@ public class BasicMockVMTest {
             assertEquals(new SetReply(0, wrap(1)),
                     tp.client.query(new SetRequest(0, wrap((byte) 9), wrap((byte) 0), new ListValue<>(Type.OBJECT))));
             assertEquals(tp.vm.getIdSizesReply(), tp.client.query(new IDSizesRequest(0)));
-            Thread.sleep(100);
             tp.vm.sendEvent(10, new VMDeath(wrap(2))); // trigger the partition
+            assertEqualsTimeout(2,
+                    () -> tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().size());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true", "false"})
+    @SneakyThrows
+    public void testTunnelBasicProgramAndRequestProgramEvaluationFail(boolean sendEventMidway) {
+        var classesReply = new ClassesBySignatureReply(0, new ListValue<>(Type.OBJECT));
+        var classesRequest = new ClassesBySignatureRequest(0, wrap("test"));
+        var events = new Events(0, wrap((byte) 2), new ListValue<>(new ClassUnload(wrap(0), wrap("sig"))));
+        var versionReply = new VersionReply(0, wrap(""), wrap(0), wrap(1), wrap(""), wrap(""));
+        var sourceDebugErrorCode = Error.ABSENT_INFORMATION;
+        var event = new ClassUnload(wrap(2), wrap("x"));
+        VMTunnelTunnelClientTuple[] tp2 = new VMTunnelTunnelClientTuple[]{null};
+        try (var tp = VMTunnelTunnelClientTuple.create(new ReturningRequestVisitor<>() {
+
+            @Override
+            public Reply visit(ClassesBySignatureRequest classesBySignatureRequest) {
+                return classesReply;
+            }
+
+            @Override
+            public Reply visit(SetRequest setRequest) {
+                return new SetReply(0, wrap(1));
+            }
+
+            @Override
+            public Reply visit(VersionRequest versionRequest) {
+                return versionReply;
+            }
+
+            @Override
+            public Reply visit(NameRequest nameRequest) {
+                return new NameReply(0, wrap(""));
+            }
+
+            // only send the event on the first request (during the program evaluation)
+            boolean first = true;
+
+            @Override
+            public Reply visit(SourceDebugExtensionRequest sourceDebugExtensionRequest) {
+                if (sendEventMidway && first) {
+                    tp2[0].vm.sendEvent(10, event);
+                    first = false;
+                }
+                throw new ErrorCodeException(sourceDebugErrorCode);
+            }
+        })) {
+            tp2[0] = tp;
+            // store an artificial program in the program cache
+            // the program cannot be merged with synthesized programs, as it does not conform to certain invariants
+            // but this is not a problem for the test
+            tp.clientTunnel.getState().getProgramCache().accept(Program.parse(
+                    "((= cause (request EventRequest Set (\"eventKind\")" +
+                            "=(wrap \"byte\" 9) (\"suspendPolicy\")=(wrap \"byte\" 0))) " +
+                            "(= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
+                            "(\"suspendPolicy\")=(wrap \"byte\" 0))) " +
+                            "(= var1 (request VirtualMachine Version))" +
+                            "(= var2 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap " +
+                            "\"klass\" 10)))" +
+                            "(= var3 (request VirtualMachine ClassesBySignature (\"signature\")=(get var2 " +
+                            "\"extension\")))" +
+                            "(= var3 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
+                            "\"s\")))" +
+                            ")"));
+            assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());
+            var nameRequest = new NameRequest(0, threadGroup(1));
+            tp.client.query(nameRequest);
+            // partition on client now should consist of this request
+            assertEquals(List.of(nameRequest), tp.vm.getReceivedRequests());
+            assertEquals(1, tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().size());
+            var setRequest = new SetRequest(0, wrap((byte) 9), wrap((byte) 0), new ListValue<>(Type.OBJECT));
+            Thread.sleep(10);
+            // send the set request and trigger the program execution
+            if (sendEventMidway) {
+                assertEquals(event, tp.client.queryEvent(setRequest));
+            } else {
+                assertEquals(new SetReply(0, wrap(1)), tp.client.query(setRequest));
+            }
+            // we expect that the VM receives the SetRequest, the VersionRequest,
+            // the SourceDebugExtensionRequest and the last ClassBySignatureRequest
+            assertEqualsTimeout(5, () -> {
+                System.out.println(tp.vm.getAllReceivedRequests());
+                return tp.vm.getAllReceivedRequests().size();
+            }, Duration.ofHours(1));
+            // we expect than that this is propagated into the reply cache
+            // this cache already contains the initial name request
+            assertEqualsTimeout(sendEventMidway ? 1 : 4, () -> {
+                System.out.println(tp.clientTunnel.getState().getReplyCache().getCachedRequests());
+                return tp.clientTunnel.getState().getReplyCache().size();
+            }, Duration.ofHours(1));
+            // we expect that the current partition only of the set request
+            assertEqualsTimeout(1, () ->
+                            tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition() != null ?
+                                    tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().size() : -1,
+                    Duration.ofHours(1));
+            assertEquals(versionReply, tp.client.query(new VersionRequest(10)));
+            assertEquals(5, tp.vm.getAllReceivedRequests().size());
+            var sourceDebugRequest = new SourceDebugExtensionRequest(11, klass(10));
+            assertEquals(new ReplyOrError<>(11, SourceDebugExtensionRequest.METADATA, sourceDebugErrorCode),
+                    tp.client.queryWithError(sourceDebugRequest));
+            // this should have been cached for non events, but with events, it should not be
+            assertEquals(sendEventMidway ? 6 : 5, tp.vm.getAllReceivedRequests().size());
+            var classesBySignatureRequest = new ClassesBySignatureRequest(12, wrap("s"));
+            tp.client.query(classesBySignatureRequest);
+            assertEquals(sendEventMidway ? 7 : 5, tp.vm.getAllReceivedRequests().size());
+            var classesBySignatureRequest2 = new ClassesBySignatureRequest(13, wrap("sig"));
+            tp.client.query(classesBySignatureRequest2); // this one should not be cached
+            assertEquals(sendEventMidway ? 8 : 6, tp.vm.getAllReceivedRequests().size());
+            assertEquals(5, tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().size());
+            assertEquals(List.of(setRequest, new VersionRequest(10), sourceDebugRequest,
+                            classesBySignatureRequest, classesBySignatureRequest2),
+                    tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().getRequests());
+
+            tp.vm.sendEvent(10, new VMDeath(wrap(2))); // trigger the partition
+            assertEqualsTimeout("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
+                            "(\"suspendPolicy\")=(wrap \"byte\" 0)))\n" +
+                            "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
+                            "(\"suspendPolicy\")=(wrap \"byte\" 0)))\n" +
+                            "  (= var1 (request VirtualMachine Version))\n" +
+                            "  (= var2 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
+                            "\"sig\")))\n" +
+                            "  (= var3 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
+                            "\"s\")))\n" +
+                            "  (= var4 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"klass\" 10))" +
+                            "))",
+                    () -> tp.clientTunnel.getState().getProgramCache().get(setRequest).get().toPrettyString(),
+                    Duration.ofSeconds(1));
         }
     }
 
@@ -568,6 +698,6 @@ public class BasicMockVMTest {
     private void assertEqualsTimeout(Object expected, SupplierWithError<Object> actual, Duration timeout) {
         Assertions.assertTimeoutPreemptively(timeout, () -> {
             while (!expected.equals(actual.call())) Thread.yield();
-        });
+        }, () -> "expected: " + expected + ", actual: " + actual.call());
     }
 }

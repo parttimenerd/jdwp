@@ -630,6 +630,11 @@ public class ReplyCache implements Listener {
         onRequest(request); // just to be safe
     }
 
+    public Set<Request<?>> getCachedRequests() {
+        return Stream.concat(l1Cache.getCache().keySet().stream(), l2Cache.getCache().keySet().stream())
+                .collect(Collectors.toSet());
+    }
+
     public static class DisabledReplyCache extends ReplyCache {
 
         public DisabledReplyCache(VM vm) {

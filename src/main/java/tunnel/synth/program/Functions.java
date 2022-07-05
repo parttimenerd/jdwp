@@ -115,7 +115,7 @@ public abstract class Functions {
             if (val instanceof Boolean) {
                 literal = literal((Boolean) val ? 1 : 0);
             } else {
-                literal = literal(((Number) val).longValue());
+                literal = literal(val instanceof Character ? (char)val : ((Number)val).longValue());
             }
         } else if (value instanceof StringValue) {
             literal = literal(((StringValue) value).value);
@@ -220,7 +220,7 @@ public abstract class Functions {
     };
 
     @SuppressWarnings("unchecked")
-    public Value processRequest(
+    public Optional<Value> processRequest(
             String commandSet, String command, Stream<TaggedBasicValue<?>> values) {
         try {
             return this.processRequest(
@@ -235,7 +235,7 @@ public abstract class Functions {
         }
     }
 
-    protected abstract Value processRequest(Request<?> request);
+    protected abstract Optional<Value> processRequest(Request<?> request);
 
     @Getter
     @EqualsAndHashCode

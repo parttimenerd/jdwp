@@ -85,10 +85,6 @@ public class VM {
     private int sizeofFrameRef = 8;
     private int sizeofModuleRef = 8;
 
-    public static class ClassImpl {
-
-    }
-
     /**
      * class id -> field id -> tag
      */

@@ -33,9 +33,11 @@ public class ProgramCache implements Consumer<Program> {
         /**
          * always use the last cached program
          */
-        LAST  // we currently only support this mode, it is the simplest
-        // a possible mode would be to merge the last 5 cached programs
-        // or to look for other events with nearby locations for events
+        LAST,
+        /**
+         * Merge programs for the same cause
+         */
+        MERGE
     }
 
     private final Mode mode;
@@ -74,7 +76,6 @@ public class ProgramCache implements Consumer<Program> {
         this.causeToProgram = CacheBuilder.newBuilder().maximumSize(maxCacheSize).build();
         this.originForSimilars = CacheBuilder.newBuilder().maximumSize(maxCacheSize * 2L).build();
         this.removedSimilars = new HashSet<>();
-        assert mode == Mode.LAST;
     }
 
     @Override
@@ -90,7 +91,12 @@ public class ProgramCache implements Consumer<Program> {
         assert program.getFirstCallAssignment() != null;
         var expression = program.getFirstCallAssignment().getExpression();
         assert expression instanceof PacketCall;
-        causeToProgram.put((PacketCall) expression, program);
+        var oldProgram = causeToProgram.getIfPresent((PacketCall) expression);
+        var newProgram = program;
+        if (mode == Mode.MERGE && oldProgram != null) {
+            newProgram = oldProgram.merge(program);
+        }
+        causeToProgram.put((PacketCall) expression, newProgram);
     }
 
     private Optional<Program> get(PacketCall packetCall) {
@@ -251,5 +257,11 @@ public class ProgramCache implements Consumer<Program> {
                 }
             }
         }
+    }
+
+    public void clear() {
+        causeToProgram.invalidateAll();
+        originForSimilars.invalidateAll();
+        removedSimilars.clear();
     }
 }

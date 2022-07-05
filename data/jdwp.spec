@@ -3611,6 +3611,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                                 (bytes reply "reply packet")
                             )
                         )
+                        (int abortedRequest "id of the EvaluateProgramRequest that was aborted by the event, or -1")
                         (Metadata
                              (OnlyReads true)
                              (AffectedBy everything)

@@ -75,6 +75,9 @@ public class PacketLogger implements Runnable {
     @Option(names = "--cache-file")
     String programCacheFile = "";
 
+    @Option(names = "--rcache-log-interval")
+    int replyCacheLogInterval = Integer.MAX_VALUE;
+
     ReplyCache.Options replyCacheOptions = ReplyCache.DEFAULT_OPTIONS;
 
     enum ColumnMode {
@@ -115,6 +118,7 @@ public class PacketLogger implements Runnable {
         var tunnel = new BasicTunnel(new State(new VM(0), tunnelMode, replyCacheOptions, formatter),
                 mainConfig.getOwnAddress(), mainConfig.getJvmAddress());
         tunnel.setFormatter(formatter);
+        tunnel.setLogCacheInterval(replyCacheLogInterval);
         if (disableProgramCache) {
             tunnel.getState().disableProgramCache();
         } else {

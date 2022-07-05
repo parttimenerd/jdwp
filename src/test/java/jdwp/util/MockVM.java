@@ -8,6 +8,7 @@ import jdwp.JDWP.ReturningRequestVisitor;
 import jdwp.Value.ListValue;
 import jdwp.VirtualMachineCmds.IDSizesReply;
 import jdwp.VirtualMachineCmds.IDSizesRequest;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import org.slf4j.LoggerFactory;
@@ -38,10 +39,17 @@ import static jdwp.util.Pair.p;
 @Getter
 public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeable {
 
+    @Getter
+    @AllArgsConstructor
+    public static class ErrorCodeException extends RuntimeException {
+        int errorCode;
+    }
+
     private final static Logger LOG = (Logger) LoggerFactory.getLogger("MockVM");
 
     private final InetSocketAddress ownAddress;
     private final List<Request<?>> receivedRequests;
+    private final List<Request<?>> allReceivedRequests;
     private final List<Pair<Request<?>, Reply>> requestReplies;
     private final List<Either<Events, Reply>> sentEventsAndReplies;
 
@@ -57,6 +65,7 @@ public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeabl
     @SneakyThrows
     public MockVM() {
         this.receivedRequests = Collections.synchronizedList(new ArrayList<>());
+        this.allReceivedRequests = Collections.synchronizedList(new ArrayList<>());
         this.requestReplies = Collections.synchronizedList(new ArrayList<>());
         this.sentEventsAndReplies = Collections.synchronizedList(new ArrayList<>());
         this.eventsToSend = new ArrayBlockingQueue<>(1000);
@@ -103,10 +112,16 @@ public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeabl
     }
 
     public ReplyOrError<?> handle(Request<?> request) {
+        allReceivedRequests.add(request);
         id = request.getId() + 1;
-        var reply = request.accept(this);
-        if (reply == null) {
-            reply = accept(request);
+        Reply reply;
+        try {
+            reply = request.accept(this);
+            if (reply == null) {
+                reply = accept(request);
+            }
+        } catch (ErrorCodeException e) {
+            return new ReplyOrError<>(request, e.errorCode);
         }
         if (reply == null) {
             LOG.error("No reply for request {}", request);

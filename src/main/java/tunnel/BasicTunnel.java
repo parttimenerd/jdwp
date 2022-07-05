@@ -4,7 +4,7 @@ import ch.qos.logback.classic.Logger;
 import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.TunnelRequestReplies;
-import jdwp.JDWP.SuspendPolicy;
+import jdwp.JDWP.Error;
 import jdwp.PrimitiveValue.StringValue;
 import jdwp.TunnelCmds.EvaluateProgramReply;
 import jdwp.TunnelCmds.EvaluateProgramReply.RequestReply;
@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 import static jdwp.JDWP.Error.CANNOT_EVALUATE_PROGRAM;
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
-import static tunnel.State.Mode.*;
+import static tunnel.State.Mode.NONE;
 import static tunnel.util.ToStringMode.CODE;
 
 /**
@@ -61,6 +61,9 @@ public class BasicTunnel {
     private final InetSocketAddress jvmAddress;
     @Setter
     private Formatter formatter = new Formatter(CODE, CODE);
+    @Setter
+    private int logCacheInterval = Integer.MAX_VALUE;
+    private int requestsSinceLastCacheLog = 0;
     private int currentId = 0;
 
     public BasicTunnel(State state, InetSocketAddress ownAddress, InetSocketAddress jvmAddress) {
@@ -160,25 +163,26 @@ public class BasicTunnel {
                             state.addReply(new WrappedPacket<>(reply));
                             writeClientReply(clientOutputStream, Either.right(reply));
                         }
-                        if (reducedProgram.isEmpty()) {
-                            continue; // nothing to do
+                        if (!reducedProgram.isEmpty()) {
+                            LOG.info("Using cached program for request  {}:\n {}", formatter.format(request),
+                                    reducedProgram);
+                            var evaluateRequest = new EvaluateProgramRequest(reducedProgram.hasCause() ? request.getId()
+                                    : request.getId() + 10000,
+                                    wrap(reducedProgram.toPrettyString()));
+                            state.addUnfinishedEvaluateRequest(evaluateRequest);
+                            state.writeRequest(jvmOutputStream, evaluateRequest);
                         }
-                        LOG.info("Using cached program for request  {}:\n {}", formatter.format(request),
-                                reducedProgram);
-                        var evaluateRequest = new EvaluateProgramRequest(reducedProgram.hasCause() ? request.getId()
-                                : request.getId() + 10000,
-                                wrap(reducedProgram.toPrettyString()));
-                        state.addUnfinishedEvaluateRequest(evaluateRequest);
-                        state.writeRequest(jvmOutputStream, evaluateRequest);
                     } else if (state.hasCachedReply(request)) {
                         var reply = state.getCachedReply(request);
                         assert reply != null;
                         LOG.info("Cached reply for  {}: {}", formatter.format(request), formatter.format(reply));
                         state.addReply(new WrappedPacket<>(reply));
                         writeClientReply(clientOutputStream, Either.right(reply));
-                        continue;
                     } else {
                         state.writeRequest(jvmOutputStream, request);
+                    }
+                    if (requestsSinceLastCacheLog++ % logCacheInterval == 0) {
+                        System.out.println(state.getReplyCache().getStatistics().toLongTable());
                     }
                 }
             } catch (ClosedStreamException e) {
@@ -215,7 +219,7 @@ public class BasicTunnel {
             }
             Optional<Either<Events, ReplyOrError<?>>> reply = Optional.empty();
             try {
-                reply = readJvmReply(jvmInputStream, clientOutputStream);
+                reply = readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream);
                 if (reply.isPresent() && reply.get().isLeft()) {
                     currentId = reply.get().getLeft().getId();
                     var events = reply.get().getLeft();
@@ -279,9 +283,11 @@ public class BasicTunnel {
     }
 
     private Optional<Either<Events, ReplyOrError<?>>> readJvmReply(InputStream jvmInputStream,
-                                                                   OutputStream clientOutputStream) throws IOException {
+                                                                   OutputStream clientOutputStream,
+                                                                   OutputStream jvmOutputStream) throws IOException {
         if (hasDataAvailable(jvmInputStream)) {
-            var reply = state.readReply(jvmInputStream, clientOutputStream);
+            var reply =
+                    state.readReply(jvmInputStream, clientOutputStream, jvmOutputStream);
             return Optional.ofNullable(reply);
         }
         return Optional.empty();
@@ -299,20 +305,15 @@ public class BasicTunnel {
     private void handleEvaluateProgramRequest(InputStream jvmInputStream, OutputStream jvmOutputStream,
                                               OutputStream clientOutputStream, EvaluateProgramRequest request) {
         var program = Program.parse(request.program.value);
-        List<Pair<Request<?>, Reply>> requestReplies = new ArrayList<>();
+        List<Pair<Request<?>, ReplyOrError<?>>> requestReplies = new ArrayList<>();
         try {
             requestReplies = handleEvaluateProgramRequest(jvmInputStream, jvmOutputStream, clientOutputStream,
                     request.id, program);
         } catch (EvaluationAbortException e) {
-            state.addAndWriteReply(clientOutputStream,
-                    Either.right(new ReplyOrError<>(
-                            request.getId(), EvaluateProgramRequest.METADATA,
-                            (short) CANNOT_EVALUATE_PROGRAM)));
+            LOG.error("Evaluation aborted: ", e);
         }
         if (requestReplies.isEmpty()) {
-            state.addAndWriteReply(clientOutputStream,
-                    Either.right(new ReplyOrError<>(request.getId(), EvaluateProgramRequest.METADATA,
-                            (short) CANNOT_EVALUATE_PROGRAM)));
+            return;
         }
         // if it all worked out, then request replies contains all request replies
         var reply = new ReplyOrError<>(request.getId(),
@@ -328,74 +329,100 @@ public class BasicTunnel {
 
     private void handleEvaluateProgramEvent(InputStream jvmInputStream, OutputStream jvmOutputStream,
                                             OutputStream clientOutputStream, Events events, Program program) {
-        List<Pair<Request<?>, Reply>> requestReplies;
+        List<Pair<Request<?>, ReplyOrError<?>>> requestReplies;
         try {
             requestReplies = handleEvaluateProgramRequest(jvmInputStream, jvmOutputStream, clientOutputStream,
                     events.id, program);
         } catch (EvaluationAbortException e) {
             state.removeCachedProgram(program);
             LOG.error(String.format("Evaluated %s but got error", program), e);
-            state.addAndWriteReply(clientOutputStream,
-                    Either.right(new ReplyOrError<>(events.getId(), EvaluateProgramRequest.METADATA,
-                            (short) CANNOT_EVALUATE_PROGRAM)));
             return;
         }
         if (requestReplies.isEmpty()) {
             state.addAndWriteReply(clientOutputStream,
                     Either.right(new ReplyOrError<>(events.getId(), EvaluateProgramRequest.METADATA,
                             (short) CANNOT_EVALUATE_PROGRAM)));
+            return;
         }
         // if it all worked out, then request replies contains all request replies
-        var trrEvent = new TunnelRequestReplies(wrap((int) events.getEvents().get(0).kind),
-                new ByteList(events.toPacket(state.vm()).toByteArray()),
-                new ListValue<>(Type.OBJECT, requestReplies.stream().map(rr -> new Events.RequestReply(
-                        new ByteList(rr.first.withNewId(0).toPacket(state.vm()).toByteArray()),
-                        new ByteList(rr.second.withNewId(0).toPacket(state.vm()).toByteArray()))).collect(Collectors.toList())));
-        var newEvents = new Events(events.id + 10000, wrap((byte) SuspendPolicy.NONE), new ListValue<>(trrEvent));
+        var newEvents = createTRREvents(events, requestReplies, -1);
         state.addEvent(new WrappedPacket<>(events));
         state.writeReply(clientOutputStream, Either.left(newEvents));
     }
 
-    private List<Pair<Request<?>, Reply>> handleEvaluateProgramRequest(InputStream jvmInputStream, OutputStream jvmOutputStream,
-                                                                       OutputStream clientOutputStream, int initialId, Program program) {
-        readRepliesForAllUnfinishedRequests(initialId, jvmInputStream, clientOutputStream,
+    private Events createTRREvents(Events events, List<Pair<Request<?>, ReplyOrError<?>>> requestReplies,
+                                   int abortedRequest) {
+        var trrEvent = createTRR(events, requestReplies, abortedRequest);
+        return new Events(events.id, events.suspendPolicy, new ListValue<>(trrEvent));
+    }
+
+    private TunnelRequestReplies createTRR(Events events, List<Pair<Request<?>, ReplyOrError<?>>> requestReplies,
+                                           int abortedRequest) {
+        return new TunnelRequestReplies(events.getEvents().get(0).requestID,
+                new ByteList(events.toPacket(state.vm()).toByteArray()),
+                new ListValue<>(Type.OBJECT, requestReplies.stream()
+                        .map(rr -> new Events.RequestReply(
+                                new ByteList(rr.first.withNewId(0).toPacket(state.vm()).toByteArray()),
+                                new ByteList(rr.second.withNewId(0).toPacket(state.vm()).toByteArray()))).collect(Collectors.toList())),
+                wrap(abortedRequest));
+    }
+
+    private List<Pair<Request<?>, ReplyOrError<?>>> handleEvaluateProgramRequest(InputStream jvmInputStream,
+                                                                                 OutputStream jvmOutputStream,
+                                                                                 OutputStream clientOutputStream,
+                                                                                 int initialId, Program program) {
+        readRepliesForAllUnfinishedRequests(initialId, jvmInputStream, clientOutputStream, jvmOutputStream,
                 e -> writeClientReply(clientOutputStream, e));
-        List<Pair<Request<?>, Reply>> requestReplies = new ArrayList<>();
+        List<Pair<Request<?>, ReplyOrError<?>>> requestReplies = new ArrayList<>();
         new Evaluator(state.vm(), new Functions() {
 
             int id = initialId + 10000;
 
             @Override
             @SneakyThrows
-            protected Value processRequest(Request<?> request) {
+            protected Optional<Value> processRequest(Request<?> request) {
                 var requestId = id++;
                 var usedRequest = request.withNewId(requestId);
                 writeJvmRequest(jvmOutputStream, usedRequest);
                 while (!hasDataAvailable(jvmInputStream)) {
                 } // we wait till data is available
-                var optReply = readJvmReply(jvmInputStream, clientOutputStream);
+                var optReply =
+                        readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream);
                 if (optReply.isPresent()) {
                     var reply = optReply.get();
                     if (reply.isLeft()) { // abort the evaluation if an event happened
                         state.addEvent(new WrappedPacket<>(reply.getLeft()));
-                        writeClientReply(clientOutputStream, Either.left(reply.getLeft()));
+                        writeClientReply(clientOutputStream, Either.left(createTRREvents(reply.getLeft(),
+                                requestReplies, initialId)));
+                        state.ignoreUnfinished();
+                        System.out.println("#################### wrote client reply");
                         throw new EvaluationAbortException(true, String.format("Event %s happened", reply.getLeft()));
                     }
                     if (reply.getRight().isReply()) { // the good case, where we have a reply
                         var replOrErr = reply.getRight();
                         if (replOrErr.getId() == requestId && replOrErr.isReply()) { // the packet appeared as expected
-                            requestReplies.add(p(usedRequest, replOrErr.getReply()));
+                            requestReplies.add(p(usedRequest, replOrErr));
                             state.captureInformation(usedRequest, replOrErr.getReply());
-                            return (Value) replOrErr.getReply(); // common case
+                            return Optional.of((Value) replOrErr.getReply()); // common case
                         } else {
                             LOG.error("got packet {} with id {} but expected reply for packet {} with id {}",
                                     replOrErr, replOrErr.getId(), request, requestId);
                             throw new EvaluationAbortException(true, "got packet with unexpected id");
                         }
                     } else {
+                        var err = reply.getRight().getErrorCode();
+                        LOG.debug(String.format("we got an error reply with error code %s(%d, %s) for request %s%s",
+                                Error.getConstantName(err), err, Error.getConstantDescription(err),
+                                formatter.format(request), reply.getRight().isReplyLikeError() ? " (reply like error)"
+                                        : ""));
+                        if (reply.getRight().isReplyLikeError()) {
+                            requestReplies.add(p(usedRequest, reply.getRight()));
+                            return Optional.empty();
+                        }
                         throw new EvaluationAbortException(false,
-                                String.format("we got an error reply with error code %d",
-                                        reply.getRight().getErrorCode()));
+                                String.format("we got an error reply with error code %s(%d, %s) for request %s",
+                                        Error.getConstantName(err), err, Error.getConstantDescription(err),
+                                        formatter.format(request)));
                     }
                 } else {
                     LOG.error("Assumed that there is data but there is no data");
@@ -410,9 +437,10 @@ public class BasicTunnel {
     @SneakyThrows
     private void readRepliesForAllUnfinishedRequests(int ignoreId,
                                                      InputStream jvmInputStream, OutputStream clientOutputStream,
+                                                     OutputStream jvmOutputStream,
                                                      Consumer<Either<Events, ReplyOrError<?>>> replyConsumer) {
         while (state.hasUnfinishedRequests(ignoreId)) {
-            readJvmReply(jvmInputStream, clientOutputStream).ifPresent(replyConsumer);
+            readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream).ifPresent(replyConsumer);
         }
     }
 

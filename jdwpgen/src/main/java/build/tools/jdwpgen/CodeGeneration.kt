@@ -692,11 +692,11 @@ internal object CodeGeneration {
                                           val description: String, val methodName: String,
                                           val codeGenerator: (CommandNode?, MetadataNode) -> String)
 
-    private val extraMetadataFields = listOf<ExtraMetadataField>(
+    private val extraMetadataFields = listOf(
         ExtraMetadataField(TypeName.INT, "commandSet", "", "getCommandSet"
         ) { cmd, md -> if (cmd == null) "-1" else (cmd.parent as CommandSetNode).nameNode.value() },
-        ExtraMetadataField(TypeName.INT, "command", "", "getCommand",
-            { cmd, md -> if (cmd == null) "-1" else cmd.nameNode.value()}),
+        ExtraMetadataField(TypeName.INT, "command", "", "getCommand"
+        ) { cmd, md -> if (cmd == null) "-1" else cmd.nameNode.value() },
         ExtraMetadataField(TypeName.LONG, "affectsBits", "The bitmask of affected properties",
             "getAffectsBits"
         ) { cmd, md -> "0b0" + (md.get("Affects") as StatePropertySet).bitfield.toString(2) + "L" },
@@ -715,15 +715,15 @@ internal object CodeGeneration {
             val value = md.get(entry.nodeName) as Any
             if (entry.nodeName.equals("Cost")) {
                 (if (costFile == null) "0"
-                else if (value == 0) costFile!!.getCost(
+                else if (value == 0) costFile.getCost(
                     Integer.parseInt((cmd!!.parent as CommandSetNode).nameNode.value()),
-                    Integer.parseInt(cmd!!.nameNode.value())
+                    Integer.parseInt(cmd.nameNode.value())
                 ).L else value.L) + "f"
             } else if (value is String) value.S
             else if (value is StatePropertySet) {
                 if (value.properties.isEmpty()) "Set.of()"
                 else "Set.of(${value.properties.joinToString(", ") { "StateProperty.${it.name}" }})"
-            } else if (value is MetadataNode.ReplyLikeErrorList) {
+            } else if (value is ReplyLikeErrorList) {
                 if (value.errorConstants.isEmpty()) "List.<Integer>of()"
                 else "List.of(${value.errorConstants.joinToString(", ") { "JDWP.Error.${it}" }})"
             } else value.L
@@ -808,7 +808,7 @@ internal object CodeGeneration {
     private fun genMetadataGetterInterface() = `public interface`("WithMetadata") {
         val fields = metadataFields(null)
         for (field in fields.filterNot { it.methodName.contains("Command") }) {
-            `default`(field.typeName, field.methodName) {
+            default(field.typeName, field.methodName) {
                 _return("getMetadata().${field.name}")
             }
         }
@@ -1042,8 +1042,21 @@ internal object CodeGeneration {
     private fun genConstantClass(node: ConstantSetNode) = `public static class`(node.name) {
         for (constant in node.constantNodes) {
             `public static final field`(TypeName.INT, constant.name) {
+                addJavadoc(constant.commentList.joinToString(" "))
                 `=`(constant.nameNode.value())
             }
+        }
+        `private static final field`(pt("Map", "Integer", "String"), "CONSTANT_NAMES") {
+            `=`("Map.ofEntries(${node.constantNodes.joinToString(", ") { "Map.entry(${it.nameNode.value()}, \"${it.name}\")" }})")
+        }
+        `private static final field`(pt("Map", "Integer", "String"), "CONSTANT_DESCRIPTIONS") {
+            `=`("Map.ofEntries(${node.constantNodes.joinToString(", ") { "Map.entry(${it.nameNode.value()}, \"${it.commentList.joinToString(" ")}\")" }})")
+        }
+        `public static`(bg("String"), "getConstantName", param(TypeName.INT, "constant")) {
+            _return("CONSTANT_NAMES.get(constant)")
+        }
+        `public static`(bg("String"), "getConstantDescription", param(TypeName.INT, "constant")) {
+            _return("CONSTANT_DESCRIPTIONS.get(constant)")
         }
         this
     }

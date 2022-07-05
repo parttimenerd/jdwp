@@ -205,8 +205,12 @@ public class Evaluator {
                                 scope.put(CAUSE_NAME, evaluatePacketCall(scope,
                                         (PacketCall) assignment.getExpression()));
                             } else {
-                                scope.put(assignment.getVariable().getName(), evaluate(scope,
-                                        assignment.getExpression()));
+                                var value = evaluate(scope, assignment.getExpression());
+                                if (value == null) {
+                                    addToNotEvaluated(assignment);
+                                    return;
+                                }
+                                scope.put(assignment.getVariable().getName(), value);
                             }
                         } catch (AssertionError | Exception e) {
                             addToNotEvaluated(assignment);
@@ -401,7 +405,7 @@ public class Evaluator {
         return evaluate(new Scopes<>(), expression);
     }
 
-    public Value evaluate(Scopes<Value> scope, Expression expression) {
+    public @Nullable Value evaluate(Scopes<Value> scope, Expression expression) {
         return expression.accept(
                 new ReturningExpressionVisitor<>() {
                     @Override
@@ -417,11 +421,14 @@ public class Evaluator {
                     @Override
                     public Value visit(RequestCall requestCall) {
                         var value = functions.processRequest((Request<?>) evaluatePacketCall(scope, requestCall));
-                        if (value instanceof Reply && ((Reply) value).hasNullReference()) {
+                        if (value.isEmpty()) {
+                            return null;
+                        }
+                        if (value.get() instanceof Reply && ((Reply) value.get()).hasNullReference()) {
                             throw new EvaluationAbortException(false,
                                     "null reference in reply " + value + " for " + requestCall);
                         }
-                        return value;
+                        return value.get();
                     }
 
                     @Override

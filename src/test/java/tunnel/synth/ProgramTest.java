@@ -29,10 +29,7 @@ import tunnel.synth.program.Evaluator.EvaluationAbortException;
 import tunnel.synth.program.Evaluator.MapCallResult;
 import tunnel.synth.program.Evaluator.MapCallResultEntry;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -60,9 +57,9 @@ public class ProgramTest {
         final List<Value> values = new ArrayList<>();
 
         @Override
-        protected Value processRequest(Request<?> request) {
+        protected Optional<Value> processRequest(Request<?> request) {
             requests.add(request);
-            return wrap(10);
+            return Optional.of(wrap(10));
         }
 
         @Override
@@ -527,7 +524,7 @@ public class ProgramTest {
     public void testEvaluatorNoDiscardRequestHandling() {
         var result = new Evaluator(vm, new Functions() {
             @Override
-            protected Value processRequest(Request<?> request) {
+            protected Optional<Value> processRequest(Request<?> request) {
                 throw new EvaluationAbortException(false);
             }
         }).evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
@@ -541,7 +538,7 @@ public class ProgramTest {
     public void testEvaluatorDiscardRequestHandling() {
         assertThrows(EvaluationAbortException.class, () -> new Evaluator(vm, new Functions() {
             @Override
-            protected Value processRequest(Request<?> request) {
+            protected Optional<Value> processRequest(Request<?> request) {
                 throw new EvaluationAbortException(true);
             }
         }).evaluate(Program.parse("((= cause (request Tunnel UpdateCache ('programs' 0)=(wrap 'string' 'a'))) " +
@@ -711,10 +708,10 @@ public class ProgramTest {
     private static RecordingFunctions createRecordingFunctions(Partition partition) {
         return new RecordingFunctions() {
             @Override
-            protected Value processRequest(Request<?> request) {
+            protected Optional<Value> processRequest(Request<?> request) {
                 super.processRequest(request);
-                return partition.stream().filter(p -> p.first.equals(request))
-                        .map(p -> p.second).findFirst().get().asCombined();
+                return Optional.of(partition.stream().filter(p -> p.first.equals(request))
+                        .map(p -> p.second).findFirst().get().asCombined());
             }
         };
     }
