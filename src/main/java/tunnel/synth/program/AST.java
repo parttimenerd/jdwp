@@ -23,6 +23,7 @@ import tunnel.synth.program.Functions.Function;
 import tunnel.synth.program.Visitors.*;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -53,6 +54,18 @@ public interface AST {
     }
 
     AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer);
+
+    default Set<Identifier> getUsedIdentifiers() {
+        return getSubExpressions().stream().flatMap(e -> e.getUsedIdentifiers().stream()).collect(Collectors.toSet());
+    }
+
+    default Set<Identifier> getDefinedIdentifiers() {
+        return Set.of();
+    }
+
+    default List<Expression> getSubExpressions() {
+        return List.of();
+    }
 
     abstract class Expression implements AST {
         @SuppressWarnings("unchecked")
@@ -228,6 +241,11 @@ public interface AST {
         public Identifier copy() {
             return new Identifier(name);
         }
+
+        @Override
+        public Set<Identifier> getUsedIdentifiers() {
+            return Set.of(this);
+        }
     }
 
     abstract class Statement implements AST {
@@ -273,10 +291,6 @@ public interface AST {
             return List.of();
         }
 
-        public List<Expression> getSubExpressions() {
-            return List.of();
-        }
-
         public boolean doesDependOn(Statement other) {
             return getSubExpressions().stream().anyMatch(e -> e.doesDependOnStatement(other)) ||
                     getSubStatements().stream().anyMatch(s -> s.doesDependOn(other));
@@ -310,24 +324,35 @@ public interface AST {
         }
 
         default Set<Statement> getDependentStatements(Set<Statement> statements) {
-            int retSize = -1;
-            Set<Statement> ret = new HashSet<>();
-            Set<Statement> usedStatements = new HashSet<>(statements);
-            while (retSize != ret.size()) {  // fixed point iteration
-                retSize = ret.size();
-                for (Statement subStatement : getSubStatements()) {
-                    for (Statement other : usedStatements) {
-                        if (subStatement.doesDependOn(other)) {
-                            ret.add(subStatement);
-                        }
-                        if (subStatement instanceof CompoundStatement<?>) {
-                            ret.addAll(((CompoundStatement<?>) subStatement).getDependentStatements(usedStatements));
-                        }
-                    }
+            Map<Identifier, Set<Statement>> statementsThatUseALiteral = new HashMap<>();
+            forEachStatement(s -> {
+                for (Identifier variable : s.getUsedIdentifiers()) {
+                    statementsThatUseALiteral.computeIfAbsent(variable, k -> new HashSet<>()).add(s);
                 }
-                usedStatements.addAll(ret);
+            });
+            Set<Identifier> usedVariables = new HashSet<>();
+            Stack<Identifier> toVisit = new Stack<>();
+            toVisit.addAll(statements.stream().map(Statement::getDefinedIdentifiers).flatMap(Set::stream).collect(Collectors.toSet()));
+            while (toVisit.size() > 0) {
+                var cur = toVisit.pop();
+                if (usedVariables.contains(cur)) {
+                    continue;
+                }
+                usedVariables.add(cur);
+                toVisit.addAll(statementsThatUseALiteral.getOrDefault(cur, Set.of()).stream()
+                        .map(Statement::getDefinedIdentifiers).flatMap(Set::stream).collect(Collectors.toSet()));
             }
+            var ret = usedVariables.stream().map(Identifier::getSource).collect(Collectors.toSet());
             return ret;
+        }
+
+        default void forEachStatement(Consumer<Statement> consumer) {
+            getSubStatements().forEach(c -> {
+                consumer.accept(c);
+                if (c instanceof CompoundStatement) {
+                    ((CompoundStatement) c).forEachStatement(consumer);
+                }
+            });
         }
 
         default Set<Statement> getDependentStatementsAndAnchor(Statement anchor) {
@@ -471,6 +496,16 @@ public interface AST {
                     identifierReplacer.apply(variable),
                     expression.replaceIdentifiersConv(identifierReplacer)
             );
+        }
+
+        @Override
+        public Set<Identifier> getUsedIdentifiers() {
+            return expression.getUsedIdentifiers();
+        }
+
+        @Override
+        public Set<Identifier> getDefinedIdentifiers() {
+            return Set.of(variable);
         }
     }
 
@@ -867,6 +902,16 @@ public interface AST {
                     iterable.replaceIdentifiersConv(identifierReplacer),
                     body.replaceIdentifiersConv(identifierReplacer));
         }
+
+        @Override
+        public Set<Identifier> getUsedIdentifiers() {
+            return iterable.getUsedIdentifiers();
+        }
+
+        @Override
+        public Set<Identifier> getDefinedIdentifiers() {
+            return Set.of(iter);
+        }
     }
 
     @Getter
@@ -969,6 +1014,11 @@ public interface AST {
                     request.replaceIdentifiersConv(identifierReplacer),
                     body.replaceIdentifiersConv(identifierReplacer));
         }
+
+        @Override
+        public Set<Identifier> getDefinedIdentifiers() {
+            return Set.of(requestVariable);
+        }
     }
 
     @Getter
@@ -1010,6 +1060,17 @@ public interface AST {
                     identifierReplacer.apply(name),
                     arguments.stream().map(a -> a.<CallProperty>replaceIdentifiersConv(identifierReplacer))
                             .collect(Collectors.toList()));
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        @Override
+        public List<Expression> getSubExpressions() {
+            return (List<Expression>)(List)arguments;
+        }
+
+        @Override
+        public Set<Identifier> getDefinedIdentifiers() {
+            return Set.of(variable);
         }
     }
 
@@ -1247,7 +1308,6 @@ public interface AST {
             }
         }
 
-
         @Override
         public void accept(StatementVisitor visitor) {
             visitor.visit(this);
@@ -1275,6 +1335,14 @@ public interface AST {
         }
 
         @Override
+        public Set<Identifier> getUsedIdentifiers() {
+            return Stream.concat(Stream.of(iterable), arguments.stream())
+                    .flatMap(e -> e.getUsedIdentifiers().stream())
+                    .filter(e -> !e.equals(iter))
+                    .collect(Collectors.toSet());
+        }
+
+        @Override
         public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
             return new MapCallStatement(
                     identifierReplacer.apply(variable),
@@ -1283,6 +1351,11 @@ public interface AST {
                     identifierReplacer.apply(iter),
                     arguments.stream().map(p -> p.<CallProperty>replaceIdentifiersConv(identifierReplacer))
                             .collect(Collectors.toList()));
+        }
+
+        @Override
+        public Set<Identifier> getDefinedIdentifiers() {
+            return Set.of(variable);
         }
     }
 
@@ -1320,7 +1393,9 @@ public interface AST {
             var lineSegment = preString + line.substring(start, start + length) + (start + length < line.length() ? "..." : "");
             var arrowColumn = preString.length() + this.column - start;
             var arrowString = Strings.repeat(" ", arrowColumn) + "^";
-            var alignedMessage = Strings.repeat(" ", Math.min(arrowColumn - message.length() / 2, 150 - message.length())) + message;
+            var alignedMessage = Strings.repeat(" ",
+                    Math.max(0,
+                            Math.min(arrowColumn - message.length() / 2, 150 - message.length()))) + message;
             return lineSegment + "\n" + arrowString + "\n" + alignedMessage;
         }
     }

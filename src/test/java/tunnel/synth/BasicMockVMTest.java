@@ -622,7 +622,7 @@ public class BasicMockVMTest {
                             "\"klass\" 10)))" +
                             "(= var3 (request VirtualMachine ClassesBySignature (\"signature\")=(get var2 " +
                             "\"extension\")))" +
-                            "(= var3 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
+                            "(= var4 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
                             "\"s\")))" +
                             ")"));
             assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());

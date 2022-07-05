@@ -165,7 +165,7 @@ public class Evaluator {
                     }
 
                     private boolean isNotEvaluated(Statement statement) {
-                        return notEvaluatedScopes.peek().contains(statement);
+                        return notEvaluatedScopes.stream().anyMatch(s -> s.contains(statement));
                     }
 
                     @Override
