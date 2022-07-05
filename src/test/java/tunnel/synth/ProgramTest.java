@@ -781,6 +781,108 @@ public class ProgramTest {
                 .merge(Program.parse("((= y 1) (= z y))")).toString());
     }
 
+    private static Object[][] removeStatementTestSource() {
+        return new Object[][]{
+                {0, "(\n" +
+                        "  (= var1 (request ClassObjectReference ReflectedType (\"classObject\")=(wrap " +
+                        "\"classObject\" 1135)))" +
+                        "\n" +
+                        "  (= var2 (request ReferenceType Interfaces (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var3 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var4 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))\n" +
+                        "  (= var5 (request ReferenceType GetValues (\"refType\")=(get var1 \"typeID\") (\"fields\" 0" +
+                        " " +
+                        "\"fieldID\")=(get var3 \"declared\" 1 \"fieldID\")))\n" +
+                        "  (= var7 (request ReferenceType Interfaces (\"refType\")=(get var4 \"superclass\")))\n" +
+                        "  (for iter1 (get var7 \"interfaces\"))\n" +
+                        "  (= var8 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var4 \"superclass\")))" +
+                        "\n" +
+                        "  (= var9 (request ClassType Superclass (\"clazz\")=(get var4 \"superclass\"))))"},
+                {1, "((= cause (request VirtualMachine Resume))\n" +
+                        "  (= var0 (request VirtualMachine Resume)))"},
+                {2, "((= cause (request VirtualMachine Resume))\n" + // simple as statement has no dependents
+                        "  (= var0 (request VirtualMachine Resume))\n" +
+                        "  (= var1 (request ClassObjectReference ReflectedType (\"classObject\")=(wrap " +
+                        "\"classObject\" 1135)))\n" +
+                        "  (= var3 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var4 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))\n" +
+                        "  (= var5 (request ReferenceType GetValues (\"refType\")=(get var1 \"typeID\") (\"fields\" 0" +
+                        " \"fieldID\")=(get var3 \"declared\" 1 \"fieldID\")))\n" +
+                        "  (= var7 (request ReferenceType Interfaces (\"refType\")=(get var4 \"superclass\")))\n" +
+                        "  (for iter1 (get var7 \"interfaces\"))\n" +
+                        "  (= var8 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var4 \"superclass\")))" +
+                        "\n" +
+                        "  (= var9 (request ClassType Superclass (\"clazz\")=(get var4 \"superclass\"))))"},
+                {3, "((= cause (request VirtualMachine Resume))\n" +
+                        "  (= var0 (request VirtualMachine Resume))\n" +
+                        "  (= var1 (request ClassObjectReference ReflectedType (\"classObject\")=(wrap " +
+                        "\"classObject\" 1135)))\n" +
+                        "  (= var2 (request ReferenceType Interfaces (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var4 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))\n" +
+                        "  (= var7 (request ReferenceType Interfaces (\"refType\")=(get var4 \"superclass\")))\n" +
+                        "  (for iter1 (get var7 \"interfaces\"))\n" +
+                        "  (= var8 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var4 \"superclass\")))" +
+                        "\n" +
+                        "  (= var9 (request ClassType Superclass (\"clazz\")=(get var4 \"superclass\"))))"},
+                {4, "((= cause (request VirtualMachine Resume))\n" +
+                        "  (= var0 (request VirtualMachine Resume))\n" +
+                        "  (= var1 (request ClassObjectReference ReflectedType (\"classObject\")=(wrap " +
+                        "\"classObject\" 1135)))\n" +
+                        "  (= var2 (request ReferenceType Interfaces (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var3 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var5 (request ReferenceType GetValues (\"refType\")=(get var1 \"typeID\") (\"fields\" 0" +
+                        " \"fieldID\")=(get var3 \"declared\" 1 \"fieldID\"))))"},
+                {6, "((= cause (request VirtualMachine Resume))\n" +
+                        "  (= var0 (request VirtualMachine Resume))\n" +
+                        "  (= var1 (request ClassObjectReference ReflectedType (\"classObject\")=(wrap " +
+                        "\"classObject\" 1135)))\n" +
+                        "  (= var2 (request ReferenceType Interfaces (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var3 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var4 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))\n" +
+                        "  (= var5 (request ReferenceType GetValues (\"refType\")=(get var1 \"typeID\") (\"fields\" 0" +
+                        " \"fieldID\")=(get var3 \"declared\" 1 \"fieldID\")))\n" +
+                        "  (= var8 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var4 \"superclass\")))" +
+                        "\n" +
+                        "  (= var9 (request ClassType Superclass (\"clazz\")=(get var4 \"superclass\"))))"},
+                {7, "((= cause (request VirtualMachine Resume))\n" +
+                        "  (= var0 (request VirtualMachine Resume))\n" +
+                        "  (= var1 (request ClassObjectReference ReflectedType (\"classObject\")=(wrap " +
+                        "\"classObject\" 1135)))\n" +
+                        "  (= var2 (request ReferenceType Interfaces (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var3 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var1 \"typeID\")))\n" +
+                        "  (= var4 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))\n" +
+                        "  (= var5 (request ReferenceType GetValues (\"refType\")=(get var1 \"typeID\") (\"fields\" 0" +
+                        " \"fieldID\")=(get var3 \"declared\" 1 \"fieldID\")))\n" +
+                        "  (= var7 (request ReferenceType Interfaces (\"refType\")=(get var4 \"superclass\")))\n" +
+                        "  (= var8 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var4 \"superclass\")))" +
+                        "\n" +
+                        "  (= var9 (request ClassType Superclass (\"clazz\")=(get var4 \"superclass\"))))"}
+        };
+    }
+
+    @ParameterizedTest
+    @MethodSource("removeStatementTestSource")
+    public void testRemoveStatement(int removedStatement, String expectedResult) {
+        var program = Program.parse("((= cause (request VirtualMachine Resume)) " +
+                "(= var0 (request VirtualMachine Resume)) \n" +
+                "        (= var1 (request ClassObjectReference ReflectedType ('classObject')=(wrap 'classObject' " +
+                "1135)" +
+                ")) \n" +
+                "        (= var2 (request ReferenceType Interfaces ('refType')=(get var1 'typeID'))) \n" +
+                "        (= var3 (request ReferenceType FieldsWithGeneric ('refType')=(get var1 'typeID'))) \n" +
+                "        (= var4 (request ClassType Superclass ('clazz')=(get var1 'typeID'))) \n" + // this can fail
+                "        (= var5 (request ReferenceType GetValues ('refType')=(get var1 'typeID') ('fields' 0 " +
+                "'fieldID')=(get var3 'declared' 1 'fieldID'))) \n" + // this can fail
+                "        (= var7 (request ReferenceType Interfaces ('refType')=(get var4 'superclass'))) \n" +
+                "        (for iter1 (get var7 'interfaces')) \n" + // leading this to crash
+                "            (= var8 (request ReferenceType FieldsWithGeneric ('refType')=(get var4 'superclass'))) " +
+                "\n" +
+                "            (= var9 (request ClassType Superclass ('clazz')=(get var4 'superclass'))))");
+        var statement = program.getBody().get(removedStatement);
+        System.out.println(statement);
+        assertEquals(expectedResult, program.removeStatements(Set.of(statement)).toPrettyString());
+    }
+
     @Test
     public void testParseCauseOnlyProgram() {
         var program = new Program(new EventsCall("Event", "Composite", List.of()), List.of());

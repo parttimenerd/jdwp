@@ -310,16 +310,22 @@ public interface AST {
         }
 
         default Set<Statement> getDependentStatements(Set<Statement> statements) {
+            int retSize = -1;
             Set<Statement> ret = new HashSet<>();
-            for (Statement subStatement : getSubStatements()) {
-                for (Statement other : statements) {
-                    if (subStatement.doesDependOn(other)) {
-                        ret.add(subStatement);
-                    }
-                    if (subStatement instanceof CompoundStatement<?>) {
-                        ret.addAll(((CompoundStatement<?>) subStatement).getDependentStatements(statements));
+            Set<Statement> usedStatements = new HashSet<>(statements);
+            while (retSize != ret.size()) {  // fixed point iteration
+                retSize = ret.size();
+                for (Statement subStatement : getSubStatements()) {
+                    for (Statement other : usedStatements) {
+                        if (subStatement.doesDependOn(other)) {
+                            ret.add(subStatement);
+                        }
+                        if (subStatement instanceof CompoundStatement<?>) {
+                            ret.addAll(((CompoundStatement<?>) subStatement).getDependentStatements(usedStatements));
+                        }
                     }
                 }
+                usedStatements.addAll(ret);
             }
             return ret;
         }
@@ -803,11 +809,12 @@ public interface AST {
         public String toPrettyString(String indent, String innerIndent) {
             String subIndent = innerIndent + indent;
             return String.format(
-                    "%s(for %s %s %s%s)",
+                    "%s(for %s %s%s%s%s)",
                     indent,
                     iter,
                     iterable,
-                    innerIndent.isEmpty() ? "" : "\n",
+                    body.isEmpty() ? "" : " ",
+                    innerIndent.isEmpty() || body.isEmpty() ? "" : "\n",
                     body.toPrettyString(subIndent, innerIndent));
         }
 

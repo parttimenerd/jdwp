@@ -139,9 +139,9 @@ public class Program extends Statement implements CompoundStatement<Program> {
         if (cause != null && statements.stream().anyMatch(s -> s instanceof AssignmentStatement &&
                 ((AssignmentStatement) s).getExpression() instanceof PacketCall &&
                 ((AssignmentStatement)s).getExpression().equals(cause))) {
-            return new Program(null, body.removeStatements(statements));
+            return new Program(null, body.removeStatementsTransitively(statements));
         }
-        return new Program(cause, body.removeStatements(statements));
+        return new Program(cause, body.removeStatementsTransitively(statements));
     }
 
     public Set<Statement> getDependentStatements(Set<Statement> statements) {
