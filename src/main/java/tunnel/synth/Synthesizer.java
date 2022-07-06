@@ -834,11 +834,6 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                         }
                         return d.withNewTargetPaths(newPaths);
                     }).filter(Objects::nonNull).collect(Collectors.toList()));
-                    if (!allCollectedAccessPaths.stream()
-                            .allMatch(p -> pathsThatPointToLoopHeader.contains(p) ||
-                                    pathsThatPointToLoopBody.contains(p))) {
-                        continue;
-                    }
                     if (newEdge.getUsedValues().size() > 0) {
                         validEdges.add(newEdge);
                     }

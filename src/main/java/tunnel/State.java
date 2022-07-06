@@ -433,10 +433,11 @@ public class State {
                             // but we collected some requests before
                             if (!parsed.second.isEmpty()) {
                                 // we did collect some replies
-                                processReceivedRequestRepliesFromEvent(clientOutputStream,
-                                        unfinished.entrySet().stream().filter(e -> unfinishedEvaluateRequests.containsKey(e.getKey()))
-                                                .map(e -> e.getValue().getPacket()).findFirst().get(),
-                                        parsed.second, abortedRequestId);
+                                var request = unfinished.entrySet().stream().filter(e -> unfinishedEvaluateRequests.containsKey(e.getKey()))
+                                        .map(e -> e.getValue().getPacket()).findFirst();
+                                request.ifPresent(value -> processReceivedRequestRepliesFromEvent(clientOutputStream,
+                                        value,
+                                        parsed.second, abortedRequestId));
                             } else if (unfinished.containsKey(abortedRequestId)) {
                                 // we have to resend the original request, as it apparently is still unfinished
                                 serverOutputStream.write(unfinished.get(abortedRequestId).packet.toPacket(vm).toByteArray());
@@ -653,7 +654,10 @@ public class State {
         var toRemove = program.collectBodyStatements();
         toRemove.removeAll(notEvaluated);
         try {
-            return program.removeStatements(new HashSet<>(toRemove));
+            var reduced = program.removeStatements(new HashSet<>(toRemove));
+            LOG.debug("Reduced program {} to non-cached requests {} by removing {}",
+                    program.toPrettyString(), reduced.toPrettyString(), toRemove);
+            return reduced;
         } catch (AssertionError e) {
             LOG.error("Failed to remove cached requests ({}) from program {}", program, toRemove, e);
         }

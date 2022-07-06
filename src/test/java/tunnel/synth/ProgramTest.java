@@ -905,6 +905,28 @@ public class ProgramTest {
     }
 
     @Test
+    public void testRemoveVariableUsedInMapStatement() {
+        var program = Program.parse("((= cause (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\"" +
+                " 649)))\n" +
+                "(= var0 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))" +
+                "  (= var4 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 470)))\n" +
+                "  (= var5 (request Method VariableTableWithGeneric (\"methodID\")=(wrap \"method\" 105553173813640) " +
+                "(\"refType\")=(get cause \"refType\")))\n" +
+                "  (map map0 (get var5 \"slots\") 0 iter1 (\"sigbyte\")=(getTagForSignature (get iter1 \"signature\")" +
+                ") (\"slot\")=(get iter1 \"slot\"))\n" +
+                "  (= var6 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 131072) (\"slots\")=map0 " +
+                "(\"thread\")=(wrap \"thread\" 1))))");
+        assertEquals("((= cause (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                "  (= var0 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                "  (= var4 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 470))))",
+                program.removeStatements(Set.of(program.getBody().get(2))).toPrettyString());
+        assertEquals("(\n" +
+                "  (= var0 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                "  (= var4 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 470))))",
+                program.removeStatements(Set.of(program.getCauseStatement())).toPrettyString());
+    }
+
+    @Test
     public void testParseCauseOnlyProgram() {
         var program = new Program(ident("cause"), new EventsCall("Event", "Composite", List.of()), List.of());
         assertEquals(program, Program.parse(program.toPrettyString()));

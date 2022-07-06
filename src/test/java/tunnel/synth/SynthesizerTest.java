@@ -9,6 +9,7 @@ import jdwp.JDWP.Error;
 import jdwp.ObjectReferenceCmds.ReferenceTypeReply;
 import jdwp.ObjectReferenceCmds.ReferenceTypeRequest;
 import jdwp.ReferenceTypeCmds.*;
+import jdwp.ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo;
 import jdwp.StackFrameCmds.GetValuesReply;
 import jdwp.StackFrameCmds.GetValuesRequest;
 import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
@@ -25,6 +26,7 @@ import tunnel.synth.program.Evaluator;
 import tunnel.synth.program.Program;
 import tunnel.util.Either;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -479,6 +481,40 @@ public class SynthesizerTest {
                 p(new jdwp.ArrayReferenceCmds.LengthRequest(372, new ArrayReference(1072L)),
                         new jdwp.ArrayReferenceCmds.LengthReply(372, PrimitiveValue.wrap(0)))));
         Synthesizer.synthesizeProgram(partition);
+    }
+
+    @Test
+    public void testExpectLoop() {
+        Function<Long, MethodInfo> info = i -> new ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo(method(i),
+                wrap(i + ""),
+                wrap(""), wrap(""), wrap(1025));
+        List<Long> methodIds = List.of(0L, 1L, 2L);
+        List<Pair<? extends Request<?>, ? extends Reply>> parts =
+                new ArrayList<>(List.of(p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(1, klass(657L)),
+                        new ReplyOrError<>(new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(1,
+                                new ListValue<>(Type.LIST, methodIds.stream().map(info).collect(Collectors.toList())))))));
+        int id = 2;
+        for (Long methodId : methodIds) {
+            parts.add(p(new MethodCmds.VariableTableRequest(id, klass(657L), method(methodId)),
+                    new ReplyOrError<>(
+                            new MethodCmds.VariableTableReply(id, wrap(0), new ListValue<>(Type.LIST, List.of())))));
+            id++;
+        }
+        var partition = new Partition(Either.right(new jdwp.EventCmds.Events(0, wrap((byte) 1),
+                new ListValue<>(Type.LIST, List.of(
+                        new EventCmds.Events.ClassPrepare(wrap(36), thread(1L), wrap((byte) 2), klass(657L),
+                                wrap(""), wrap(3)))))), parts);
+        assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 1) (\"events\" 0 \"kind\")" +
+                "=(wrap \"string\" \"ClassPrepare\") (\"events\" 0 \"refTypeTag\")=(wrap \"byte\" 2) (\"events\" 0 " +
+                "\"requestID\")=(wrap \"int\" 36) (\"events\" 0 \"signature\")=(wrap \"string\" \"\") (\"events\" 0 " +
+                "\"status\")=(wrap \"int\" 3) (\"events\" 0 \"thread\")=(wrap \"thread\" 1) (\"events\" 0 \"typeID\")" +
+                "=" +
+                "(wrap \"klass\" 657)))\n" +
+                "  (= var0 (request ReferenceType MethodsWithGeneric (\"refType\")=(get cause \"events\" 0 " +
+                "\"typeID\")))\n" +
+                "  (for iter0 (get var0 \"declared\") \n" +
+                "    (= var1 (request Method VariableTable (\"methodID\")=(get iter0 \"methodID\") (\"refType\")=(get" +
+                " cause \"events\" 0 \"typeID\")))))", Synthesizer.synthesizeProgram(partition).toPrettyString());
     }
 
     @Test

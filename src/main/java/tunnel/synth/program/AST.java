@@ -327,7 +327,7 @@ public interface AST {
         List<Statement> getSubStatements();
 
         /** remove the passed statements (but not there dependants) */
-        @Nullable T removeStatements(Set<Statement> statements);
+        T removeStatements(Set<Statement> statements);
 
         default T removeStatementsTransitively(Set<Statement> statements) {
             return removeStatements(getDependentStatementsAndAnchors(statements));
@@ -1471,7 +1471,7 @@ public interface AST {
             if (column > 100) {
                 start = column - 50;
                 preString = "...";
-                length = Math.min(length, column + 50);
+                length = Math.min(length - start, column + 50);
             }
             preString = this.line + "." + this.column + ": " + preString;
             var lineSegment = preString + line.substring(start, start + length) + (start + length < line.length() ? "..." : "");
