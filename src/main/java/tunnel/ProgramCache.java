@@ -80,11 +80,15 @@ public class ProgramCache implements Consumer<Program> {
 
     @Override
     public void accept(Program program) {
-        if (program.getNumberOfDistinctCalls() >= minSize) {
+        if (isAcceptableProgram(program)) {
             add(program);
             originForSimilars.invalidate(program); // ignore equivalent similars
             removedSimilars.remove(program);
         }
+    }
+
+    public boolean isAcceptableProgram(Program program) {
+        return program.getNumberOfDistinctCalls() >= minSize;
     }
 
     private void add(Program program) {

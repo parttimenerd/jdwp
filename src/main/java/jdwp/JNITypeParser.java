@@ -125,7 +125,7 @@ public class JNITypeParser {
     }
 
     public byte jdwpTag() {
-        return (byte) signature().charAt(0);
+        return (byte) signature.charAt(0);
     }
 
     public String componentSignature(int level) {

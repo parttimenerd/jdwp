@@ -319,6 +319,9 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                             // different types
                             return null; // but we do not support it (yet)
                         }
+                        if (!(((CombinedValue) listValue.get(i)).get(property) instanceof BasicValue)) {
+                            return null;
+                        }
                         propToAcc.put(property, List.of(new TaggedFunctionCallOrBasicValue(null,
                                 (BasicValue) ((CombinedValue) listValue.get(i)).get(property))));
                     }

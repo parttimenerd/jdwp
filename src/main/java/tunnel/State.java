@@ -219,9 +219,11 @@ public class State {
                 if (cause.isLeft()) {
                     try {
                         var program = Synthesizer.synthesizeProgram(partition);
-                        LOG.info("Synthesized client program: {}", program.toPrettyString());
-                        programCache.accept(program);
-                        storeProgramCache();
+                        if (programCache.isAcceptableProgram(program)) {
+                            LOG.info("Synthesized client program: {}", program.toPrettyString());
+                            programCache.accept(program);
+                            storeProgramCache();
+                        }
                     } catch (AssertionError err) {
                         LOG.error("Error synthesizing program for partition {}", formatter.format(partition), err);
                     }
@@ -238,10 +240,12 @@ public class State {
                 if (cause.isRight()) {
                     try {
                         var program = Synthesizer.synthesizeProgram(partition);
-                        LOG.info("Synthesized server program: {}", program.toPrettyString());
-                        programCache.accept(program);
-                        storeProgramCache();
-                        programsToSendToServer.add(program);
+                        if (programCache.isAcceptableProgram(program)) {
+                            LOG.info("Synthesized server program: {}", program.toPrettyString());
+                            programCache.accept(program);
+                            storeProgramCache();
+                            programsToSendToServer.add(program);
+                        }
                     } catch (AssertionError err) {
                         LOG.error("Error synthesizing program for partition {}", formatter.format(partition), err);
                     }

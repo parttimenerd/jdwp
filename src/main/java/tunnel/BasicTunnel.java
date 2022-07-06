@@ -36,6 +36,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -66,6 +67,7 @@ public class BasicTunnel {
     private int logCacheInterval = Integer.MAX_VALUE;
     private int requestsSinceLastCacheLog = 0;
     private int currentId = 0;
+    private final Duration waitTillNextReply = Duration.ofSeconds(1);
 
     public BasicTunnel(State state, InetSocketAddress ownAddress, InetSocketAddress jvmAddress) {
         this.state = state;
@@ -220,7 +222,7 @@ public class BasicTunnel {
             }
             Optional<Either<Events, ReplyOrError<?>>> reply = Optional.empty();
             try {
-                reply = readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream);
+                reply = readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream, false);
                 if (reply.isPresent() && reply.get().isLeft()) {
                     currentId = reply.get().getLeft().getId();
                     var events = reply.get().getLeft();
@@ -251,15 +253,37 @@ public class BasicTunnel {
             reply.ifPresent(eventsReplyOrErrorEither -> {
                 writeClientReply(clientOutputStream, eventsReplyOrErrorEither);
             });
+            int yieldCount = 0;
             while (!hasDataAvailable(clientInputStream) && !hasDataAvailable(jvmInputStream)) {
                 state.tick();
                 if (state.isClient() && state.hasProgramsToSendToServer()) {
                     sendProgramsToServer(jvmInputStream, jvmOutputStream);
+                    yieldCount = 0;
                 } else {
                     assert state.getProgramsToSendToServer().isEmpty();
                 }
-                Thread.yield(); // hint to the scheduler that other work could be done
+                yield(yieldCount++); // hint to the scheduler that other work could be done
             }
+        }
+    }
+
+    /** yields the thread after each check, returns true if data is really available or false it just ran into a timeout */
+    private boolean waitTillDataAvailable(InputStream inputStream, Duration maxDuration) throws IOException {
+        var start = System.currentTimeMillis();
+        int yieldCount = 0;
+        while (!hasDataAvailable(inputStream) && System.currentTimeMillis() - start < maxDuration.toMillis()) {
+            yield(yieldCount++);
+        }
+        return hasDataAvailable(inputStream);
+    }
+
+    /**
+     *
+     * @param yieldCount number of yields without any change
+     */
+    private void yield(int yieldCount) {
+        if (yieldCount > 1000) {
+            Thread.yield(); // free resources
         }
     }
 
@@ -294,14 +318,25 @@ public class BasicTunnel {
         return Optional.empty();
     }
 
-    /** ignores ignored statements and reads again if encountered */
+    /**
+     * ignores ignored statements and reads again if encountered and loop == true
+     *
+     * @param loop wait for {@link BasicTunnel#waitTillNextReply} for data to be available and than ignore
+     *             ignored replies till a real reply is encountered
+     */
     private Optional<Either<Events, ReplyOrError<?>>> readJvmReply(InputStream jvmInputStream,
                                                    OutputStream clientOutputStream,
-                                                   OutputStream jvmOutputStream) throws IOException {
-        Optional<ReadReplyResult> reply;
-        while ((reply = readJvmReplyDoNotIgnoreIgnored(jvmInputStream, clientOutputStream, jvmOutputStream))
-                .map(r -> r.ignored).orElse(false)) {
+                                                   OutputStream jvmOutputStream, boolean loop) throws IOException {
+        if (!loop) {
+            return readJvmReplyDoNotIgnoreIgnored(jvmInputStream, clientOutputStream, jvmOutputStream)
+                    .flatMap(ReadReplyResult::getEither);
         }
+        Optional<ReadReplyResult> reply;
+        do {
+            // first time in a while that I used a do-while loop
+            waitTillDataAvailable(jvmInputStream, waitTillNextReply);
+        } while ((reply = readJvmReplyDoNotIgnoreIgnored(jvmInputStream, clientOutputStream, jvmOutputStream))
+                .map(r -> r.ignored).orElse(false));
         return reply.flatMap(ReadReplyResult::getEither);
     }
 
@@ -396,10 +431,8 @@ public class BasicTunnel {
                 var requestId = id++;
                 var usedRequest = request.withNewId(requestId);
                 writeJvmRequest(jvmOutputStream, usedRequest);
-                while (!hasDataAvailable(jvmInputStream)) {
-                } // we wait till data is available
                 var optReply =
-                        readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream);
+                        readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream, true);
                 if (optReply.isPresent()) {
                     var reply = optReply.get();
                     if (reply.isLeft()) { // abort the evaluation if an event happened
@@ -452,7 +485,7 @@ public class BasicTunnel {
                                                      OutputStream jvmOutputStream,
                                                      Consumer<Either<Events, ReplyOrError<?>>> replyConsumer) {
         while (state.hasUnfinishedRequests(ignoreId)) {
-            readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream).ifPresent(replyConsumer);
+            readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream, true).ifPresent(replyConsumer);
         }
     }
 

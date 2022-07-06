@@ -298,7 +298,6 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
                     hashes.add(hashes.create(program.getCauseStatement()), hashes.size());
                 }
                 program.getBody().accept(visitor);
-                program.getBody().getHashes().setParent(hashes);
             } else {
                 statement.getSubStatements().forEach(s -> s.accept(visitor));
             }
