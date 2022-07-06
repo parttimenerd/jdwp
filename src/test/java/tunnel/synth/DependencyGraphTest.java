@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static jdwp.PrimitiveValue.wrap;
+import static jdwp.Reference.klass;
 import static jdwp.Reference.thread;
 import static jdwp.Value.Type.OBJECT;
 import static jdwp.util.Pair.p;
@@ -440,6 +441,27 @@ public class DependencyGraphTest {
         var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
         var layers = graph.computeLayers();
         assertEquals(2, layers.size());
+    }
+
+    @Test
+    public void testCauseOriginNodeNotRemovedInDeduplication() {
+        var partition = new Partition(Either.left(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(92461,
+                klass(439L))), List.of(
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(92374, klass(439L)), new ReplyOrError<>(92374,
+                        new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(92374, new ListValue<>(Type.LIST,
+                                List.of())))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(92461, klass(439L)), new ReplyOrError<>(92461,
+                        new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(92461, new ListValue<>(Type.LIST,
+                                List.of())))),
+                p(new jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest(92633, klass(439L)),
+                        new ReplyOrError<>(92633, ReferenceTypeCmds.SourceDebugExtensionRequest.METADATA,
+                                JDWP.Error.ABSENT_INFORMATION))
+        ));
+        var graph = DependencyGraph.compute(partition, DEFAULT_OPTIONS);
+        assertTrue(graph.getAllNodes().stream().anyMatch(n -> n.getId() == 92461));
+        var layers = graph.computeLayers();
+        var nodes = layers.getAllNodesWithoutDuplicates();
+        assertTrue(nodes.stream().anyMatch(n -> n.getId() == 92461));
     }
 
     static TestRequest request(int id, Value value) {

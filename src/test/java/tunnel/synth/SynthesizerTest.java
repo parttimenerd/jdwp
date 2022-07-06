@@ -432,6 +432,27 @@ public class SynthesizerTest {
     }
 
     @Test
+    public void testProgramWithCauseNotFirstStatement() {
+        var partition = new Partition(Either.left(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(92461,
+                klass(439L))), List.of(
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(92374, klass(439L)), new ReplyOrError<>(92374,
+                        new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(92374, new ListValue<>(Type.LIST,
+                                List.of())))),
+                p(new jdwp.ReferenceTypeCmds.MethodsWithGenericRequest(92461, klass(439L)), new ReplyOrError<>(92461,
+                        new jdwp.ReferenceTypeCmds.MethodsWithGenericReply(92461, new ListValue<>(Type.LIST,
+                                List.of())))),
+                p(new jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest(92633, klass(439L)),
+                        new ReplyOrError<>(92633, ReferenceTypeCmds.SourceDebugExtensionRequest.METADATA,
+                                JDWP.Error.ABSENT_INFORMATION))
+        ));
+        assertEquals("((= cause (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 439)))\n" +
+                        "  (= var0 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 439)))\n" +
+                        "  (= var1 (request ReferenceType SourceDebugExtension (\"refType\")=(get cause \"refType\"))" +
+                        "))",
+                Synthesizer.synthesizeProgram(partition).toPrettyString());
+    }
+
+    @Test
     public void testLoopLikePartitionWithDuplicates() {
         var partition = new Partition(Either.right(new jdwp.EventCmds.Events(5, PrimitiveValue.wrap((byte) 2),
                 new ListValue<>(Type.LIST, List.of(new EventCmds.Events.Breakpoint(PrimitiveValue.wrap(41),

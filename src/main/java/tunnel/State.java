@@ -6,12 +6,10 @@ import jdwp.EventCmds.Events.EventCommon;
 import jdwp.EventCmds.Events.TunnelRequestReplies;
 import jdwp.*;
 import jdwp.TunnelCmds.EvaluateProgramReply;
+import jdwp.Value;
 import jdwp.TunnelCmds.EvaluateProgramRequest;
 import jdwp.util.Pair;
-import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.slf4j.LoggerFactory;
 import tunnel.ProgramCache.DisabledProgramCache;
 import tunnel.ReplyCache.DisabledReplyCache;
@@ -348,15 +346,42 @@ public class State {
         return request;
     }
 
-    public @Nullable Either<Events, ReplyOrError<?>> readReply(InputStream inputStream,
-                                                               @Nullable OutputStream clientOutputStream,
-                                                               OutputStream serverOutputStream) throws IOException {
+    @Getter
+    @EqualsAndHashCode
+    @ToString
+    public static class ReadReplyResult {
+        Events events;
+        ReplyOrError<?> reply;
+        boolean ignored;
+
+        private ReadReplyResult(Events events, ReplyOrError<?> reply, boolean ignored) {
+            this.events = events;
+            this.reply = reply;
+            this.ignored = ignored;
+        }
+
+        public boolean hasReply() {
+            return reply != null;
+        }
+
+        public boolean hasEvents() {
+            return events != null;
+        }
+
+        public Optional<Either<Events, ReplyOrError<?>>> getEither() {
+            return ignored ? Optional.empty() : Optional.of(events != null ? Either.left(events) : Either.right(reply));
+        }
+    }
+
+    public @Nullable ReadReplyResult readReply(InputStream inputStream,
+                                               @Nullable OutputStream clientOutputStream,
+                                               OutputStream serverOutputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream);
         if (ps.isReply()) {
             if (ignoredUnfinished.contains(ps.id())) {
                 LOG.debug("Ignoring reply {}", ps.id());
                 ignoredUnfinished.remove(ps.id());
-                return null;
+                return new ReadReplyResult(null, null, true);
             }
             if (unfinishedEvaluateRequests.containsKey(ps.id())) {
                 var reply = PacketError.call(() -> EvaluateProgramReply.parse(ps), ps);
@@ -375,7 +400,7 @@ public class State {
                     ReplyOrError<?> originalReply = processReceivedRequestRepliesFromEvent(clientOutputStream, request,
                             BasicTunnel.parseEvaluateProgramReply(vm, realReply), ps.id());
                     LOG.debug("original reply " + originalReply);
-                    return originalReply == null ? null : Either.right(originalReply);
+                    return originalReply == null ? null : new ReadReplyResult(null, originalReply, false);
                 }
             }
             var request = getUnfinishedRequest(ps.id());
@@ -387,7 +412,7 @@ public class State {
                 captureInformation(request.packet, realReply);
                 cache(request.packet, new ReplyOrError<Reply>(reply.getReply()), false);
             }
-            return Either.right(reply);
+            return new ReadReplyResult(null, reply, false);
         } else {
             var events = Events.parse(ps);
             LOG.debug("Read event " + formatter.format(events));
@@ -423,7 +448,7 @@ public class State {
                             // entries
                             addEvent(new WrappedPacket<>(parsed.first));
                         }
-                        return Either.left(parsed.first);
+                        return new ReadReplyResult(parsed.first, null, false);
                     } catch (Exception | AssertionError e) {
                         LOG.error("Error in tunnel request reply event: " + e.getMessage(), e);
                         throw new PacketError("Error in tunnel request reply event", e);
@@ -431,7 +456,7 @@ public class State {
                 }
             }
             addEvent(new WrappedPacket<>(events));
-            return Either.left(events);
+            return new ReadReplyResult(events, null, false);
         }
     }
 

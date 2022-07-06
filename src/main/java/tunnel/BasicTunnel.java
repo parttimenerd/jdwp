@@ -21,6 +21,7 @@ import lombok.SneakyThrows;
 import org.slf4j.LoggerFactory;
 import tunnel.State.Formatter;
 import tunnel.State.Mode;
+import tunnel.State.ReadReplyResult;
 import tunnel.State.WrappedPacket;
 import tunnel.synth.program.AST.Statement;
 import tunnel.synth.program.Evaluator;
@@ -282,15 +283,26 @@ public class BasicTunnel {
         return Optional.empty();
     }
 
-    private Optional<Either<Events, ReplyOrError<?>>> readJvmReply(InputStream jvmInputStream,
-                                                                   OutputStream clientOutputStream,
-                                                                   OutputStream jvmOutputStream) throws IOException {
+    private Optional<ReadReplyResult> readJvmReplyDoNotIgnoreIgnored(InputStream jvmInputStream,
+                                                   OutputStream clientOutputStream,
+                                                   OutputStream jvmOutputStream) throws IOException {
         if (hasDataAvailable(jvmInputStream)) {
             var reply =
                     state.readReply(jvmInputStream, clientOutputStream, jvmOutputStream);
             return Optional.ofNullable(reply);
         }
         return Optional.empty();
+    }
+
+    /** ignores ignored statements and reads again if encountered */
+    private Optional<Either<Events, ReplyOrError<?>>> readJvmReply(InputStream jvmInputStream,
+                                                   OutputStream clientOutputStream,
+                                                   OutputStream jvmOutputStream) throws IOException {
+        Optional<ReadReplyResult> reply;
+        while ((reply = readJvmReplyDoNotIgnoreIgnored(jvmInputStream, clientOutputStream, jvmOutputStream))
+                .map(r -> r.ignored).orElse(false)) {
+        }
+        return reply.flatMap(ReadReplyResult::getEither);
     }
 
     private void writeClientReply(OutputStream clientOutputStream, Either<Events, ReplyOrError<?>> reply) {

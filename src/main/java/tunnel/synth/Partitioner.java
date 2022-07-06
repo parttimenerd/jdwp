@@ -261,7 +261,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         public Partition sortedAndDistinct() {
             return new Partition(cause, items.stream()
                     .sorted(Comparator.comparing(l -> {
-                        if (cause != null && cause.isLeft() && cause.getLeft().equals(l.first)) {
+                        if (cause != null && cause.isLeft() && cause.getLeft().getId() == l.first.getId()) {
                             return -1; // keep invariant
                         }
                         return l.first.getId();

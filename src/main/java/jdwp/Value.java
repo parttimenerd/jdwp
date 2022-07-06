@@ -1,5 +1,6 @@
 package jdwp;
 
+import com.google.common.primitives.Bytes;
 import jdwp.EventCmds.Events.EventCommon;
 import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.PrimitiveValue.*;
@@ -819,7 +820,7 @@ public abstract class Value implements ToCode {
         @Override
         public String toCode() {
             return String.format("new ByteList(%s)",
-                    Arrays.asList(bytes).stream().map(b -> "(byte)" + b).collect(Collectors.joining(", ")));
+                    Bytes.asList(bytes).stream().map(b -> "(byte)" + (byte)b).collect(Collectors.joining(", ")));
         }
 
         @Override
