@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
+import static tunnel.synth.Synthesizer.NAME_PREFIX;
 import static tunnel.synth.program.Functions.WRAP;
 import static tunnel.synth.program.Functions.createWrapperFunctionCall;
 
@@ -179,9 +180,12 @@ public interface AST {
             of = {"name"})
     @AllArgsConstructor
     class Identifier extends Primitive {
-        private final String name;
+        @Setter
+        private String name;
 
-        @Nullable @Setter private Statement source;
+        @Nullable
+        @Setter
+        private Statement source;
 
         @Setter
         private boolean isLoopIterableRelated;
@@ -313,7 +317,7 @@ public interface AST {
         }
     }
 
-    interface CompoundStatement<T extends Statement> extends AST {
+    interface CompoundStatement<T extends Statement & CompoundStatement<T>> extends AST {
 
         List<Statement> getSubStatements();
 
@@ -323,34 +327,38 @@ public interface AST {
             return removeStatements(getDependentStatementsAndAnchors(statements));
         }
 
+        default T copy() {
+            return replaceIdentifiersConv(Identifier::copy);
+        }
+
         default Set<Statement> getDependentStatements(Set<Statement> statements) {
-            Map<Identifier, Set<Statement>> statementsThatUseALiteral = new HashMap<>();
+            IdentityHashMap<Identifier, Set<Statement>> statementsThatUseALiteral = new IdentityHashMap<>();
             forEachStatement(s -> {
                 for (Identifier variable : s.getUsedIdentifiers()) {
                     statementsThatUseALiteral.computeIfAbsent(variable, k -> new HashSet<>()).add(s);
                 }
             });
-            Set<Identifier> usedVariables = new HashSet<>();
+            IdentityHashMap<Identifier, Object> usedVariables = new IdentityHashMap<>();
             Stack<Identifier> toVisit = new Stack<>();
             toVisit.addAll(statements.stream().map(Statement::getDefinedIdentifiers).flatMap(Set::stream).collect(Collectors.toSet()));
             while (toVisit.size() > 0) {
                 var cur = toVisit.pop();
-                if (usedVariables.contains(cur)) {
+                if (usedVariables.containsKey(cur)) {
                     continue;
                 }
-                usedVariables.add(cur);
+                usedVariables.put(cur, null);
                 toVisit.addAll(statementsThatUseALiteral.getOrDefault(cur, Set.of()).stream()
                         .map(Statement::getDefinedIdentifiers).flatMap(Set::stream).collect(Collectors.toSet()));
             }
-            var ret = usedVariables.stream().map(Identifier::getSource).collect(Collectors.toSet());
-            return ret;
+            return usedVariables.keySet().stream().map(Identifier::getSource).collect(Collectors.toSet());
         }
 
+        @SuppressWarnings("unchecked")
         default void forEachStatement(Consumer<Statement> consumer) {
             getSubStatements().forEach(c -> {
                 consumer.accept(c);
                 if (c instanceof CompoundStatement) {
-                    ((CompoundStatement) c).forEachStatement(consumer);
+                    ((CompoundStatement<?>) c).forEachStatement(consumer);
                 }
             });
         }
@@ -416,6 +424,74 @@ public interface AST {
             }
             return removeStatementsTransitively(statements);
         }
+
+        default void checkEveryIdentifierHasASingleSource() {
+            IdentityHashMap<Identifier, Object> usedIdentifiers = new IdentityHashMap<>();
+            forEachStatement(s -> {
+                for (Identifier variable : s.getDefinedIdentifiers()) {
+                    if (usedIdentifiers.containsKey(variable)) {
+                        throw new AssertionError(String.format("Identifier %s has multiple sources", variable));
+                    }
+                    usedIdentifiers.put(variable, null);
+                }
+            });
+        }
+
+        /**
+         * rename all variables/identifiers so that they are not present in the passed node, returns self
+         */
+        default T renameVariables(T baseNode) {
+            return renameVariables(NAME_PREFIX, baseNode.getLargestVarIdentifierIndex() + 1);
+        }
+
+        /**
+         * rename all variables to avoid conflicts in merging, returns self
+         */
+        @SuppressWarnings("unchecked")
+        default T renameVariables(String newBaseName, int startCount) {
+            Map<String, String> oldToNew = new HashMap<>();
+            java.util.function.Function<String, String> getNewName = name -> {
+                if (!oldToNew.containsKey(name)) {
+                    oldToNew.put(name, newBaseName + (oldToNew.size() + startCount));
+                }
+                return oldToNew.get(name);
+            };
+            Set<Identifier> processedIdents = new HashSet<>();
+            for (Identifier ident : getAllDefinedIdentifiers()) {
+                if (processedIdents.add(ident)) {
+                    ident.setName(getNewName.apply(ident.getName()));
+                }
+            }
+            return (T) this;
+        }
+
+        /** get the largest integer that follows {@link Synthesizer#NAME_PREFIX} in an identifier */
+        default int getLargestVarIdentifierIndex() {
+            var idents = getUsedAndDefinedIdentifiers();
+            return idents.stream().filter(ident -> ident.getName().startsWith(NAME_PREFIX))
+                    .mapToInt(ident -> {
+                        try {
+                            return Integer.parseInt(ident.name.substring(NAME_PREFIX.length()));
+                        } catch (NumberFormatException e) {
+                            return 0;
+                        }
+                    }).max().orElse(0);
+        }
+
+        default Set<Identifier> getUsedAndDefinedIdentifiers() {
+            Set<Identifier> ret = new HashSet<>();
+            forEachStatement(s -> {
+                ret.addAll(s.getUsedIdentifiers());
+                ret.addAll(s.getDefinedIdentifiers());
+            });
+            return ret;
+        }
+
+        default List<Identifier> getAllDefinedIdentifiers() {
+            List<Identifier> ret = new ArrayList<>();
+            forEachStatement(s -> ret.addAll(s.getDefinedIdentifiers()));
+            return ret;
+        }
     }
 
     /**
@@ -437,12 +513,18 @@ public interface AST {
         }
     }
 
-    interface PartiallyMergeable<T extends Statement & PartiallyMergeable<T>> extends AST {
+    interface PartiallyMergeable<T extends Statement & PartiallyMergeable<T> & CompoundStatement<T>> extends AST {
 
+        @SuppressWarnings("unchecked")
         default List<T> merge(T other) {
-            var res = merge(new CollectedInfoDuringMerge(), other);
-            res.forEach(x -> x.initHashes(((Statement) this).getHashes().getParent()));
-            return res;
+            try {
+                var res = merge(new CollectedInfoDuringMerge(), other.renameVariables((T) this));
+                res.forEach(x -> x.initHashes(((Statement) this).getHashes().getParent()));
+                return res;
+            } catch (Exception e) {
+                throw new AssertionError(String.format("Failed to merge %s and %s",
+                        ((Statement) this).toPrettyString(), other.toPrettyString()), e);
+            }
         }
 
         /**
@@ -1572,7 +1654,7 @@ public interface AST {
         }
 
         public Body merge(Body other) {
-            return merge(new CollectedInfoDuringMerge(), other).initHashes(getHashes().getParent());
+            return merge(new CollectedInfoDuringMerge(), other.renameVariables(this).initHashes(other.getHashes().getParent())).initHashes(getHashes().getParent());
         }
 
         /**

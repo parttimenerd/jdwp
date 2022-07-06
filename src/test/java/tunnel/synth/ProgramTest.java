@@ -169,40 +169,40 @@ public class ProgramTest {
     @ParameterizedTest
     @CsvSource({
             "((= ret (func))),((= ret (func))),((= ret (func)))",
-            "((= ret (func2))),((= ret (func))),((= ret (func2)) (= ret (func)))",
-            "((= ret (func2)) (for iter 1 (= iter 1)))," +
+            "((= ret (func2))),((= ret (func))),((= ret (func2)) (= var1 (func)))",
+            "((= ret (func2)) (for iter 1 (= iter2 1)))," +
                     "((= ret (func)))," +
-                    "((= ret (func2)) (for iter 1 (= iter 1)) (= ret (func))))",
-            "((for iter 1 (= iter 1)))," +
-                    "((for iter 1 (= iter 2)))," +
-                    "((for iter 1 (= iter 1) (= iter 2)))",
-            "((for iter 1 (= iter 1) (for iter2 2)))," +
-                    "((for iter2 2) (for iter 1 (= iter 2)))," +
-                    "((for iter2 2) (for iter 1 (= iter 1) (for iter2 2) (= iter 2)))",
-            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'b'))),((= x 1) (switch x (case 'a') (case 'b')" +
-                    "))",
-            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a' (= y 1)))),((= x 1) (switch x (case 'a' (= " +
-                    "y 1))))",
+                    "((= ret (func2)) (for iter 1 (= iter2 1)) (= var1 (func)))",
+            "((for iter 1 (= iter2 1)))," +
+                    "((for iter 1 (= iter2 2)))," +
+                    "((for iter 1 (= iter2 1) (= var2 2)))",
+            "((for iter 1 (= iter1 1) (for iter2 2)))," +
+                    "((for iter2 2) (for iter 1 (= iter1 2)))," +
+                    "((for var1 2) (for iter 1 (= iter1 1) (for iter2 2) (= var3 2)))",
+            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'b'))),((= x 1) (switch x (case \"a\") (case " +
+                    "\"b\")))",
+            "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a' (= y 1)))),((= x 1) (switch x (case \"a\" " +
+                    "(= var2 1))))",
             "((= x 1) (switch x (case 'a')) (switch (const 1) (case 'a')))," +
                     "((= x 1) (switch x (case 'b')))," +
-                    "((= x 1) (switch x (case 'a') (case 'b')) (switch (const 1) (case 'a'))) ",
+                    "((= x 1) (switch x (case \"a\") (case \"b\")) (switch (const 1) (case \"a\")))",
             "((rec r 10 var100 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10)) " +
                     "(= y (request ReferenceType Interfaces ('refType')=(wrap 'klass' 11))) " +
                     "(reccall u r ('clazz')=(get var100 'superclass'))))," +
                     "((rec r 10 var101 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10))" +
                     "(= y (request ReferenceType Interfaces ('refType')=(get var101 'superclass')))" +
                     "(reccall u r ('clazz')=(get var101 'superclass'))))," +
-                    "((rec r 10 var100 (request ClassType Superclass ('clazz')=(wrap 'class-type' 10)) " +
-                    "(= y (request ReferenceType Interfaces ('refType')=(wrap 'klass' 11))) " +
-                    "(= y (request ReferenceType Interfaces ('refType')=(get var100 'superclass')))" +
-                    "(reccall u r ('clazz')=(get var100 'superclass')))),"
+                    "((rec r 10 var100 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 10)) (= y " +
+                    "(request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 11))) (= var102 (request " +
+                    "ReferenceType Interfaces (\"refType\")=(get var100 \"superclass\"))) (reccall u r (\"clazz\")=" +
+                    "(get var100 \"superclass\"))))"
 
     })
     public void testMerge(String program1, String program2, String merge) {
         var p1 = Program.parse(merge);
         var p2 = Program.parse(program1);
         var p3 = Program.parse(program2);
-        assertEquals(p1.toPrettyString(), p2.merge(p3).toPrettyString());
+        assertEquals(p1.toString(), p2.merge(p3).toString());
     }
 
     @ParameterizedTest
@@ -212,16 +212,17 @@ public class ProgramTest {
             "((= ret2 1) (= y (2)) (= r ret2)),((= ret 1) (= x (1)) (= r2 ret)),((= ret2 1) (= r " +
                     "ret2))",
             "((= ret2 1) (= r ret2)),((= ret 1) (= r2 ret)),((= ret2 1) (= r ret2))",
-            "((for iter 1 (= iter 1))),((for iter 1 (= iter 2))),()",
-            "((for iter 1 (= iter 1))),((for iter 1 (= iter 1)))," +
-                    "((for iter 1 (= iter 1)))",
+            "((for iter 1 (= var1 1))),((for iter 1 (= var1 2))),()",
+            "((for iter 1 (= var1 1))),((for iter 1 (= var1 1)))," +
+                    "((for iter 1 (= var1 1)))",
             "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'a'))),((= x 1))",
-            "((= x 1) (switch x (case 'a' (= x 1)))),((= x 1) (switch x (case 'a' (= x 1)))),((= x 1) (switch x (case" +
-                    " 'a' (= x 1))))",
+            "((= x 1) (switch x (case 'a' (= y 1)))),((= x 1) (switch x (case 'a' (= y 1)))),((= x 1) (switch x (case" +
+                    " 'a' (= y 1))))",
             "((= x 1) (switch x (case 'a'))),((= x 1) (switch x (case 'b'))),((= x 1))",
             "((= x 1) (switch x (case 'a') (case 'b'))),((= x 1) (switch x (case 'a'))),((= x 1))",
-            "((= x 1) (switch x (case 'a' (= v 1) (= v 2)))),((= x 1) (switch x (case 'a' (= v 2)))),((= x 1) (switch" +
-                    " x (case 'a' (= v 2))))",
+            "((= x 1) (switch x (case 'a' (= v1 1) (= v2 2)))),((= x 1) (switch x (case 'a' (= v2 2)))),((= x 1) " +
+                    "(switch" +
+                    " x (case 'a' (= v2 2))))",
     })
     public void testOverlap(String program1, String program2, String overlap) {
         var overlapParse = Program.parse(overlap);
@@ -777,7 +778,13 @@ public class ProgramTest {
 
     @Test
     public void testMergeWithDifferentNames() {
-        assertEquals("((= x 1) (= z x))", Program.parse("((= x 1))")
+        assertEquals("((= x 1) (= var2 x))", Program.parse("((= x 1))")
+                .merge(Program.parse("((= y 1) (= z y))")).toString());
+    }
+
+    @Test
+    public void testMergeWithSameNames() {
+        assertEquals("((= y 2) (= var1 1) (= var2 var1))", Program.parse("((= y 2))")
                 .merge(Program.parse("((= y 1) (= z y))")).toString());
     }
 
@@ -881,6 +888,37 @@ public class ProgramTest {
         var statement = program.getBody().get(removedStatement);
         System.out.println(statement);
         assertEquals(expectedResult, program.removeStatements(Set.of(statement)).toPrettyString());
+    }
+
+    @Test
+    public void testSetEventCause2() {
+        // setCause crashed on this program, we just keep this test here to test for regressions
+        // as this error did not occur with any of the other tests
+        var program = Program.parse("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 1) " +
+                "(\"events\" 0 \"kind\")=(wrap \"string\" \"ClassPrepare\") (\"events\" 0 \"refTypeTag\")=(wrap " +
+                "\"byte\" 1) (\"events\" 0 \"requestID\")=(wrap \"int\" 21) (\"events\" 0 \"signature\")=(wrap " +
+                "\"string\" \"Ltunnel/EndlessLoop;\") (\"events\" 0 \"status\")=(wrap \"int\" 3) (\"events\" 0 " +
+                "\"thread\")=(wrap \"thread\" 1) (\"events\" 0 \"typeID\")=(wrap \"klass\" 552) (\"events\" 1 " +
+                "\"kind\")=(wrap \"string\" \"ClassPrepare\") (\"events\" 1 \"refTypeTag\")=(wrap \"byte\" 1) " +
+                "(\"events\" 1 \"requestID\")=(wrap \"int\" 2) (\"events\" 1 \"signature\")=(wrap \"string\" " +
+                "\"Ltunnel/EndlessLoop;\") (\"events\" 1 \"status\")=(wrap \"int\" 3) (\"events\" 1 \"thread\")=(wrap" +
+                " \"thread\" 1) (\"events\" 1 \"typeID\")=(wrap \"klass\" 552)))\n" +
+                "  (= var0 (request ReferenceType SourceFile (\"refType\")=(get cause \"events\" 0 \"typeID\")))\n" +
+                "  (= var1 (request ReferenceType SourceDebugExtension (\"refType\")=(get cause \"events\" 0 " +
+                "\"typeID\")))\n" +
+                "  (= var2 (request ReferenceType MethodsWithGeneric (\"refType\")=(get cause \"events\" 0 " +
+                "\"typeID\")))\n" +
+                "  (= var3 (request Method LineTable (\"methodID\")=(get var2 \"declared\" 1 \"methodID\") " +
+                "(\"refType\")=(get cause \"events\" 0 \"typeID\")))\n" +
+                "  (= var4 (request Method LineTable (\"methodID\")=(get var2 \"declared\" 0 \"methodID\") " +
+                "(\"refType\")=(get cause \"events\" 0 \"typeID\"))))");
+        var cause = (PacketCall) PacketCall.parse("(events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 0) " +
+                "(\"events\" 0 " +
+                "\"kind\")=(wrap \"string\" \"ClassPrepare\") (\"events\" 0 \"refTypeTag\")=(wrap \"byte\" 1) " +
+                "(\"events\" 0 \"requestID\")=(wrap \"int\" 2) (\"events\" 0 \"signature\")=(wrap \"string\" " +
+                "\"Lsun/net/util/URLUtil;\") (\"events\" 0 \"status\")=(wrap \"int\" 7) (\"events\" 0 \"thread\")=" +
+                "(wrap \"thread\" 1) (\"events\" 0 \"typeID\")=(wrap \"klass\" 474))");
+        program.setCause(cause);
     }
 
     @Test

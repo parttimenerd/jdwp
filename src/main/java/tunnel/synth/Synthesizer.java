@@ -1090,7 +1090,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
                         .collect(Collectors.toCollection(ArrayList::new));
                 var bodies = cases.stream().map(CaseStatement::getBody).collect(Collectors.toList());
                 var defCase = switchExpression.mergeBodiesForDefault ? mergeBodies(bodies) : overlapBodies(bodies);
-                cases.add(new CaseStatement(null, defCase));
+                cases.add(new CaseStatement(null, defCase.copy()));
                 loopBody = new Body(List.of(new SwitchStatement(switchExpression.switchExpression, cases)));
             }
             return new Loop(ident(iter), GET_FUNCTION.createCall(nodeName, field), loopBody);

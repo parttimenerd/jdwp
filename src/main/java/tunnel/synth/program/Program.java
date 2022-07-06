@@ -61,6 +61,7 @@ public class Program extends Statement implements CompoundStatement<Program> {
             throw new AssertionError(String.format("Program has a cause but the first statement is not an assignment " +
                     "of the cause: %s", this.toPrettyString()));
         }
+        checkEveryIdentifierHasASingleSource();
     }
 
     /**
