@@ -39,7 +39,6 @@ import tunnel.BasicTunnel;
 import tunnel.Listener;
 import tunnel.ReplyCache;
 import tunnel.State.Mode;
-import tunnel.synth.program.AST;
 import tunnel.synth.program.AST.AssignmentStatement;
 import tunnel.synth.program.AST.EventsCall;
 import tunnel.synth.program.AST.RequestCall;
@@ -57,6 +56,7 @@ import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static tunnel.State.Mode.*;
+import static tunnel.synth.program.AST.ident;
 import static tunnel.util.Util.findInetSocketAddress;
 import static tunnel.util.Util.setDefaultLogLevel;
 
@@ -497,8 +497,8 @@ public class BasicMockVMTest {
                 return classesReply;
             }
         })) {
-            var program = new Program(EventsCall.create(events), List.of(new AssignmentStatement(AST.ident("var0"),
-                    RequestCall.create(classesRequest))));
+            var program = new Program(ident("cause"), EventsCall.create(events),
+                    List.of(new AssignmentStatement(ident("var0"), RequestCall.create(classesRequest))));
             // store an artificial program in the program cache
             tp.serverTunnel.getState().getProgramCache().accept(program);
             tp.vm.sendEvent(events);
@@ -516,9 +516,9 @@ public class BasicMockVMTest {
             // the old program has been overridden by the new one in the server cache
             assertEquals(1, tp.serverTunnel.getState().getProgramCache().size());
 
-            assertEqualsTimeout(new Program(EventsCall.create(events), List.of(new AssignmentStatement(AST.ident(
-                    "var0"),
-                            RequestCall.create(classesRequest)), new AssignmentStatement(AST.ident("var1"),
+            assertEqualsTimeout(new Program(ident("cause"), EventsCall.create(events),
+                            List.of(new AssignmentStatement(ident("var0"),
+                            RequestCall.create(classesRequest)), new AssignmentStatement(ident("var1"),
                             RequestCall.create(new IDSizesRequest(0))))),
                     () -> tp.serverTunnel.getState().getProgramCache().get(events).get());
             assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());

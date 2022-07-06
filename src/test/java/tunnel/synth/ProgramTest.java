@@ -692,7 +692,7 @@ public class ProgramTest {
     public void testParseRecursionStatement() {
         var name = ident("r");
         var requestVar = ident("var100");
-        var recursion = new Program(null, List.of(new Recursion(name, 10, requestVar,
+        var recursion = new Program(null, null, List.of(new Recursion(name, 10, requestVar,
                 RequestCall.create(new SuperclassRequest(0, Reference.classType(10))), new Body(
                 new AssignmentStatement(ident("y"), RequestCall.create(new InterfacesRequest(1,
                         Reference.klass(11)))),
@@ -891,39 +891,22 @@ public class ProgramTest {
     }
 
     @Test
-    public void testSetEventCause2() {
-        // setCause crashed on this program, we just keep this test here to test for regressions
-        // as this error did not occur with any of the other tests
-        var program = Program.parse("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 1) " +
-                "(\"events\" 0 \"kind\")=(wrap \"string\" \"ClassPrepare\") (\"events\" 0 \"refTypeTag\")=(wrap " +
-                "\"byte\" 1) (\"events\" 0 \"requestID\")=(wrap \"int\" 21) (\"events\" 0 \"signature\")=(wrap " +
-                "\"string\" \"Ltunnel/EndlessLoop;\") (\"events\" 0 \"status\")=(wrap \"int\" 3) (\"events\" 0 " +
-                "\"thread\")=(wrap \"thread\" 1) (\"events\" 0 \"typeID\")=(wrap \"klass\" 552) (\"events\" 1 " +
-                "\"kind\")=(wrap \"string\" \"ClassPrepare\") (\"events\" 1 \"refTypeTag\")=(wrap \"byte\" 1) " +
-                "(\"events\" 1 \"requestID\")=(wrap \"int\" 2) (\"events\" 1 \"signature\")=(wrap \"string\" " +
-                "\"Ltunnel/EndlessLoop;\") (\"events\" 1 \"status\")=(wrap \"int\" 3) (\"events\" 1 \"thread\")=(wrap" +
-                " \"thread\" 1) (\"events\" 1 \"typeID\")=(wrap \"klass\" 552)))\n" +
-                "  (= var0 (request ReferenceType SourceFile (\"refType\")=(get cause \"events\" 0 \"typeID\")))\n" +
-                "  (= var1 (request ReferenceType SourceDebugExtension (\"refType\")=(get cause \"events\" 0 " +
-                "\"typeID\")))\n" +
-                "  (= var2 (request ReferenceType MethodsWithGeneric (\"refType\")=(get cause \"events\" 0 " +
-                "\"typeID\")))\n" +
-                "  (= var3 (request Method LineTable (\"methodID\")=(get var2 \"declared\" 1 \"methodID\") " +
-                "(\"refType\")=(get cause \"events\" 0 \"typeID\")))\n" +
-                "  (= var4 (request Method LineTable (\"methodID\")=(get var2 \"declared\" 0 \"methodID\") " +
-                "(\"refType\")=(get cause \"events\" 0 \"typeID\"))))");
-        var cause = (PacketCall) PacketCall.parse("(events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 0) " +
-                "(\"events\" 0 " +
-                "\"kind\")=(wrap \"string\" \"ClassPrepare\") (\"events\" 0 \"refTypeTag\")=(wrap \"byte\" 1) " +
-                "(\"events\" 0 \"requestID\")=(wrap \"int\" 2) (\"events\" 0 \"signature\")=(wrap \"string\" " +
-                "\"Lsun/net/util/URLUtil;\") (\"events\" 0 \"status\")=(wrap \"int\" 7) (\"events\" 0 \"thread\")=" +
-                "(wrap \"thread\" 1) (\"events\" 0 \"typeID\")=(wrap \"klass\" 474))");
-        program.setCause(cause);
+    public void testCollectStatementsAndRemoveStatements() {
+        var program = Program.parse("((= cause (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                "  (= var0 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                "  (= var1 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\")))\n" +
+                "  (= var2 (request ReferenceType SourceDebugExtension (\"refType\")=(get cause \"refType\")))\n" +
+                "  (= var3 (request Method LineTable (\"methodID\")=(get var0 \"declared\" 1 \"methodID\") " +
+                "(\"refType\")=(get cause \"refType\")))\n" +
+                "  (= var4 (request Method LineTable (\"methodID\")=(get var0 \"declared\" 0 \"methodID\") " +
+                "(\"refType\")=(get cause \"refType\"))))");
+        assertFalse(program.collectBodyStatements().contains(program));
+        assertEquals(program.toPrettyString(), program.removeStatements(Set.of()).toPrettyString());
     }
 
     @Test
     public void testParseCauseOnlyProgram() {
-        var program = new Program(new EventsCall("Event", "Composite", List.of()), List.of());
+        var program = new Program(ident("cause"), new EventsCall("Event", "Composite", List.of()), List.of());
         assertEquals(program, Program.parse(program.toPrettyString()));
     }
 }

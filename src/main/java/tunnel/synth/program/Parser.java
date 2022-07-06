@@ -83,9 +83,11 @@ public class Parser {
         AssignmentStatement cause = null;
         if (!block.isEmpty() && block.get(0) instanceof AssignmentStatement &&
                 ((AssignmentStatement) block.get(0)).isCause()) {
-            cause = (AssignmentStatement)block.remove(0);
+            cause = (AssignmentStatement) block.remove(0);
         }
-        var program = new Program(cause == null ? null : (PacketCall) cause.getExpression(), block);
+        var program = cause != null ?
+                new Program(cause.getVariable(), (PacketCall) cause.getExpression(), block) :
+                new Program(block);
         skipWhitespace();
         expect(')');
         return program;

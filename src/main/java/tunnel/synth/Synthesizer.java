@@ -122,7 +122,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         Layers layers = graph.computeLayers();
         var names = new NodeNames(options);
         var program = processNodes(names, layers, layers.getAllNodesWithoutDuplicates()).first;
-        return new Program(graph.hasCauseNode() ?
+        return new Program(graph.hasCauseNode() ? ident(CAUSE_NAME) : null, graph.hasCauseNode() ?
                 names.createPacketCauseCall(graph.getCause()) : null, program.getBody());
     }
 

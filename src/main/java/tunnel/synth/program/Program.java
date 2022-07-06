@@ -28,26 +28,28 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     public static final String INDENT = "  ";
 
+    private final @Nullable Identifier causeIdent;
     private final @Nullable PacketCall cause;
     private final Body body;
 
-    public Program(@Nullable PacketCall cause, Body body) {
+    public Program(@Nullable Identifier causeIdent, @Nullable PacketCall cause, Body body) {
+        this.causeIdent = causeIdent;
         this.cause = cause;
         this.body = new Body(Collections.unmodifiableList(body.getSubStatements()));
         checkInvariant();
         ProgramHashes.setInProgram(this);
     }
 
-    public Program(PacketCall cause, List<Statement> body) {
-        this(cause, new Body(body));
+    public Program(@Nullable Identifier causeIdent, @Nullable PacketCall cause, List<Statement> body) {
+        this(causeIdent, cause, new Body(body));
     }
 
     public Program(Body body) {
-        this(null, body);
+        this(null, null, body);
     }
 
     public Program(List<Statement> body) {
-        this(null, body);
+        this(null, null, body);
     }
 
     public Program(Statement... body) {
@@ -60,6 +62,9 @@ public class Program extends Statement implements CompoundStatement<Program> {
                         !(((AssignmentStatement) body.get(0)).getExpression().equals(cause)))) {
             throw new AssertionError(String.format("Program has a cause but the first statement is not an assignment " +
                     "of the cause: %s", this.toPrettyString()));
+        }
+        if ((cause == null) != (causeIdent == null)) {
+            throw new AssertionError("cause and causeIdent must have the same !=null property");
         }
         checkEveryIdentifierHasASingleSource();
     }
@@ -113,7 +118,7 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     /** cause or first assignment in body (equivalent for non-events) */
     public @Nullable AssignmentStatement getFirstCallAssignment() {
-        return cause != null ? new AssignmentStatement(AST.ident(CAUSE_NAME), cause) : body.getFirstCallAssignment();
+        return cause != null ? new AssignmentStatement(causeIdent, cause) : body.getFirstCallAssignment();
     }
 
     public int getNumberOfAssignments() {
@@ -128,7 +133,10 @@ public class Program extends Statement implements CompoundStatement<Program> {
     }
 
     public @Nullable AssignmentStatement getCauseStatement() {
-        return hasCause() ? new AssignmentStatement(AST.ident(CAUSE_NAME), getCause()) : null;
+        if (causeIdent != null && causeIdent.getSource() == null) {
+            causeIdent.setSource(new AssignmentStatement(AST.ident(CAUSE_NAME), getCause()));
+        }
+        return hasCause() ? (AssignmentStatement) causeIdent.getSource() : null;
     }
 
     public int getNumberOfDistinctCalls() {
@@ -140,9 +148,9 @@ public class Program extends Statement implements CompoundStatement<Program> {
         if (cause != null && statements.stream().anyMatch(s -> s instanceof AssignmentStatement &&
                 ((AssignmentStatement) s).getExpression() instanceof PacketCall &&
                 ((AssignmentStatement)s).getExpression().equals(cause))) {
-            return new Program(null, body.removeStatementsTransitively(statements));
+            return new Program(null, null, body.removeStatementsTransitively(statements));
         }
-        return new Program(cause, body.removeStatementsTransitively(statements));
+        return new Program(causeIdent, cause, body.removeStatementsTransitively(statements));
     }
 
     public Set<Statement> getDependentStatements(Set<Statement> statements) {
@@ -164,38 +172,45 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     public Program setCause(PacketCall packet) {
         assert cause == null || packet.getClass().equals(cause.getClass());
-        if (body.isEmpty() || cause == null) {
-            return new Program(packet, body);
+        Program copy = copy();
+        if (copy.body.isEmpty() || copy.cause == null) {
+            return new Program(copy.causeIdent, packet, copy.body);
         }
 
-        var newBody = new Body(new ArrayList<>(body.getSubStatements()));
+        var newBody = new Body(new ArrayList<>(copy.body.getSubStatements()));
         AssignmentStatement newCauseStatement = new AssignmentStatement(AST.ident(CAUSE_NAME), packet);
-        if (cause instanceof EventsCall) {
+        if (copy.cause instanceof EventsCall) {
             newBody.replaceSource(getCauseStatement(), newCauseStatement);
-            return new Program(packet, newBody);
+            return new Program(copy.causeIdent, packet, newBody);
         }
         // we have to do more for request causes: we have to replace the first statement with the new cause
-        var firstStatement = (AssignmentStatement) body.get(0);
+        var firstStatement = (AssignmentStatement) copy.body.get(0);
         var newFirstStatement = new AssignmentStatement(firstStatement.getVariable(), packet);
         newBody.set(0, newFirstStatement);
         newBody.replaceSource(firstStatement, newFirstStatement);
         newBody.replaceSource(getCauseStatement(), newCauseStatement);
-        return new Program(packet, newBody);
+        return new Program(copy.causeIdent, packet, newBody);
     }
 
     @Override
     public AST replaceIdentifiers(Function<Identifier, Identifier> identifierReplacer) {
-        return new Program(cause == null ? null : cause.replaceIdentifiersConv(identifierReplacer),
+        return new Program(cause == null ? null : identifierReplacer.apply(causeIdent),
+                cause == null ? null : cause.replaceIdentifiersConv(identifierReplacer),
                 body.replaceIdentifiersConv(identifierReplacer));
     }
 
-    public List<Statement> collectStatements() {
+    public List<Statement> collectBodyStatements() {
         List<Statement> statements = new ArrayList<>();
-        accept(new StatementVisitor() {
+        body.accept(new StatementVisitor() {
             @Override
             public void visit(Statement statement) {
                 statements.add(statement);
                 statement.getSubStatements().forEach(s -> s.accept(this));
+            }
+
+            @Override
+            public void visit(Body body) {
+                body.getSubStatements().forEach(s -> s.accept(this));
             }
         });
         return statements;

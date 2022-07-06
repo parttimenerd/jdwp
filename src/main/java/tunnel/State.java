@@ -625,7 +625,7 @@ public class State {
                 throw new EvaluationAbortException(false);
             }
         }).evaluate(program).second;
-        var toRemove = program.collectStatements();
+        var toRemove = program.collectBodyStatements();
         toRemove.removeAll(notEvaluated);
         try {
             return program.removeStatements(new HashSet<>(toRemove));

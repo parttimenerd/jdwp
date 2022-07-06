@@ -2,6 +2,7 @@ package tunnel.synth;
 
 import jdwp.JDWP;
 import lombok.Getter;
+import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
 import tunnel.synth.program.AST.*;
 import tunnel.synth.program.Program;
@@ -42,7 +43,8 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
     private final byte REC_CALL = 8;
     private final byte OTHER = 100;
 
-    private final ProgramHashes parent;
+    @Setter
+    private ProgramHashes parent;
     private final Map<Statement, Hashed<Statement>> statementToHashed;
     private final Map<Hashed<Statement>, Statement> hashedToStatement;
     private final Map<Hashed<Statement>, Integer> hashedToIndex;
@@ -296,6 +298,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
                     hashes.add(hashes.create(program.getCauseStatement()), hashes.size());
                 }
                 program.getBody().accept(visitor);
+                program.getBody().getHashes().setParent(hashes);
             } else {
                 statement.getSubStatements().forEach(s -> s.accept(visitor));
             }

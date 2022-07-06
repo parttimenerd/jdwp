@@ -56,6 +56,11 @@ public interface AST {
 
     AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer);
 
+    default <T> T copy() {
+        var idents = new IdentityHashMap<Identifier, Identifier>();
+        return replaceIdentifiersConv(ident -> idents.computeIfAbsent(ident, Identifier::copy));
+    }
+
     default Set<Identifier> getUsedIdentifiers() {
         return getSubExpressions().stream().flatMap(e -> e.getUsedIdentifiers().stream()).collect(Collectors.toSet());
     }
@@ -321,14 +326,11 @@ public interface AST {
 
         List<Statement> getSubStatements();
 
+        /** remove the passed statements (but not there dependants) */
         @Nullable T removeStatements(Set<Statement> statements);
 
         default T removeStatementsTransitively(Set<Statement> statements) {
             return removeStatements(getDependentStatementsAndAnchors(statements));
-        }
-
-        default T copy() {
-            return replaceIdentifiersConv(Identifier::copy);
         }
 
         default Set<Statement> getDependentStatements(Set<Statement> statements) {
