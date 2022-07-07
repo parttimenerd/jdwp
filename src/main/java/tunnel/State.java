@@ -339,6 +339,7 @@ public class State {
 
     public Request<?> readRequest(InputStream inputStream) throws IOException {
         var ps = PacketInputStream.read(vm, inputStream); // already wrapped in PacketError
+        currentRequestId = ps.id();
         var request = PacketError.call(() -> JDWP.parse(ps), ps);
         LOG.debug("Read {}", formatter.format(request));
         addRequest(new WrappedPacket<>(request));
@@ -428,20 +429,24 @@ public class State {
                         var parsed = BasicTunnel.parseTunnelRequestReplyEvent(vm, (TunnelRequestReplies) event);
                         var abortedRequestId = ((TunnelRequestReplies) event).abortedRequest.value;
                         if (abortedRequestId == -1) {
-                            addEvent(new WrappedPacket<>(parsed.first));
-                            for (Pair<Request<?>, ReplyOrError<?>> p : parsed.second) {
+                            for (Pair<Request<?>, ReplyOrError<?>> p : parsed.getLeft()) {
+                                replyCache.put(p.first, p.second, true);
+                            }
+                            addEvent(new WrappedPacket<>(parsed.getMiddle()));
+                            for (Pair<Request<?>, ReplyOrError<?>> p : parsed.getRight()) {
                                 replyCache.put(p.first, p.second, true);
                             }
                         } else {
                             // the event caused the abortion of an EvaluateProgramRequest
                             // but we collected some requests before
-                            if (!parsed.second.isEmpty()) {
-                                // we did collect some replies
+                            // and possibly after, as the event might have an associated program
+                            if (!parsed.getLeft().isEmpty()) {
+                                // we did collect some replies before receiving the event
                                 var request = unfinished.entrySet().stream().filter(e -> unfinishedEvaluateRequests.containsKey(e.getKey()))
                                         .map(e -> e.getValue().getPacket()).findFirst();
                                 request.ifPresent(value -> processReceivedRequestRepliesFromEvent(clientOutputStream,
                                         value,
-                                        parsed.second, abortedRequestId));
+                                        parsed.getLeft(), abortedRequestId));
                             } else if (unfinished.containsKey(abortedRequestId)) {
                                 // we have to resend the original request, as it apparently is still unfinished
                                 serverOutputStream.write(unfinished.get(abortedRequestId).packet.toPacket(vm).toByteArray());
@@ -451,9 +456,12 @@ public class State {
                             unfinishedEvaluateRequests.remove(abortedRequestId);
                             // this order of statements ensures that the event can invalidate the appropriate cache
                             // entries
-                            addEvent(new WrappedPacket<>(parsed.first));
+                            addEvent(new WrappedPacket<>(parsed.getMiddle()));
+                            if (parsed.getRight().size() > 0) {
+                                processReceivedRequestRepliesFromEvent(clientOutputStream, null, parsed.getRight(), abortedRequestId);
+                            }
                         }
-                        return new ReadReplyResult(parsed.first, null, false);
+                        return new ReadReplyResult(parsed.getMiddle(), null, false);
                     } catch (Exception | AssertionError e) {
                         LOG.error("Error in tunnel request reply event: " + e.getMessage(), e);
                         throw new PacketError("Error in tunnel request reply event", e);
@@ -468,7 +476,7 @@ public class State {
     @Nullable
     private ReplyOrError<?>
     processReceivedRequestRepliesFromEvent(@Nullable OutputStream clientOutputStream,
-                                           Request<?> request, List<Pair<Request<?>, ReplyOrError<?>>> realReply,
+                                           @Nullable Request<?> request, List<Pair<Request<?>, ReplyOrError<?>>> realReply,
                                            int id) {
         ReplyOrError<?> originalReply = null;
         assert clientOutputStream != null;

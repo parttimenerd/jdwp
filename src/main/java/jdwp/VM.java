@@ -284,8 +284,9 @@ public class VM {
             @Override
             public void visit(TunnelRequestReplies obj) {
                 var pair = BasicTunnel.parseTunnelRequestReplyEvent(VM.this, obj);
-                captureInformation(pair.first);
-                pair.second.forEach(p -> captureInformation(p.first, p.second));
+                pair.getLeft().forEach(p -> captureInformation(p.first, p.second));
+                captureInformation(pair.getMiddle());
+                pair.getRight().forEach(p -> captureInformation(p.first, p.second));
             }
         });
     }

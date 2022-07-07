@@ -3604,8 +3604,14 @@ JDWP "Java(tm) Debug Wire Protocol"
                         "created after the event has been received by the tunnel"
                         (int requestID
                                 "Request that generated event")
+                        (Repeat repliesBefore "The number of replies captured before the event."
+                            (Group RequestReply
+                                (bytes request "request packet")
+                                (bytes reply "reply packet")
+                            )
+                        )
                         (bytes events "events packet")
-                        (Repeat replies "The number of replies."
+                        (Repeat repliesAfter "The number of replies captured after the event."
                             (Group RequestReply
                                 (bytes request "request packet")
                                 (bytes reply "reply packet")

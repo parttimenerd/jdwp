@@ -30,7 +30,8 @@ internal object CodeGeneration {
 
         val commandClassName = (cmd.parent as CommandSetNode).name() + "." + className
 
-        addTypes(fields.flatMap { it.findGroupNodes() }.map { genGroupClass(it, commandClassName) })
+        addTypes(fields.flatMap { it.findGroupNodes() }.distinctBy { it.name() }
+            .map { genGroupClass(it, commandClassName) })
 
         addTypes(fields.flatMap { it.findSelectNodes() }.flatMap {
             genSelectClass(it, commandClassName)

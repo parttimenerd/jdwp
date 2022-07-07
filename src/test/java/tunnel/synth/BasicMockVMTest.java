@@ -54,6 +54,7 @@ import static jdwp.Reference.klass;
 import static jdwp.Reference.threadGroup;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static tunnel.State.Mode.*;
 import static tunnel.synth.program.AST.ident;
 import static tunnel.util.Util.findInetSocketAddress;
@@ -582,10 +583,16 @@ public class BasicMockVMTest {
         }
     }
 
+    /**
+     * When a program is executed for an interrupting event, then the current partition is split by the event.
+     * This is the case because partitions cannot overlap
+     */
     @ParameterizedTest
-    @CsvSource({"true", "false"})
+    @CsvSource({"true, true", "true, false", "false, false"})
     @SneakyThrows
-    public void testTunnelBasicProgramAndRequestProgramEvaluationFail(boolean sendEventMidway) {
+    public void testTunnelBasicProgramAndRequestProgramEvaluationFail(boolean sendEventMidway,
+                                                                      boolean cachedProgramForEvent) {
+        assumeTrue(!cachedProgramForEvent || sendEventMidway);
         var classesReply = new ClassesBySignatureReply(0, new ListValue<>(Type.OBJECT));
         var classesRequest = new ClassesBySignatureRequest(0, wrap("test"));
         var events = new Events(0, wrap((byte) 2), new ListValue<>(new ClassUnload(wrap(0), wrap("sig"))));
@@ -644,6 +651,13 @@ public class BasicMockVMTest {
                             "(= var4 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
                             "\"s\")))" +
                             ")"));
+            if (cachedProgramForEvent) {
+                tp.serverTunnel.getState().getProgramCache().accept(Program.parse("((= cause (events Event Composite " +
+                        "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
+                        "\"kind\")=(wrap \"string\" \"ClassUnload\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) " +
+                        "(\"events\" 0 \"signature\")=(wrap \"string\" \"x\"))) (= var0 (request VirtualMachine " +
+                        "ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))"));
+            }
             assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());
             var nameRequest = new NameRequest(0, threadGroup(1));
             tp.client.query(nameRequest);
@@ -660,53 +674,92 @@ public class BasicMockVMTest {
             }
             // we expect that the VM receives the SetRequest, the VersionRequest,
             // the SourceDebugExtensionRequest and the last ClassBySignatureRequest
-            assertEqualsTimeout(5, () -> {
+            assertEqualsTimeout(cachedProgramForEvent ? 6 : 5, () -> {
                 System.out.println(tp.vm.getAllReceivedRequests());
                 return tp.vm.getAllReceivedRequests().size();
             }, Duration.ofHours(1));
             // we expect than that this is propagated into the reply cache
             // this cache already contains the initial name request
-            assertEqualsTimeout(sendEventMidway ? 1 : 4, () -> {
+            assertEqualsTimeout(sendEventMidway ? (cachedProgramForEvent ? 2 : 1) : 4, () -> {
                 System.out.println(tp.clientTunnel.getState().getReplyCache().getCachedRequests());
                 return tp.clientTunnel.getState().getReplyCache().size();
             }, Duration.ofHours(1));
             // we expect that the current partition only of the set request
-            assertEqualsTimeout(1, () ->
-                            tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition() != null ?
-                                    tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().size() : -1,
+            assertEqualsTimeout(cachedProgramForEvent ? -1 : 1, () -> {
+                        if (tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition() != null) {
+                            var currentPartition =
+                                    tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition();
+                            System.out.println(currentPartition);
+                            return currentPartition.size();
+                        } else {
+                            System.out.println("no partition");
+                            return -1;
+                        }
+                    },
                     Duration.ofHours(1));
             assertEquals(versionReply, tp.client.query(new VersionRequest(10)));
-            assertEquals(5, tp.vm.getAllReceivedRequests().size());
+            int receiveRequestsBase = (cachedProgramForEvent ? 1 : 0) + (sendEventMidway ? 1 : 0) + 5;
+            assertEquals(cachedProgramForEvent ? 6 : 5, tp.vm.getAllReceivedRequests().size());
             var sourceDebugRequest = new SourceDebugExtensionRequest(11, klass(10));
             assertEquals(new ReplyOrError<>(11, SourceDebugExtensionRequest.METADATA, sourceDebugErrorCode),
                     tp.client.queryWithError(sourceDebugRequest));
             // this should have been cached for non events, but with events, it should not be
-            assertEquals(sendEventMidway ? 6 : 5, tp.vm.getAllReceivedRequests().size());
+            assertEquals(receiveRequestsBase, tp.vm.getAllReceivedRequests().size());
             var classesBySignatureRequest = new ClassesBySignatureRequest(12, wrap("s"));
             tp.client.query(classesBySignatureRequest);
-            assertEquals(sendEventMidway ? 7 : 5, tp.vm.getAllReceivedRequests().size());
+            if (sendEventMidway) {
+                receiveRequestsBase++;
+            }
+            assertEquals(receiveRequestsBase, tp.vm.getAllReceivedRequests().size());
             var classesBySignatureRequest2 = new ClassesBySignatureRequest(13, wrap("sig"));
             tp.client.query(classesBySignatureRequest2); // this one should not be cached
-            assertEquals(sendEventMidway ? 8 : 6, tp.vm.getAllReceivedRequests().size());
-            assertEquals(5, tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().size());
-            assertEquals(List.of(setRequest, new VersionRequest(10), sourceDebugRequest,
-                            classesBySignatureRequest, classesBySignatureRequest2),
+            assertEquals(sendEventMidway ? receiveRequestsBase + 1 : 6, tp.vm.getAllReceivedRequests().size());
+            assertEquals(cachedProgramForEvent ? 4 : 5,
+                    tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().size());
+            assertEquals(cachedProgramForEvent ?
+                            List.of(new VersionRequest(10), sourceDebugRequest,
+                                    classesBySignatureRequest, classesBySignatureRequest2) :
+                            List.of(setRequest, new VersionRequest(10), sourceDebugRequest,
+                                    classesBySignatureRequest, classesBySignatureRequest2),
                     tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().getRequests());
 
             tp.vm.sendEvent(10, new VMDeath(wrap(2))); // trigger the partition
-            assertEqualsTimeout("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
-                            "(\"suspendPolicy\")=(wrap \"byte\" 0)))\n" +
-                            "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
-                            "(\"suspendPolicy\")=(wrap \"byte\" 0)))\n" +
-                            "  (= var1 (request VirtualMachine Version))\n" +
-                            "  (= var2 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
-                            "\"sig\")))\n" +
-                            "  (= var3 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
-                            "\"s\")))\n" +
-                            "  (= var4 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"klass\" 10))" +
-                            "))",
-                    () -> tp.clientTunnel.getState().getProgramCache().get(setRequest).get().toPrettyString(),
-                    Duration.ofSeconds(1));
+            if (cachedProgramForEvent) {
+                assertEqualsTimeout("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
+                                "(\"suspendPolicy\")=(wrap \"byte\" 0)))\n" +
+                                "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
+                                "(\"suspendPolicy\")=(wrap \"byte\" 0)))\n" +
+                                "  (= var1 (request VirtualMachine Version))\n" +
+                                "  (= var2 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"klass\" " +
+                                "10)))\n" +
+                                "  (= var3 (request VirtualMachine ClassesBySignature (\"signature\")=(get var2 " +
+                                "\"extension\")))\n" +
+                                "  (= var4 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap " +
+                                "\"string\" \"s\"))))",
+                        () -> {
+                            var program = tp.clientTunnel.getState().getProgramCache().get(setRequest).get();
+                            System.out.println(program.toPrettyString());
+                            return program.toPrettyString();
+                        },
+                        Duration.ofSeconds(1));
+            } else {
+                assertEqualsTimeout("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
+                                "(\"suspendPolicy\")=(wrap \"byte\" 0)))\n" +
+                                "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 9) " +
+                                "(\"suspendPolicy\")=(wrap \"byte\" 0)))\n" +
+                                "  (= var1 (request VirtualMachine Version))\n" +
+                                "  (= var2 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap " +
+                                "\"string\" " +
+                                "\"sig\")))\n" +
+                                "  (= var3 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap " +
+                                "\"string\" " +
+                                "\"s\")))\n" +
+                                "  (= var4 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"klass\" " +
+                                "10))" +
+                                "))",
+                        () -> tp.clientTunnel.getState().getProgramCache().get(setRequest).get().toPrettyString(),
+                        Duration.ofSeconds(1));
+            }
         }
     }
 

@@ -19,6 +19,7 @@ import jdwp.util.Pair;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.tuple.Triple;
 import org.slf4j.LoggerFactory;
 import tunnel.State.Formatter;
 import tunnel.State.Mode;
@@ -171,7 +172,7 @@ public class BasicTunnel {
                             LOG.info("Using cached program for request  {}:\n {}", formatter.format(request),
                                     reducedProgram);
                             var evaluateRequest = new EvaluateProgramRequest(reducedProgram.hasCause() ? request.getId()
-                                    : request.getId() + 10000,
+                                    : getStartIdForIntermediateRequest(),
                                     wrap(reducedProgram.toPrettyString()));
                             state.addUnfinishedEvaluateRequest(evaluateRequest);
                             state.writeRequest(jvmOutputStream, evaluateRequest);
@@ -226,18 +227,9 @@ public class BasicTunnel {
                 reply = readJvmReply(jvmInputStream, clientOutputStream, jvmOutputStream, false);
                 if (reply.isPresent() && reply.get().isLeft()) {
                     currentId = reply.get().getLeft().getId();
-                    var events = reply.get().getLeft();
-                    var program = state.getCachedProgram(events);
-                    if (state.isServer() && program != null) {
-                        LOG.info("Using cached program for events  {}:\n {}", formatter.format(events),
-                                program.toPrettyString());
-                        handleEvaluateProgramEvent(jvmInputStream, jvmOutputStream,
-                                clientOutputStream, events, program);
-                        LOG.debug("Finished handling program");
-                        reply = Optional.empty();
-                    }
-                }
-                if (reply.isPresent() && reply.get().isRight() &&
+                    writeEvents(jvmInputStream, jvmOutputStream, clientOutputStream, reply.get().getLeft());
+                    reply = Optional.empty();
+                } else if (reply.isPresent() && reply.get().isRight() &&
                         reply.get().getRight().isReply() &&
                         reply.get().getRight().getReply() instanceof UpdateCacheReply) {
                     continue; // skip the reply to the update cache request
@@ -296,7 +288,7 @@ public class BasicTunnel {
 
     @SneakyThrows
     private void sendProgramsToServer(InputStream jvmInputStream, OutputStream jvmOutputStream) {
-        jvmOutputStream.write(new UpdateCacheRequest(currentId + 100000,
+        jvmOutputStream.write(new UpdateCacheRequest(getStartIdForIntermediateRequest(),
                 new ListValue<>(Type.STRING,
                         state.drainProgramsToSendToServer().stream().map(Statement::toPrettyString)
                                 .map(PrimitiveValue::wrap).collect(Collectors.toList())))
@@ -381,8 +373,42 @@ public class BasicTunnel {
         state.writeReply(clientOutputStream, Either.right(reply));
     }
 
+    private void writeEvents(InputStream jvmInputStream, OutputStream jvmOutputStream, OutputStream clientOutputStream,
+                             Events events) {
+        writeEvents(jvmInputStream, jvmOutputStream, clientOutputStream, events, List.of(), -1);
+    }
+
+    /**
+     * check for a stored program for the passed event and execute it, send the event either with the
+     * additional request-reply-pairs or on its own if there aren't any
+     */
+    private void writeEvents(InputStream jvmInputStream, OutputStream jvmOutputStream, OutputStream clientOutputStream,
+                             Events events, List<Pair<Request<?>, ReplyOrError<?>>> requestRepliesBefore,
+                             int abortedRequest) {
+        try {
+            var program = state.getCachedProgram(events);
+            if (state.isServer() && program != null) {
+                LOG.info("Using cached program for events  {}:\n {}", formatter.format(events),
+                        program.toPrettyString());
+                handleEvaluateProgramEvent(jvmInputStream, jvmOutputStream, clientOutputStream, events, program,
+                        requestRepliesBefore, abortedRequest);
+                LOG.debug("Finished handling program");
+            } else if (abortedRequest != -1 || requestRepliesBefore.size() > 0) {
+                writeClientReply(clientOutputStream,
+                        Either.left(createTRREvents(events, requestRepliesBefore, List.of(), abortedRequest)));
+            } else {
+                writeClientReply(clientOutputStream, Either.left(events));
+            }
+        } catch (Exception e) {
+            LOG.error("error handling events", e);
+            state.ignoreUnfinished();
+            writeClientReply(clientOutputStream, Either.left(events));
+        }
+    }
+
     private void handleEvaluateProgramEvent(InputStream jvmInputStream, OutputStream jvmOutputStream,
-                                            OutputStream clientOutputStream, Events events, Program program) {
+                                            OutputStream clientOutputStream, Events events, Program program,
+                                            List<Pair<Request<?>, ReplyOrError<?>>> requestRepliesBefore, int abortedRequest) {
         List<Pair<Request<?>, ReplyOrError<?>>> requestReplies;
         try {
             requestReplies = handleEvaluateProgramRequest(jvmInputStream, jvmOutputStream, clientOutputStream,
@@ -399,26 +425,34 @@ public class BasicTunnel {
             return;
         }
         // if it all worked out, then request replies contains all request replies
-        var newEvents = createTRREvents(events, requestReplies, -1);
+        var newEvents = createTRREvents(events, requestRepliesBefore, requestReplies, abortedRequest);
         state.addEvent(new WrappedPacket<>(events));
         state.writeReply(clientOutputStream, Either.left(newEvents));
     }
 
-    private Events createTRREvents(Events events, List<Pair<Request<?>, ReplyOrError<?>>> requestReplies,
+    private Events createTRREvents(Events events, List<Pair<Request<?>, ReplyOrError<?>>> requestRepliesBefore,
+                                   List<Pair<Request<?>, ReplyOrError<?>>> requestRepliesAfter,
                                    int abortedRequest) {
-        var trrEvent = createTRR(events, requestReplies, abortedRequest);
+        var trrEvent = createTRR(events, requestRepliesBefore, requestRepliesAfter, abortedRequest);
         return new Events(events.id, events.suspendPolicy, new ListValue<>(trrEvent));
     }
 
-    private TunnelRequestReplies createTRR(Events events, List<Pair<Request<?>, ReplyOrError<?>>> requestReplies,
+    private TunnelRequestReplies createTRR(Events events,
+                                           List<Pair<Request<?>, ReplyOrError<?>>> requestRepliesBefore,
+                                           List<Pair<Request<?>, ReplyOrError<?>>> requestRepliesAfter,
                                            int abortedRequest) {
         return new TunnelRequestReplies(events.getEvents().get(0).requestID,
+                createTRRList(requestRepliesBefore),
                 new ByteList(events.toPacket(state.vm()).toByteArray()),
-                new ListValue<>(Type.OBJECT, requestReplies.stream()
-                        .map(rr -> new Events.RequestReply(
-                                new ByteList(rr.first.withNewId(0).toPacket(state.vm()).toByteArray()),
-                                new ByteList(rr.second.withNewId(0).toPacket(state.vm()).toByteArray()))).collect(Collectors.toList())),
+                createTRRList(requestRepliesAfter),
                 wrap(abortedRequest));
+    }
+
+    private ListValue<Events.RequestReply> createTRRList(List<Pair<Request<?>, ReplyOrError<?>>> requestReplies) {
+        return new ListValue<>(Type.OBJECT, requestReplies.stream()
+                .map(rr -> new Events.RequestReply(
+                        new ByteList(rr.first.withNewId(0).toPacket(state.vm()).toByteArray()),
+                        new ByteList(rr.second.withNewId(0).toPacket(state.vm()).toByteArray()))).collect(Collectors.toList()));
     }
 
     private List<Pair<Request<?>, ReplyOrError<?>>> handleEvaluateProgramRequest(InputStream jvmInputStream,
@@ -430,7 +464,7 @@ public class BasicTunnel {
         List<Pair<Request<?>, ReplyOrError<?>>> requestReplies = new ArrayList<>();
         new Evaluator(state.vm(), new Functions() {
 
-            int id = initialId + 10000;
+            int id = getStartIdForIntermediateRequest();
 
             @Override
             @SneakyThrows
@@ -443,11 +477,9 @@ public class BasicTunnel {
                 if (optReply.isPresent()) {
                     var reply = optReply.get();
                     if (reply.isLeft()) { // abort the evaluation if an event happened
-                        state.addEvent(new WrappedPacket<>(reply.getLeft()));
-                        writeClientReply(clientOutputStream, Either.left(createTRREvents(reply.getLeft(),
-                                requestReplies, initialId)));
+                        // state.addEvent(new WrappedPacket<>(reply.getLeft()));
                         state.ignoreUnfinished();
-                        System.out.println("#################### wrote client reply");
+                        writeEvents(jvmInputStream, jvmOutputStream, clientOutputStream, reply.getLeft(), requestReplies, initialId);
                         throw new EvaluationAbortException(true, String.format("Event %s happened", reply.getLeft()));
                     }
                     if (reply.getRight().isReply()) { // the good case, where we have a reply
@@ -515,14 +547,21 @@ public class BasicTunnel {
         }).collect(Collectors.toList());
     }
 
+    public static Triple<List<Pair<Request<?>, ReplyOrError<?>>>, Events, List<Pair<Request<?>, ReplyOrError<?>>>>
+    parseTunnelRequestReplyEvent(VM vm, TunnelRequestReplies reply) {
+        return Triple.of(parseTunnelRequestReplies(vm, reply.repliesBefore),
+                Events.parse(vm, Packet.fromByteArray(reply.events.bytes)),
+                parseTunnelRequestReplies(vm, reply.repliesAfter));
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static Pair<Events, List<Pair<Request<?>, ReplyOrError<?>>>> parseTunnelRequestReplyEvent(VM vm,
-                                                                                           TunnelRequestReplies reply) {
-        return p(Events.parse(vm, Packet.fromByteArray(reply.events.bytes)), reply.replies.stream().map(p -> {
+    private static List<Pair<Request<?>, ReplyOrError<?>>> parseTunnelRequestReplies(VM vm,
+                                                                                     ListValue<Events.RequestReply> replies) {
+        return replies.stream().map(p -> {
             Request<?> innerRequest = JDWP.parse(vm, Packet.fromByteArray(p.request.bytes));
             ReplyOrError<?> innerReply = innerRequest.parseReply(new PacketInputStream(vm, p.reply.bytes));
             return (Pair<Request<?>, ReplyOrError<?>>) (Pair) p(innerRequest, innerReply);
-        }).collect(Collectors.toList()));
+        }).collect(Collectors.toList());
     }
 
     public int getReplyCacheSize() {
@@ -531,5 +570,14 @@ public class BasicTunnel {
 
     public int getProgramCacheSize() {
         return state.getProgramCache().size();
+    }
+
+    private static final int SLOT_SIZE = 10000;
+    private int lastSlot = 0;
+
+    /** get an id that is at least {@link BasicTunnel#SLOT_SIZE} in the future  */
+    private int getStartIdForIntermediateRequest() {
+        lastSlot = Math.max(lastSlot, this.currentId) + SLOT_SIZE;
+        return lastSlot;
     }
 }
