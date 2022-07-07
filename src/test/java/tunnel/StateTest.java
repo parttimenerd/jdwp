@@ -2,6 +2,9 @@ package tunnel;
 
 import com.google.common.base.Strings;
 import jdwp.EventCmds.Events;
+import jdwp.Reference;
+import jdwp.ReferenceTypeCmds.SignatureWithGenericReply;
+import jdwp.ReferenceTypeCmds.SignatureWithGenericRequest;
 import jdwp.Reply;
 import jdwp.ReplyOrError;
 import jdwp.Request;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 import tunnel.Listener.CollectingListener;
 import tunnel.State.Formatter;
 import tunnel.State.NoSuchRequestException;
+import tunnel.synth.program.Program;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,5 +93,25 @@ public class StateTest {
         IntStream.range(0, 500).mapToObj(i -> Strings.repeat("a", i)).forEach(s -> {
             assertTrue(Formatter.cut(s).length() <= Formatter.MAX_LENGTH);
         });
+    }
+
+    @Test
+    public void testReduceProgramToNonCachedRequests() {
+        State state = new State();
+        Program program = Program.parse("((= cause (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap " +
+                "\"klass\" 679)))\n" +
+                "  (= var0 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 679)))\n" +
+                "  (= var1 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 67)))\n" +
+                "  (= var2 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\"))))");
+        state.getReplyCache().onReply(new SignatureWithGenericRequest(0, Reference.klass(679)),
+                new ReplyOrError<>(new SignatureWithGenericReply(0, wrap(""), wrap("klass"))));
+        state.getReplyCache().onReply(new SignatureWithGenericRequest(0, Reference.klass(67)),
+                new ReplyOrError<>(new SignatureWithGenericReply(0, wrap(""), wrap("klass"))));
+        var reduced = state.reduceProgramToNonCachedRequests(program);
+        System.out.println(reduced.toPrettyString());
+        assertTrue(reduced.hasCause());
+        assertEquals("((= cause (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 679)))\n" +
+                "  (= var0 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 679)))\n" +
+                "  (= var2 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\"))))", reduced.toPrettyString());
     }
 }

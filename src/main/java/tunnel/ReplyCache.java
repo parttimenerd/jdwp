@@ -5,8 +5,8 @@ import jdwp.EventCmds.Events;
 import jdwp.*;
 import jdwp.JDWP.StateProperty;
 import jdwp.util.Pair;
-import lombok.*;
 import lombok.Value;
+import lombok.*;
 import org.jetbrains.annotations.NotNull;
 import tunnel.ReplyCache.Cache.CacheEntry;
 import tunnel.ReplyCache.Cache.EvictionCause;
@@ -23,8 +23,8 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static jdwp.util.Pair.p;
-import static tunnel.ReplyCache.Cache.EvictionCause.*;
 import static tunnel.ReplyCache.Cache.EvictionCause.SIZE;
+import static tunnel.ReplyCache.Cache.EvictionCause.*;
 import static tunnel.ReplyCache.Statistics.ColumnType.*;
 
 /**
@@ -402,6 +402,10 @@ public class ReplyCache implements Listener {
             checkInvariants();
         }
 
+        public boolean canCache(Request<?> request) {
+            return request.onlyReads();
+        }
+
         /** does not trigger any invalidation based on effects */
         public void put(Request<?> request, T reply, boolean prefetched) {
             if (!request.onlyReads()) {
@@ -627,7 +631,10 @@ public class ReplyCache implements Listener {
 
     @Override
     public void onReply(Request<?> request, ReplyOrError<?> reply) {
-        onRequest(request); // just to be safe
+        if (l1Cache.canCache(request) && reply.isReplyLike()) {
+            put(request, reply, false);
+        }
+        onRequest(request);
     }
 
     public Set<Request<?>> getCachedRequests() {

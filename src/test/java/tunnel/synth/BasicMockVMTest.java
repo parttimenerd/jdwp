@@ -356,8 +356,8 @@ public class BasicMockVMTest {
             assertEqualsTimeout(2, tp.clientTunnel::getReplyCacheSize, Duration.ofMillis(1000000));
             // one of these replies is prefetched
             assertEquals(1, tp.clientTunnel.getState().getReplyCache().getPrefetchedStatistics().size());
-            assertEquals(2, tp.clientTunnel.getState().getReplyCache().getNonPrefetchedStatistics().size());
-            assertEquals(3, tp.clientTunnel.getState().getReplyCache().getStatistics().size());
+            assertEquals(5, tp.clientTunnel.getState().getReplyCache().getNonPrefetchedStatistics().size());
+            assertEquals(7, tp.clientTunnel.getState().getReplyCache().getStatistics().size());
             // the next Classes request should not trickle down to the VM
             assertEquals(classesReply, tp.client.query(classesRequest));
             assertEquals(4, tp.vm.getReceivedRequests().size());

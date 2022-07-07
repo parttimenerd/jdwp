@@ -155,6 +155,18 @@ public class Program extends Statement implements CompoundStatement<Program> {
         return new Program(causeIdent, cause, body.removeStatementsTransitively(statements));
     }
 
+
+    public Program removeStatementsIgnoreCause(Set<Statement> statements) {
+        if (!(cause instanceof RequestCall)) {
+            return new Program(causeIdent, cause, body.removeStatementsTransitively(statements));
+        }
+        // skip the cause request here, otherwise we would violate the invariant
+        statements.removeIf(s -> s instanceof AssignmentStatement &&
+                ((AssignmentStatement) s).getExpression() instanceof PacketCall &&
+                ((AssignmentStatement)s).getExpression().equals(cause));
+        return new Program(causeIdent, cause, body.removeStatementsTransitively(statements));
+    }
+
     public Set<Statement> getDependentStatements(Set<Statement> statements) {
         return body.getDependentStatements(statements);
     }

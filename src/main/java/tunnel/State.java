@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.stream.Collectors;
 
 import static tunnel.State.Mode.*;
 
@@ -669,11 +670,21 @@ public class State {
             return program;
         }
         try {
-            var reduced = program.removeStatements(new HashSet<>(toRemove));
+            // check if there is any non-removed statement that depends on a removed statement
+            var removedVars = toRemove.stream().flatMap(s -> s.getDefinedIdentifiers().stream()).collect(Collectors.toSet());
+            Program reduced;
+            if (notEvaluated.stream().anyMatch(s -> s.getUsedIdentifiers().stream()
+                    .anyMatch(v -> removedVars.contains(v) || v.equals(program.getCauseIdent())))) {
+                // the rest of the program depends on the removed
+                reduced = program.removeStatementsIgnoreCause(new HashSet<>(toRemove));
+            } else {
+                reduced = program.removeStatements(new HashSet<>(toRemove));
+            }
             LOG.debug("Reduced program {} to non-cached requests {} by removing {}",
                     program.toPrettyString(), reduced.toPrettyString(), toRemove);
             return reduced;
         } catch (AssertionError e) {
+            e.printStackTrace();
             LOG.error("Failed to remove cached requests ({}) from program {}", program, toRemove, e);
         }
         return program;
