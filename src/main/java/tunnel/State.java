@@ -642,7 +642,7 @@ public class State {
     }
 
     /**
-     * remove all requests from the program that are cached
+     * remove all requests from the program that are cached, returns the same program if nothing can be cached
      */
     public Program reduceProgramToNonCachedRequests(Program program) {
         var notEvaluated = new Evaluator(vm, new Functions() {
@@ -657,6 +657,9 @@ public class State {
         }).evaluate(program).second;
         var toRemove = program.collectBodyStatements();
         toRemove.removeAll(notEvaluated);
+        if (toRemove.isEmpty()) {
+            return program;
+        }
         try {
             var reduced = program.removeStatements(new HashSet<>(toRemove));
             LOG.debug("Reduced program {} to non-cached requests {} by removing {}",

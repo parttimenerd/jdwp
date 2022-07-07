@@ -905,6 +905,15 @@ public class ProgramTest {
     }
 
     @Test
+    public void testCollectStatementsAndRemoveStatementsSmall() {
+        var program = Program.parse("((= cause (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                "  (= var0 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                "  (= var1 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\"))))");
+        assertFalse(program.collectBodyStatements().contains(program));
+        assertEquals(program.toPrettyString(), program.removeStatements(Set.of()).toPrettyString());
+    }
+
+    @Test
     public void testRemoveVariableUsedInMapStatement() {
         var program = Program.parse("((= cause (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\"" +
                 " 649)))\n" +

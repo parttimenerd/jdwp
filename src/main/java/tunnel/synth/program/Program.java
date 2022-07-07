@@ -143,6 +143,8 @@ public class Program extends Statement implements CompoundStatement<Program> {
         return getNumberOfAssignments() + (hasCause() && getCause() instanceof EventsCall ? 1 : 0);
     }
 
+    /** removes statements transitively */
+    @Override
     public Program removeStatements(Set<Statement> statements) {
         // check whether the cause has to be removed
         if (cause != null && statements.stream().anyMatch(s -> s instanceof AssignmentStatement &&

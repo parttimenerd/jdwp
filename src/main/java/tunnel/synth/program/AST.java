@@ -322,11 +322,16 @@ public interface AST {
         }
     }
 
+    /** statements that combines other statements */
     interface CompoundStatement<T extends Statement & CompoundStatement<T>> extends AST {
 
         List<Statement> getSubStatements();
 
-        /** remove the passed statements (but not there dependants) */
+        /**
+         * remove the passed statements (but not their dependants),
+         * be sure to call {@link Statement#initHashes(ProgramHashes)} afterwards on the top level,
+         * if this is not called on {@link Program}
+         */
         T removeStatements(Set<Statement> statements);
 
         default T removeStatementsTransitively(Set<Statement> statements) {
@@ -971,7 +976,7 @@ public interface AST {
 
         @Override
         public Loop removeStatements(Set<Statement> statements) {
-            return new Loop(iter, iterable, body.removeStatements(statements)).initHashes(getHashes().getParent());
+            return new Loop(iter, iterable, body.removeStatements(statements));
         }
 
         @Override
@@ -1081,7 +1086,7 @@ public interface AST {
         @Override
         public @Nullable Recursion removeStatements(Set<Statement> statements) {
             return new Recursion(name, maxNumberOfCalls, requestVariable, request,
-                    body.removeStatements(statements)).initHashes(getHashes().getParent());
+                    body.removeStatements(statements));
         }
 
         @Override
@@ -1253,8 +1258,7 @@ public interface AST {
         public SwitchStatement removeStatements(Set<Statement> statements) {
             return new SwitchStatement(expression, cases.stream().
                     filter(statements::contains)
-                    .map(c -> c.removeStatements(statements)).collect(Collectors.toList()))
-                    .initHashes(getHashes().getParent());
+                    .map(c -> c.removeStatements(statements)).collect(Collectors.toList()));
         }
 
         @Override
@@ -1332,8 +1336,7 @@ public interface AST {
 
         @Override
         public CaseStatement removeStatements(Set<Statement> statements) {
-            return new CaseStatement(expression, body.removeStatements(statements))
-                    .initHashes(getHashes().getParent());
+            return new CaseStatement(expression, body.removeStatements(statements));
         }
 
         @Override
@@ -1766,12 +1769,13 @@ public interface AST {
             return body;
         }
 
+        @Override
         public Body removeStatements(Set<Statement> statements) {
             return new Body(body.stream().filter(s -> !statements.contains(s))
                     .map(s -> s instanceof CompoundStatement<?> ?
                             ((CompoundStatement<?>) s).removeStatements(statements) : s)
                     .filter(Objects::nonNull)
-                    .collect(Collectors.toList())).initHashes(getHashes().getParent());
+                    .collect(Collectors.toList()));
         }
 
         public void replaceSource(AssignmentStatement firstStatement, AssignmentStatement newFirstStatement) {

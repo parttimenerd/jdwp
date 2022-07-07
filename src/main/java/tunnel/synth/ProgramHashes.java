@@ -281,8 +281,12 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
             @Override
             public void visit(Statement statement) {
                 hashes.add(hashes.create(statement), hashes.size());
-                setInStatement(hashes, statement);
-                statement.getHashes().add(hashes.get(statement), 0);
+                if (statement.getSubStatements().size() > 0) {
+                    setInStatement(hashes, statement);
+                    statement.getHashes().add(hashes.get(statement), 0);
+                } else {
+                    statement.setHashes(hashes);
+                }
             }
 
             @Override
