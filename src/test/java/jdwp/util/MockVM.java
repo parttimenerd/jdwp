@@ -6,6 +6,7 @@ import jdwp.EventCmds.Events.EventCommon;
 import jdwp.*;
 import jdwp.JDWP.ReturningRequestVisitor;
 import jdwp.Value.ListValue;
+import jdwp.VirtualMachineCmds.DisposeReply;
 import jdwp.VirtualMachineCmds.IDSizesReply;
 import jdwp.VirtualMachineCmds.IDSizesRequest;
 import lombok.AllArgsConstructor;
@@ -61,6 +62,7 @@ public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeabl
     private final IDSizesReply idSizesReply;
     private int id = 0;
     private final BlockingQueue<Events> eventsToSend;
+    private boolean isDisposed = false;
 
     @SneakyThrows
     public MockVM() {
@@ -102,7 +104,13 @@ public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeabl
     private void runIteration() {
         while (hasDataAvailable()) {
             var ps = PacketInputStream.read(vm, clientInputStream);
-            handle(JDWP.parse(ps)).toPacket(vm).write(clientOutputStream);
+            var reply = handle(JDWP.parse(ps));
+            reply.toPacket(vm).write(clientOutputStream);
+            if (reply.isReply() && reply.getReply() instanceof DisposeReply) {
+                isDisposed = true;
+                System.out.println("Disposed VM");
+                return;
+            }
         }
         while (eventsToSend.size() > 0) {
             var events = eventsToSend.take().withNewId(id++);

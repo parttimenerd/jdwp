@@ -14,6 +14,7 @@ import jdwp.TunnelCmds.UpdateCacheRequest;
 import jdwp.Value.ByteList;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
+import jdwp.VirtualMachineCmds.DisposeReply;
 import jdwp.util.Pair;
 import lombok.Getter;
 import lombok.Setter;
@@ -250,9 +251,15 @@ public class BasicTunnel {
                     reply = Optional.empty();
                 }
             }
-            reply.ifPresent(eventsReplyOrErrorEither -> {
-                writeClientReply(clientOutputStream, eventsReplyOrErrorEither);
-            });
+            if (reply.isPresent()) {
+                writeClientReply(clientOutputStream, reply.get());
+                if (reply.get().isRight() && reply.get().getRight().isReply() &&
+                        reply.get().getRight().getReply() instanceof DisposeReply) {
+                    // dispose / terminate the loop
+                    state.onDispose();
+                    return;
+                }
+            }
             int yieldCount = 0;
             while (!hasDataAvailable(clientInputStream) && !hasDataAvailable(jvmInputStream)) {
                 state.tick();

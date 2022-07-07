@@ -52,6 +52,8 @@ public interface Listener {
     /** called between packets if no packet is coming */
     default void onTick() {}
 
+    default void onClose() {}
+
     /** prints all packages */
     class LoggingListener implements Listener {
 
@@ -156,6 +158,7 @@ public interface Listener {
                         e.printStackTrace();
                     }
                 }
+                listener.onClose();
             }).start();
         }
 
@@ -188,6 +191,11 @@ public interface Listener {
 
         public void close() {
             this.closed = true;
+        }
+
+        @Override
+        public void onClose() {
+            close();
         }
     }
 }

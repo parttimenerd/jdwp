@@ -53,8 +53,7 @@ import static jdwp.PrimitiveValue.wrap;
 import static jdwp.Reference.klass;
 import static jdwp.Reference.threadGroup;
 import static jdwp.util.Pair.p;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 import static tunnel.State.Mode.*;
 import static tunnel.synth.program.AST.ident;
 import static tunnel.util.Util.findInetSocketAddress;
@@ -272,6 +271,26 @@ public class BasicMockVMTest {
         }
     }
 
+    @Test
+    @SneakyThrows
+    public void testTunnelTunnelDispose() {
+        setDefaultLogLevel(Level.INFO);
+        try (var tp = VMTunnelTunnelClientTuple.create(new ReturningRequestVisitor<>() {
+            @Override
+            public Reply visit(DisposeRequest request) {
+                return new DisposeReply(request.id);
+            }
+        })) {
+            assertEquals(tp.vm.getIdSizesReply(), tp.client.query(new IDSizesRequest(0)));
+            // send the dispose request
+            assertEquals(new DisposeReply(0), tp.client.query(new DisposeRequest(0)));
+            // this should terminate the vm
+            assertTrue(tp.vm.isDisposed());
+            // and both tunnels
+            assertEqualsTimeout(false, tp.serverTunnelThreaded::isAlive);
+            assertEqualsTimeout(false, tp.clientTunnelThreaded::isAlive);
+        }
+    }
 
     /**
      * Call IdSizes and ClassBySignature, then resume, and call IdSizes again, this should create a program

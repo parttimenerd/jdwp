@@ -667,4 +667,15 @@ public class State {
         }
         return program;
     }
+
+    public void onDispose() {
+        tick();
+        if (LOG.isInfoEnabled() && getReplyCache().size() > 0) {
+            clientPartitioner.close();
+            serverPartitioner.close();
+            replyCache.close();
+            storeProgramCache();
+            System.out.println(getReplyCache().getStatistics().toLongTable());
+        }
+    }
 }
