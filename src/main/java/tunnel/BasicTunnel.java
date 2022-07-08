@@ -244,13 +244,19 @@ public class BasicTunnel {
                 }
             }
             if (reply.isPresent()) {
-                writeClientReply(clientOutputStream, reply.get());
                 if (reply.get().isRight() && reply.get().getRight().isReply() &&
                         reply.get().getRight().getReply() instanceof DisposeReply) {
                     // dispose / terminate the loop
                     state.onDispose();
+                    writeClientReply(clientOutputStream, reply.get());
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                     return;
                 }
+                writeClientReply(clientOutputStream, reply.get());
             }
             int yieldCount = 0;
             while (!hasDataAvailable(clientInputStream) && !hasDataAvailable(jvmInputStream)) {
@@ -261,7 +267,7 @@ public class BasicTunnel {
                 } else {
                     assert state.getProgramsToSendToServer().isEmpty();
                 }
-                yield(yieldCount++); // hint to the scheduler that other work could be done
+                this.yield(yieldCount++); // hint to the scheduler that other work could be done
             }
         }
     }
@@ -271,7 +277,7 @@ public class BasicTunnel {
         var start = System.currentTimeMillis();
         int yieldCount = 0;
         while (!hasDataAvailable(inputStream) && System.currentTimeMillis() - start < maxDuration.toMillis()) {
-            yield(yieldCount++);
+            this.yield(yieldCount++);
         }
         return hasDataAvailable(inputStream);
     }

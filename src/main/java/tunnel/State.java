@@ -420,7 +420,13 @@ public class State {
             }
             return new ReadReplyResult(null, reply, false);
         } else {
-            var events = Events.parse(ps);
+            Events events;
+            try {
+                events = Events.parse(ps);
+            } catch (AssertionError err) {
+                LOG.error("Failed to parse events", err);
+                return null;
+            }
             LOG.debug("Read event " + formatter.format(events));
             captureInformation(events);
             for (EventCommon event : events.events) {
@@ -692,12 +698,14 @@ public class State {
 
     public void onDispose() {
         tick();
+        replyCache.close();
         if (LOG.isInfoEnabled() && getReplyCache().size() > 0) {
+            LOG.info("\n" + getReplyCache().getStatistics().toLongTable());
+        }
+        if (mode == CLIENT) {
             clientPartitioner.close();
             serverPartitioner.close();
-            replyCache.close();
             storeProgramCache();
-            System.out.println(getReplyCache().getStatistics().toLongTable());
         }
     }
 }
