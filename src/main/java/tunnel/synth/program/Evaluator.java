@@ -410,17 +410,15 @@ public class Evaluator {
                 new ReturningExpressionVisitor<>() {
                     @Override
                     public Value visit(FunctionCall functionCall) {
-                        return functions
-                                .getFunction(functionCall.getFunctionName())
-                                .evaluate(vm,
-                                        functionCall.getArguments().stream()
-                                                .map(a -> a.accept(this))
-                                                .collect(Collectors.toList()));
+                        var function = functions.getFunction(functionCall.getFunctionName());
+                        var args = function.evaluateArguments(scope, functionCall.getArguments(),
+                                Evaluator.this, this);
+                        return function.evaluate(vm, args);
                     }
 
                     @Override
                     public Value visit(RequestCall requestCall) {
-                        var value = functions.processRequest((Request<?>) evaluatePacketCall(scope, requestCall));
+                        var value = functions.processRequest(requestCall, (Request<?>) evaluatePacketCall(scope, requestCall));
                         if (value.isEmpty()) {
                             return null;
                         }
@@ -461,7 +459,7 @@ public class Evaluator {
     @SuppressWarnings("unchecked")
     public AbstractParsedPacket evaluatePacketCall(Scopes<Value> scope, PacketCall packetCall) {
         Stream<TaggedValue<?>> values =
-                evaluateValues(scope, packetCall);
+                evaluateCallProperties(scope, packetCall.getProperties());
         var name = packetCall instanceof RequestCall ?
                 String.format("jdwp.%sCmds$%sRequest", packetCall.getCommandSet(),
                         packetCall.getCommand()) :
@@ -478,8 +476,8 @@ public class Evaluator {
     }
 
     @NotNull
-    private Stream<TaggedValue<?>> evaluateValues(Scopes<Value> scope, PacketCall packetCall) {
-        return packetCall.getProperties().stream()
+    Stream<TaggedValue<?>> evaluateCallProperties(Scopes<Value> scope, List<CallProperty> properties) {
+        return properties.stream()
                 .flatMap(
                         p -> {
                             var value = evaluate(scope, p.getAccessor());

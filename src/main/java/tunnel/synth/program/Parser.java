@@ -278,6 +278,9 @@ public class Parser {
             }
             return parsePacketCall(functionName);
         }
+        if (functionName.equals("object")) {
+            return parseObjectCall();
+        }
         skipWhitespace();
         List<Expression> arguments = new ArrayList<>();
         while (current != ')') {
@@ -286,6 +289,17 @@ public class Parser {
         }
         expect(')');
         return new FunctionCall(functionName, arguments);
+    }
+
+    FunctionCall parseObjectCall() {
+        skipWhitespace();
+        List<Expression> arguments = new ArrayList<>();
+        while (current != ')') {
+            arguments.add(parseCallProperty());
+            skipWhitespace();
+        }
+        expect(')');
+        return new FunctionCall("object", arguments);
     }
 
     /** request/events commandSet command ("p1" p2)=(wrap type primitive) or ... (p1 p2)=(get obj p1 p2) */

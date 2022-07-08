@@ -223,7 +223,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (OnlyReads false)
             (InvalidatesReplyCache true)
             (AffectedBy everything)
-            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+            (Affects time instances threads threadLoadTime)
         )
     )
     (Command Resume=9
@@ -241,7 +241,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (AffectedBy everything)
-            (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+            (Affects time instances threads threadLoadTime)
         )
     )
     (Command Exit=10

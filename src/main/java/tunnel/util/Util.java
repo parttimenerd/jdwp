@@ -39,7 +39,6 @@ public class Util {
         return x == null ? y : x;
     }
 
-    @SuppressWarnings({"unchecked"})
     public static <T> List<List<T>> split(List<T> list, T splitter) {
         var ret = new ArrayList<List<T>>();
         var current = new ArrayList<T>();
@@ -54,6 +53,18 @@ public class Util {
         if (current.size() > 0) {
             ret.add(current);
         }
+        return ret;
+    }
+
+    public static String padStart(String str, int minSize, char padChar) {
+        return Character.toString(padChar).repeat(minSize - str.length()) + str;
+    }
+
+    public static <T> List<T> combine(T x, T y, T[] rest) {
+        var ret = new ArrayList<T>();
+        ret.add(x);
+        ret.add(y);
+        ret.addAll(List.of(rest));
         return ret;
     }
 }

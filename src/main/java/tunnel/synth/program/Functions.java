@@ -8,24 +8,25 @@ import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import tunnel.synth.DependencyGraph;
+import tunnel.synth.program.Evaluator.MapCallResultEntry;
+import tunnel.synth.program.Visitors.ReturningExpressionVisitor;
 
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static jdwp.PrimitiveValue.*;
 import static jdwp.Value.BasicGroup.BYTE;
 import static jdwp.Value.BasicGroup.STRING;
 import static jdwp.util.Pair.p;
 import static tunnel.synth.program.AST.*;
-import static tunnel.synth.program.Evaluator.DEFAULT_ID;
 
 public abstract class Functions {
 
     public static final String GET = "get";
     public static final String CONST = "const";
     public static final String WRAP = "wrap";
+    public static final String OBJECT = "object";
 
     private static final Map<String, Pair<Class<?>, java.util.function.Function<Long, ? extends BasicScalarValue<?>>>> integerWrapper = new HashMap<>();
     private static final Map<Class<?>, String> classToWrapperName = new HashMap<>();
@@ -219,23 +220,107 @@ public abstract class Functions {
         }
     };
 
-    @SuppressWarnings("unchecked")
-    public Optional<Value> processRequest(
-            String commandSet, String command, Stream<TaggedBasicValue<?>> values) {
-        try {
-            return this.processRequest(
-                    (Request<?>)
-                            AbstractParsedPacket.createForTagged(
-                                    DEFAULT_ID,
-                                    (Class<AbstractParsedPacket>)
-                                            Class.forName(String.format("jdwp.%sCmds$%sRequest", commandSet, command)),
-                                    values));
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError(e);
+    private static Map<Object, Value>
+    groupByPathIndexAndCombine(List<TaggedValue<?>> values, int index) {
+        return values.stream().collect(Collectors.groupingBy(v -> v.getPath().get(index),
+                Collectors.collectingAndThen(Collectors.toList(), vals -> {
+                    if (vals.stream().anyMatch(v -> v.getPath().size() > index + 1)) {
+                        return createListOrCombined(vals, index + 1);
+                    }
+                    if (vals.size() == 1) {
+                        return vals.get(0).getValue();
+                    } else {
+                        throw new AssertionError(String.format("Multiple values for path index %s", index));
+                    }
+                })));
+    }
+
+    private static WalkableValue<?> createListOrCombined(List<TaggedValue<?>> values, int index) {
+        Map<Object, Value> grouped;
+        if (values.isEmpty()) {
+            grouped = Map.of();
+        } else if (values.stream().allMatch(v -> index >= v.getPath().size() - 1)) {
+            grouped = values.stream().collect(Collectors.toMap(v -> v.getPath().get(index), TaggedValue::getValue));
+        } else {
+            grouped = groupByPathIndexAndCombine(values, index);
+        }
+        if (values.isEmpty() || AccessPath.isListAccess(values.get(0).getPath().get(index))) {
+            return createList(grouped);
+        }
+        return createCombined(grouped);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static CombinedValue createCombined(Map<Object, Value> values) {
+        if (values.entrySet().stream().anyMatch(e -> AccessPath.isListAccess(e.getKey()))) {
+            throw new AssertionError(
+                    String.format("Expected field accesss for combined value creation, but got %s", values.keySet()));
+        }
+        return new MapCallResultEntry((Map<String, Value>)(Map)values);
+    }
+
+    private static ListValue<?> createList(Map<Object, Value> values) {
+        if (values.keySet().stream().anyMatch(k -> !AccessPath.isListAccess(k))) {
+            throw new AssertionError(
+                    String.format("Expected list access for combined value creation, but got %s", values.keySet()));
+        }
+        int length = values.keySet().stream().mapToInt(v -> (int) v).max().orElse(0) + 1;
+        var sorted =
+                values.entrySet().stream().sorted(Comparator.comparing(e -> (int) e.getKey()))
+                        .map(Entry::getValue).collect(Collectors.toList());
+        if (sorted.size() != length) {
+            throw new AssertionError(String.format("Expected %s values for list, got %s", length, sorted.size()));
+        }
+        var type = Type.OBJECT;
+        if (length > 0 && sorted.stream().allMatch(v -> v.type == sorted.get(0).type)) {
+            type = sorted.get(0).type;
+        }
+        return new ListValue<>(type, sorted);
+    }
+
+    /** function with call property arguments to construct nested objects and lists */
+    public static final Function OBJECT_FUNCTION = new Function(OBJECT) {
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        @Override
+        public List<Value> evaluateArguments(Scopes<Value> scope, List<Expression> arguments, Evaluator evaluator,
+                                             ReturningExpressionVisitor<Value> expressionEvaluator) {
+            if (arguments.stream().anyMatch(a -> !(a instanceof CallProperty))) {
+                throw new AssertionError("Expected call property arguments for object function");
+            }
+            return List.of(createListOrCombined(evaluator.evaluateCallProperties(scope,
+                    (List<CallProperty>) (List) arguments).collect(Collectors.toList()), 0));
+        }
+
+        @Override
+        protected Value evaluate(List<Value> arguments) {
+            return arguments.get(0);
+        }
+    };
+
+    public static FunctionCall createObjectFunctionCall(WalkableValue<?> value) {
+        return new FunctionCall(OBJECT, OBJECT_FUNCTION, value.getTaggedValues()
+                .map(t -> new CallProperty(t.getPath(), createWrapperFunctionCall(t.getValue())))
+                .collect(Collectors.toList()));
+    }
+
+    public static FunctionCall createWrappingFunctionCall(Value value) {
+        if (value instanceof BasicValue) {
+            return createWrapperFunctionCall((BasicValue) value);
+        } else if (value instanceof WalkableValue) {
+            return createObjectFunctionCall((WalkableValue<?>) value);
+        } else {
+            throw new AssertionError(String.format("Unexpected value type %s", value.getClass()));
         }
     }
 
-    protected abstract Optional<Value> processRequest(Request<?> request);
+    public Optional<Value> processRequest(RequestCall call, Request<?> request) {
+        return processRequest(request);
+    }
+
+    protected Optional<Value> processRequest(Request<?> request) {
+        return Optional.empty();
+    }
 
     @Getter
     @EqualsAndHashCode
@@ -255,6 +340,11 @@ public abstract class Functions {
          */
         protected Value evaluate(List<Value> arguments) {
             throw new AssertionError();
+        }
+
+        public List<Value> evaluateArguments(Scopes<Value> scope, List<Expression> arguments,
+                                      Evaluator evaluator, ReturningExpressionVisitor<Value> expressionEvaluator) {
+            return arguments.stream().map(e -> e.accept(expressionEvaluator)).collect(Collectors.toList());
         }
     }
 
@@ -355,8 +445,6 @@ public abstract class Functions {
             basicTransformersPerName.put(name, this);
         }
 
-
-
         /**
          * is this function applicable to multiple value types?
          */
@@ -403,6 +491,11 @@ public abstract class Functions {
                     }
                     return false;
                 }
+
+                @Override
+                public boolean returnsTag() {
+                    return true;
+                }
             };
 
     /**
@@ -413,6 +506,11 @@ public abstract class Functions {
                 @Override
                 protected Value evaluate(VM vm, BasicValue value) {
                     return wrap((byte) value.type.getTag());
+                }
+
+                @Override
+                public boolean returnsTag() {
+                    return true;
                 }
             };
 
@@ -452,6 +550,8 @@ public abstract class Functions {
                 return CONST_FUNCTION;
             case WRAP:
                 return WRAP_FUNCTION;
+            case OBJECT:
+                return OBJECT_FUNCTION;
             default:
                 if (basicTransformersPerName.containsKey(name)) {
                     return basicTransformersPerName.get(name);

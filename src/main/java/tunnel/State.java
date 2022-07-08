@@ -16,10 +16,15 @@ import tunnel.ReplyCache.DisabledReplyCache;
 import tunnel.synth.Partitioner;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.Synthesizer;
+import tunnel.synth.program.AST.AssignmentStatement;
+import tunnel.synth.program.AST.Identifier;
+import tunnel.synth.program.AST.RequestCall;
+import tunnel.synth.program.AST.Statement;
 import tunnel.synth.program.Evaluator;
 import tunnel.synth.program.Evaluator.EvaluationAbortException;
 import tunnel.synth.program.Functions;
 import tunnel.synth.program.Program;
+import tunnel.util.Box;
 import tunnel.util.Either;
 import tunnel.util.ToStringMode;
 
@@ -32,7 +37,10 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static jdwp.PrimitiveValue.wrap;
+import static jdwp.util.Pair.p;
 import static tunnel.State.Mode.*;
 
 /**
@@ -659,12 +667,20 @@ public class State {
     /**
      * remove all requests from the program that are cached, returns the same program if nothing can be cached
      */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public Program reduceProgramToNonCachedRequests(Program program) {
+        Map<RequestCall, Value> cachedRequests = new HashMap<>();
+        Box<Value> causeCache = new Box<>(null);
         var notEvaluated = new Evaluator(vm, new Functions() {
             @Override
-            protected Optional<Value> processRequest(Request<?> request) {
+            public Optional<Value> processRequest(RequestCall call, Request<?> request) {
                 var reply = replyCache.get(request);
                 if (reply != null) {
+                    var cached = reply.isError() ? wrap(1) : reply.getReply().asCombined();
+                    cachedRequests.put(call, cached);
+                    if (call.equals(program.getCause())) {
+                        causeCache.set(cached);
+                    }
                     return Optional.of(reply.asCombined());
                 }
                 throw new EvaluationAbortException(false);
@@ -677,15 +693,26 @@ public class State {
         }
         try {
             // check if there is any non-removed statement that depends on a removed statement
-            var removedVars = toRemove.stream().flatMap(s -> s.getDefinedIdentifiers().stream()).collect(Collectors.toSet());
-            Program reduced;
-            if (notEvaluated.stream().anyMatch(s -> s.getUsedIdentifiers().stream()
-                    .anyMatch(v -> removedVars.contains(v) || v.equals(program.getCauseIdent())))) {
-                // the rest of the program depends on the removed
-                reduced = program.removeStatementsIgnoreCause(new HashSet<>(toRemove));
-            } else {
-                reduced = program.removeStatements(new HashSet<>(toRemove));
-            }
+            // collect all defined identifiers with their assignment statements
+            Map<Identifier, AssignmentStatement> removedVars =
+                    toRemove.stream().flatMap(s -> s.getDefinedIdentifiers().stream()
+                                    .map(i -> Map.entry(i, (AssignmentStatement) s)))
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            var usedIdentifiers = notEvaluated.stream().flatMap(s -> s.getUsedIdentifiers().stream())
+                    .collect(Collectors.toSet());
+            List<AssignmentStatement> required = Stream.concat(
+                            (causeCache.get() != null ?
+                                    Stream.of(p(((AssignmentStatement) program.getBody().get(0)).getVariable(),
+                                            causeCache.get())) : Stream.empty()),
+                            removedVars.entrySet().stream()
+                                    .filter(e -> usedIdentifiers.contains(e.getKey()))
+                                    .sorted(Comparator.comparing(e -> e.getValue().getHashes().get(e.getValue()).hash()))
+                                    .map(e -> p(e.getKey(),
+                                            cachedRequests.get((RequestCall) e.getValue().getExpression()))))
+                    .map(e -> new AssignmentStatement(e.first, Functions.createWrappingFunctionCall(e.second)))
+                    .collect(Collectors.toList());
+            Program reduced = program.removeStatementsIgnoreCause(
+                    new HashSet<>(toRemove), (List<Statement>) (List) required, false);
             LOG.debug("Reduced program {} to non-cached requests {} by removing {}",
                     program.toPrettyString(), reduced.toPrettyString(), toRemove);
             return reduced;

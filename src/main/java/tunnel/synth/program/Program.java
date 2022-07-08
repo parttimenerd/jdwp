@@ -10,11 +10,10 @@ import tunnel.synth.program.Visitors.RecursiveStatementVisitor;
 import tunnel.synth.program.Visitors.ReturningStatementVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
@@ -57,16 +56,23 @@ public class Program extends Statement implements CompoundStatement<Program> {
     }
 
     private void checkInvariant() {
-        if (cause != null && cause instanceof RequestCall && body.size() > 0 &&
-                (!(body.get(0) instanceof AssignmentStatement) ||
-                        !(((AssignmentStatement) body.get(0)).getExpression().equals(cause)))) {
-            throw new AssertionError(String.format("Program has a cause but the first statement is not an assignment " +
-                    "of the cause: %s", this.toPrettyString()));
-        }
         if ((cause == null) != (causeIdent == null)) {
             throw new AssertionError("cause and causeIdent must have the same !=null property");
         }
         checkEveryIdentifierHasASingleSource();
+        if (cause != null && cause instanceof RequestCall && body.size() > 0) {
+            var firstStatement = body.get(0);
+            if (firstStatement instanceof AssignmentStatement) {
+                var firstAssignment = (AssignmentStatement)firstStatement;
+                if (firstAssignment.getExpression().equals(cause) ||
+                        (firstAssignment.getExpression() instanceof FunctionCall &&
+                                ((FunctionCall) firstAssignment.getExpression()).getFunctionName().equals(Functions.OBJECT))) {
+                    return;
+                }
+            }
+            throw new AssertionError(String.format("Program has a cause but the first statement is not an assignment " +
+                    "of the cause: %s (or an object call)", this.toPrettyString()));
+        }
     }
 
     /**
@@ -156,15 +162,19 @@ public class Program extends Statement implements CompoundStatement<Program> {
     }
 
 
-    public Program removeStatementsIgnoreCause(Set<Statement> statements) {
+    public Program removeStatementsIgnoreCause(Set<Statement> statements,
+                                               List<Statement> prependStatements,
+                                               boolean ignoreCauseStatement) {
         if (!(cause instanceof RequestCall)) {
             return new Program(causeIdent, cause, body.removeStatementsTransitively(statements));
         }
         // skip the cause request here, otherwise we would violate the invariant
         statements.removeIf(s -> s instanceof AssignmentStatement &&
                 ((AssignmentStatement) s).getExpression() instanceof PacketCall &&
-                ((AssignmentStatement)s).getExpression().equals(cause));
-        return new Program(causeIdent, cause, body.removeStatementsTransitively(statements));
+                (ignoreCauseStatement && ((AssignmentStatement)s).getExpression().equals(cause)));
+        var newBody = body.removeStatementsTransitively(statements).getSubStatements();
+        return new Program(causeIdent, cause,
+                Stream.concat(prependStatements.stream(), newBody.stream()).collect(Collectors.toList()));
     }
 
     public Set<Statement> getDependentStatements(Set<Statement> statements) {

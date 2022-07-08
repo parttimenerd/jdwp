@@ -7,7 +7,6 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.pattern.CompositeConverter;
 import ch.qos.logback.core.pattern.color.ANSIConstants;
 import ch.qos.logback.core.pattern.color.ForegroundCompositeConverterBase;
-import com.google.common.base.Strings;
 import org.apache.commons.lang3.StringUtils;
 import org.davidmoten.text.utils.WordWrap;
 
@@ -110,10 +109,10 @@ public class MultiColumnLogbackLayout extends PatternLayout {
             int prefixWidth = prefix.length();
             int columnWidth = (width - prefixWidth) / columnCount - columnSep.length();
             int columnPadding = columnWidth * currentColumn.get();
-            String prefixPaddingStr = Strings.repeat(" ", prefixWidth);
-            String columnPaddingStr = Strings.repeat(" ", columnWidth);
-            String pre = Strings.repeat(columnPaddingStr + columnSep, currentColumn.get());
-            String post = Strings.repeat(columnSep + columnPaddingStr, columnCount - currentColumn.get() - 1);
+            String prefixPaddingStr = " ".repeat(prefixWidth);
+            String columnPaddingStr = " ".repeat(columnWidth);
+            String pre = (columnPaddingStr + columnSep).repeat(currentColumn.get());
+            String post = (columnSep + columnPaddingStr).repeat(columnCount - currentColumn.get() - 1);
             String paddedAndWrappedMessage = WordWrap.from(message).maxWidth(columnWidth)
                     .wrapToList().stream().filter(s -> !s.isBlank())
                     .map(s -> StringUtils.rightPad(s, columnWidth, " "))

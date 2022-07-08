@@ -1,7 +1,5 @@
 package tunnel.synth.program;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
 import jdwp.AccessPath;
 import jdwp.EventCmds.Events;
 import jdwp.EventRequestCmds;
@@ -21,6 +19,7 @@ import tunnel.synth.ProgramHashes;
 import tunnel.synth.Synthesizer;
 import tunnel.synth.program.Functions.Function;
 import tunnel.synth.program.Visitors.*;
+import tunnel.util.Util;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -360,7 +359,6 @@ public interface AST {
             return usedVariables.keySet().stream().map(Identifier::getSource).collect(Collectors.toSet());
         }
 
-        @SuppressWarnings("unchecked")
         default void forEachStatement(Consumer<Statement> consumer) {
             getSubStatements().forEach(c -> {
                 consumer.accept(c);
@@ -1418,7 +1416,7 @@ public interface AST {
 
         @Override
         public List<Expression> getSubExpressions() {
-            return Lists.asList(iter, iterable, arguments.toArray(new CallProperty[0]));
+            return Util.combine(iter, iterable, arguments.toArray(new CallProperty[0]));
         }
 
         @Override
@@ -1479,8 +1477,8 @@ public interface AST {
             preString = this.line + "." + this.column + ": " + preString;
             var lineSegment = preString + line.substring(start, start + length) + (start + length < line.length() ? "..." : "");
             var arrowColumn = preString.length() + this.column - start;
-            var arrowString = Strings.repeat(" ", arrowColumn) + "^";
-            var alignedMessage = Strings.repeat(" ",
+            var arrowString = " ".repeat(arrowColumn) + "^";
+            var alignedMessage = " ".repeat(
                     Math.max(0,
                             Math.min(arrowColumn - message.length() / 2, 150 - message.length()))) + message;
             return lineSegment + "\n" + arrowString + "\n" + alignedMessage;

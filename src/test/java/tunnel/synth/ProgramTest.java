@@ -926,13 +926,36 @@ public class ProgramTest {
                 "  (= var6 (request StackFrame GetValues (\"frame\")=(wrap \"frame\" 131072) (\"slots\")=map0 " +
                 "(\"thread\")=(wrap \"thread\" 1))))");
         assertEquals("((= cause (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
-                "  (= var0 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
-                "  (= var4 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 470))))",
+                        "  (= var0 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                        "  (= var4 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 470))))",
                 program.removeStatements(Set.of(program.getBody().get(2))).toPrettyString());
         assertEquals("(\n" +
-                "  (= var0 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
-                "  (= var4 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 470))))",
+                        "  (= var0 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" 649)))\n" +
+                        "  (= var4 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 470))))",
                 program.removeStatements(Set.of(program.getCauseStatement())).toPrettyString());
+    }
+
+    @Test
+    public void testObjectFunction() {
+        var program = FunctionCall.parse("(object (0)=1)");
+        var list = new ListValue<>(Type.LONG, wrap(1L));
+        assertEquals(list, new Evaluator(vm, new RecordingFunctions()).evaluate(program));
+        assertEquals("(object (0)=(wrap \"long\" 1))", Functions.createObjectFunctionCall(list).toString());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "(object ('a')=(wrap 'long' 1))",
+            "(object ('a')=(wrap 'long' 1) ('b')=(wrap 'long' 2) ('c' 0)=(wrap 'long' 3) ('c' 1)=(wrap 'long' 3))",
+            "(object (0 'a')=(wrap 'long' 1) (1 'a')=(wrap 'long' 1) (1 'b')=(wrap 'long' 2) (2 'c' 0)=(wrap 'long' " +
+                    "3) (2 'c' 1)=(wrap 'long' 3))",
+            "(wrap 'thread' 1)"
+    })
+    public void testObjectFunctionRoundTrip(String functionCall) {
+        var program = FunctionCall.parse(functionCall);
+        var ret = new Evaluator(vm, new RecordingFunctions()).evaluate(program);
+        assertEquals(functionCall,
+                Functions.createWrappingFunctionCall(ret).toString().replace("\"", "'"));
     }
 
     @Test

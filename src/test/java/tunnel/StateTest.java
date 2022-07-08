@@ -1,6 +1,5 @@
 package tunnel;
 
-import com.google.common.base.Strings;
 import jdwp.EventCmds.Events;
 import jdwp.Reference;
 import jdwp.ReferenceTypeCmds.SignatureWithGenericReply;
@@ -90,7 +89,7 @@ public class StateTest {
 
     @Test
     public void testFormatterWithLongLines() {
-        IntStream.range(0, 500).mapToObj(i -> Strings.repeat("a", i)).forEach(s -> {
+        IntStream.range(0, 500).mapToObj(i -> "a".repeat(i)).forEach(s -> {
             assertTrue(Formatter.cut(s).length() <= Formatter.MAX_LENGTH);
         });
     }
@@ -111,7 +110,33 @@ public class StateTest {
         System.out.println(reduced.toPrettyString());
         assertTrue(reduced.hasCause());
         assertEquals("((= cause (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 679)))\n" +
-                "  (= var0 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 679)))\n" +
+                "  (= var0 (object (\"signature\")=(wrap \"string\" \"\") (\"genericSignature\")=(wrap \"string\" " +
+                "\"klass\")))\n" +
                 "  (= var2 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\"))))", reduced.toPrettyString());
+    }
+
+    @Test
+    public void testReduceProgramToNonCachedRequestsWithLoop() {
+        State state = new State();
+        Program program = Program.parse("((= cause (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap " +
+                "\"klass\" 679)))\n" +
+                "(= var11 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap " +
+                        "\"klass\" 679)))\n" +
+                " (for iter (object (0)=(wrap 'klass' 67) (1)=(wrap 'klass' 68))" +
+                "  (= var0 (request ReferenceType SignatureWithGeneric (\"refType\")=iter))\n" +
+                "  (= var2 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\")))))");
+        state.getReplyCache().onReply(new SignatureWithGenericRequest(0, Reference.klass(679)),
+                new ReplyOrError<>(new SignatureWithGenericReply(0, wrap(""), wrap("klass"))));
+        state.getReplyCache().onReply(new SignatureWithGenericRequest(0, Reference.klass(67)),
+                new ReplyOrError<>(new SignatureWithGenericReply(0, wrap(""), wrap("klass"))));
+        var reduced = state.reduceProgramToNonCachedRequests(program);
+        System.out.println(reduced.toPrettyString());
+        assertTrue(reduced.hasCause());
+        assertEquals("((= cause (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 679)))\n" +
+                "  (= var11 (object (\"signature\")=(wrap \"string\" \"\") (\"genericSignature\")=(wrap \"string\" " +
+                "\"klass\")))\n" +
+                "  (for iter (object (0)=(wrap \"klass\" 67) (1)=(wrap \"klass\" 68)) \n" +
+                "    (= var0 (request ReferenceType SignatureWithGeneric (\"refType\")=iter))\n" +
+                "    (= var2 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\")))))", reduced.toPrettyString());
     }
 }

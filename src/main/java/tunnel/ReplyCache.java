@@ -1,6 +1,6 @@
 package tunnel;
 
-import com.google.common.base.Strings;
+import ch.qos.logback.classic.Logger;
 import jdwp.EventCmds.Events;
 import jdwp.*;
 import jdwp.JDWP.StateProperty;
@@ -8,12 +8,14 @@ import jdwp.util.Pair;
 import lombok.Value;
 import lombok.*;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.LoggerFactory;
 import tunnel.ReplyCache.Cache.CacheEntry;
 import tunnel.ReplyCache.Cache.EvictionCause;
 import tunnel.util.TriConsumer;
 import tunnel.util.TriFunction;
+import tunnel.util.Util;
 
-import javax.annotation.Nullable;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
@@ -23,14 +25,16 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static jdwp.util.Pair.p;
-import static tunnel.ReplyCache.Cache.EvictionCause.SIZE;
 import static tunnel.ReplyCache.Cache.EvictionCause.*;
+import static tunnel.ReplyCache.Cache.EvictionCause.SIZE;
 import static tunnel.ReplyCache.Statistics.ColumnType.*;
 
 /**
  * two level cache that caches replies and evicts old ones, not thread safe
  */
 public class ReplyCache implements Listener {
+
+    private static final Logger LOG = (Logger) LoggerFactory.getLogger("ReplyCache");
 
     @AllArgsConstructor
     @NoArgsConstructor
@@ -81,10 +85,11 @@ public class ReplyCache implements Listener {
 
         /**
          * Period in which classes are reloaded (wait n milliseconds for the class to appear after it is loaded)
+         *
          * @see StateProperty#CLASSLOADTIME
          */
         @With
-        int classLoadPeriodMillis = 10000;
+        int classLoadPeriodMillis = 10_000_000;
 
         /**
          * @see StateProperty#THREADLOADTIME
@@ -127,6 +132,7 @@ public class ReplyCache implements Listener {
                 new Column("CommandSet", STRING, (p, l, r) -> p == null ? "" :
                         JDWP.getCommandName((byte) (int) p.first, (byte) (int) p.second) + "(" + p.second + ")"),
                 new Column("%", RATE, (p, ol, l) -> (double) l.size() / ol.size()),
+                new Column("#", RATE, (p, ol, l) -> (double) l.size()),
                 new Column("mean hits", AVG_COUNT, (p, ol, l) -> l.stream().mapToInt(i -> i.hits).average().orElse(0)),
                 new Column("% hits > 0", RATE,
                         (p, ol, l) -> l.stream().filter(i -> i.hits > 0).count() / (double) l.size()),
@@ -168,7 +174,7 @@ public class ReplyCache implements Listener {
                     .collect(Collectors.toList());
             return Stream.concat(Stream.of(headers), columnLines.stream()).map(l ->
                             IntStream.range(0, columnLengths.size())
-                                    .mapToObj(i -> Strings.padStart(l.get(i), columnLengths.get(i), ' '))
+                                    .mapToObj(i -> Util.padStart(l.get(i), columnLengths.get(i), ' '))
                                     .collect(Collectors.joining(", ")))
                     .collect(Collectors.toList());
         }
@@ -516,6 +522,7 @@ public class ReplyCache implements Listener {
 
     /** evict into l2 cache */
     private void l1EvictionListener(Request<?> request, CacheEntry<ReplyOrError<?>> reply, EvictionCause cause) {
+        LOG.debug("Evicting {} from l1 cache due to {}", request, cause);
         if (cause == SIZE) {
             l2Cache.put(request, reply.reply.toPacket(vm), reply.prefetched);
         } else {
