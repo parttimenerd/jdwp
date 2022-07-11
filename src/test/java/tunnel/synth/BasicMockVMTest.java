@@ -10,7 +10,7 @@ import jdwp.EventRequestCmds.SetReply;
 import jdwp.EventRequestCmds.SetRequest;
 import jdwp.JDWP.Error;
 import jdwp.JDWP.ReturningRequestVisitor;
-import jdwp.PacketError.SupplierWithError;
+import jdwp.exception.PacketError.SupplierWithError;
 import jdwp.Reference;
 import jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest;
 import jdwp.Reply;

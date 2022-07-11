@@ -7,6 +7,8 @@ import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.JDWP;
 import jdwp.Request;
 import jdwp.Value.TaggedBasicValue;
+import jdwp.exception.TunnelException.MergeException;
+import jdwp.exception.TunnelException.ParserException;
 import jdwp.util.Pair;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -314,7 +316,7 @@ public interface AST {
                 @Override
                 public void visit(Identifier identifier) {
                     if (identifier.getSource() == null) {
-                        throw new AssertionError(String.format("Identifier %s has no source", identifier));
+                        throw new ParserException(String.format("Identifier %s has no source", identifier));
                     }
                 }
             });
@@ -435,7 +437,7 @@ public interface AST {
             forEachStatement(s -> {
                 for (Identifier variable : s.getDefinedIdentifiers()) {
                     if (usedIdentifiers.containsKey(variable)) {
-                        throw new AssertionError(String.format("Identifier %s has multiple sources", variable));
+                        throw new ParserException(String.format("Identifier %s has multiple sources", variable));
                     }
                     usedIdentifiers.put(variable, null);
                 }
@@ -527,7 +529,7 @@ public interface AST {
                 res.forEach(x -> x.initHashes(((Statement) this).getHashes().getParent()));
                 return res;
             } catch (Exception e) {
-                throw new AssertionError(String.format("Failed to merge %s and %s",
+                throw new MergeException(String.format("Failed to merge %s and %s",
                         ((Statement) this).toPrettyString(), other.toPrettyString()), e);
             }
         }

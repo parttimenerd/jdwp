@@ -9,10 +9,12 @@ import jdwp.Value.ListValue;
 import jdwp.VirtualMachineCmds.DisposeReply;
 import jdwp.VirtualMachineCmds.IDSizesReply;
 import jdwp.VirtualMachineCmds.IDSizesRequest;
+import jdwp.exception.TunnelException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import tunnel.util.Either;
 
 import java.io.Closeable;
@@ -88,8 +90,8 @@ public abstract class MockVM implements ReturningRequestVisitor<Reply>, Closeabl
         byte[] hsBytes = clientInputStream.readNBytes(handshake.length());
         String hsStr = new String(hsBytes);
         if (!hsStr.equals(handshake)) {
-            LOG.error("Expected \"JDWP-Handshake\" from client, but got \"{}\"", hsStr);
-            throw new IOException();
+            throw new TunnelException(Level.ERROR, false, String.format("Expected \"JDWP-Handshake\" from client, but" +
+                    " got \"%s\"", hsStr));
         }
         clientOutputStream.write(hsBytes);
         LOG.info("JDWP-Handshake was successful");

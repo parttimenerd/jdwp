@@ -1,5 +1,6 @@
 package tunnel.synth.program;
 
+import jdwp.exception.TunnelException.UnsupportedOperationException;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
@@ -10,7 +11,10 @@ import tunnel.synth.program.Visitors.RecursiveStatementVisitor;
 import tunnel.synth.program.Visitors.ReturningStatementVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -84,7 +88,7 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     @Override
     public <R> R accept(ReturningStatementVisitor<R> visitor) {
-        throw new AssertionError();
+        throw new UnsupportedOperationException();
     }
 
     @Override

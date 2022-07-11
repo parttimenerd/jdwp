@@ -141,7 +141,7 @@ public class ProgramCache implements Consumer<Program> {
             try {
                 prog = origin.setCause(packet);
             } catch (AssertionError e) {
-                LOG.warn("Failed to set cause " + packet + " for " + origin);
+                LOG.debug("Failed to set cause " + packet + " for " + origin);
                 return Optional.empty();
             }
             // remove statements that are deemed to be to costly

@@ -1,5 +1,6 @@
 package tunnel.synth.program;
 
+import jdwp.exception.TunnelException.UnknownVariableException;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -35,7 +36,7 @@ public class Scopes<V> {
         public T get(String variable) {
             if (!variables.containsKey(variable)) {
                 if (parent == null) {
-                    throw new AssertionError(String.format("Unknown variable %s", variable));
+                    throw new UnknownVariableException(variable);
                 }
                 return parent.get(variable);
             }

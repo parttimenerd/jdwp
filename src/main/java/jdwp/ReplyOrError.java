@@ -5,6 +5,8 @@ import jdwp.JDWP.Metadata;
 import jdwp.JDWP.ReplyVisitor;
 import jdwp.JDWP.StateProperty;
 import jdwp.Value.CombinedValue;
+import jdwp.exception.PacketError;
+import jdwp.exception.TunnelException.UnsupportedOperationException;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 import tunnel.util.ToShortString;
@@ -84,7 +86,7 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
     public ReplyOrError(int id, short flags, R reply) {
         super(Type.OBJECT);
         if (reply instanceof ReplyOrError) {
-            throw new IllegalArgumentException("reply cannot be a ReplyOrError");
+            throw new PacketError("reply cannot be a ReplyOrError");
         }
         this.reply = Objects.requireNonNull(reply);
         this.errorCode = 0;
@@ -96,7 +98,7 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
     public ReplyOrError(int id, short flags, Metadata metadata, int errorCode) {
         super(Type.OBJECT);
         if (errorCode == 0) {
-            throw new AssertionError("error code must not be 0");
+            throw new PacketError("error code must not be 0");
         }
         this.reply = null;
         this.errorCode = (short)errorCode;
@@ -269,7 +271,7 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
 
     @Override
     public void accept(ReplyVisitor visitor) {
-        throw new UnsupportedOperationException("Not supported yet.");
+        throw new UnsupportedOperationException();
     }
 
     @Override

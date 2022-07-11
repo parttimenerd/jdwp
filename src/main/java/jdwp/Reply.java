@@ -2,6 +2,7 @@ package jdwp;
 
 import jdwp.JDWP.ReplyVisitor;
 import jdwp.JDWP.WithMetadata;
+import jdwp.exception.PacketError;
 
 public interface Reply extends ParsedPacket, WithMetadata {
     int getCommand();
@@ -13,7 +14,7 @@ public interface Reply extends ParsedPacket, WithMetadata {
     String getCommandSetName();
 
     /** Thrown if the id of a reply does not match the id of the request which should parse it*/
-    class IdMismatchException extends RuntimeException {
+    class IdMismatchException extends PacketError {
         public IdMismatchException(int expectedId, int actualId) {
             super(String.format("Id mismatch for reply, expected %d but got %d", expectedId, actualId));
         }

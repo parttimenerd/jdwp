@@ -25,6 +25,7 @@
 
 package jdwp;
 
+import jdwp.exception.PacketError;
 import lombok.Getter;
 
 import java.io.IOException;

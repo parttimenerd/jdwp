@@ -395,8 +395,8 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
                     currentPartition.add(p(request, reply));
                 }
             } catch (Exception e) {
-                LOG.error("Failed to add {} to partition {}", p(request, reply), currentPartition);
-                LOG.error("Failed ", e);
+                LOG.debug("Failed to add {} to partition {}", p(request, reply), currentPartition);
+                LOG.debug("Failed ", e);
                 startNewPartition("failed to add element to partition", null);
             }
         }

@@ -25,6 +25,8 @@
 
 package jdwp;
 
+import jdwp.exception.TunnelException.JNITypeSignatureException;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -199,7 +201,7 @@ public class JNITypeParser {
                 signatureList.add(elem);
             }
             if (signatureList.size() == 0) {
-                throw new IllegalArgumentException("Invalid JNI signature '" +
+                throw new JNITypeSignatureException("Invalid JNI signature '" +
                                                    signature + "'");
             }
         }
@@ -238,7 +240,7 @@ public class JNITypeParser {
                 typeNameList.add(elem);
             }
             if (typeNameList.size() == 0) {
-                throw new IllegalArgumentException("Invalid JNI signature '" +
+                throw new JNITypeSignatureException("Invalid JNI signature '" +
                                                    signature + "'");
             }
         }
@@ -276,7 +278,7 @@ public class JNITypeParser {
                 return nextSignature();
 
             default:
-                throw new IllegalArgumentException(
+                throw new JNITypeSignatureException(
                     "Invalid JNI signature character '" + key + "'");
 
         }
@@ -356,7 +358,7 @@ public class JNITypeParser {
                 return nextTypeName();
 
             default:
-                throw new IllegalArgumentException(
+                throw new JNITypeSignatureException(
                     "Invalid JNI signature character '" + key + "'");
         }
     }

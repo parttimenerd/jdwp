@@ -317,7 +317,7 @@ public class Parser {
             case "events":
                 return new EventsCall(commandSet, command, arguments);
             default:
-                throw new AssertionError(String.format("Unknown packet call name %s", name));
+                throw new SyntaxError(line, column, String.format("Unknown packet call name %s", name));
         }
     }
 

@@ -8,9 +8,13 @@ import jdwp.*;
 import jdwp.TunnelCmds.EvaluateProgramReply;
 import jdwp.Value;
 import jdwp.TunnelCmds.EvaluateProgramRequest;
+import jdwp.exception.PacketError;
+import jdwp.exception.TunnelException;
+import jdwp.exception.TunnelException.SynthesisException;
 import jdwp.util.Pair;
 import lombok.*;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import tunnel.ProgramCache.DisabledProgramCache;
 import tunnel.ReplyCache.DisabledReplyCache;
 import tunnel.synth.Partitioner;
@@ -222,7 +226,7 @@ public class State {
     private void registerPartitionListener() {
         assert mode == CLIENT;
         clientPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
-            LOG.error("Partition: {}", partition);
+            LOG.debug("Partition: {}", partition);
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isLeft()) {
@@ -233,17 +237,19 @@ public class State {
                             programCache.accept(program);
                             storeProgramCache();
                         }
-                    } catch (AssertionError err) {
-                        LOG.error("Error synthesizing program for partition {}", formatter.format(partition), err);
+                    } catch (SynthesisException err) {
+                        err.log(LOG);
+                    } catch (Exception ex) {
+                        LOG.error("Error synthesizing program for " + formatter.format(partition), ex);
                     }
                 }
             } else {
-                LOG.error("omit because of missing cause");
+                LOG.debug("omit because of missing cause");
             }
         });
         addPartitionerListener(clientPartitioner);
         serverPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
-            LOG.error("Partition: {}", partition);
+            LOG.debug("Partition: {}", partition);
             if (partition.hasCause()) {
                 var cause = partition.getCause();
                 if (cause.isRight()) {
@@ -255,12 +261,14 @@ public class State {
                             storeProgramCache();
                             programsToSendToServer.add(program);
                         }
-                    } catch (AssertionError err) {
-                        LOG.error("Error synthesizing program for partition {}", formatter.format(partition), err);
+                    } catch (SynthesisException err) {
+                        err.log(LOG);
+                    } catch (Exception ex) {
+                        LOG.error("Error synthesizing program for " + formatter.format(partition), ex);
                     }
                 }
             } else {
-                LOG.error("omit because of missing cause");
+                LOG.debug("omit because of missing cause");
             }
         });
         addPartitionerListener(serverPartitioner);
@@ -408,6 +416,7 @@ public class State {
                     addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), EvaluateProgramRequest.METADATA,
                             (short) 1)));
                     removeCachedProgram(Program.parse(program.getValue()));
+                    return null;
                 } else {
                     var request = hasUnfinishedRequest(ps.id()) ? getUnfinishedRequest(ps.id()).getPacket() : null;
                     var realReply = reply.getReply();
@@ -431,7 +440,7 @@ public class State {
             Events events;
             try {
                 events = Events.parse(ps);
-            } catch (AssertionError err) {
+            } catch (Exception err) {
                 LOG.error("Failed to parse events", err);
                 return null;
             }
@@ -671,21 +680,27 @@ public class State {
     public Program reduceProgramToNonCachedRequests(Program program) {
         Map<RequestCall, Value> cachedRequests = new HashMap<>();
         Box<Value> causeCache = new Box<>(null);
-        var notEvaluated = new Evaluator(vm, new Functions() {
-            @Override
-            public Optional<Value> processRequest(RequestCall call, Request<?> request) {
-                var reply = replyCache.get(request);
-                if (reply != null) {
-                    var cached = reply.isError() ? wrap(1) : reply.getReply().asCombined();
-                    cachedRequests.put(call, cached);
-                    if (call.equals(program.getCause())) {
-                        causeCache.set(cached);
+        Set<Statement> notEvaluated;
+        try {
+            notEvaluated = new Evaluator(vm, new Functions() {
+                @Override
+                public Optional<Value> processRequest(RequestCall call, Request<?> request) {
+                    var reply = replyCache.get(request);
+                    if (reply != null) {
+                        var cached = reply.isError() ? wrap(1) : reply.getReply().asCombined();
+                        cachedRequests.put(call, cached);
+                        if (call.equals(program.getCause())) {
+                            causeCache.set(cached);
+                        }
+                        return Optional.of(reply.asCombined());
                     }
-                    return Optional.of(reply.asCombined());
+                    throw new EvaluationAbortException(false);
                 }
-                throw new EvaluationAbortException(false);
-            }
-        }).evaluate(program).second;
+            }).evaluate(program).second;
+        } catch (EvaluationAbortException e) {
+            LOG.debug("Cannot evaluate program {} properly", program.toPrettyString(), e);
+            return program;
+        }
         var toRemove = program.collectBodyStatements();
         toRemove.removeAll(notEvaluated);
         if (toRemove.isEmpty()) {
@@ -695,9 +710,12 @@ public class State {
             // check if there is any non-removed statement that depends on a removed statement
             // collect all defined identifiers with their assignment statements
             Map<Identifier, AssignmentStatement> removedVars =
-                    toRemove.stream().flatMap(s -> s.getDefinedIdentifiers().stream()
+                    toRemove.stream().filter(s -> s instanceof AssignmentStatement)
+                            .flatMap(s -> s.getDefinedIdentifiers().stream()
                                     .map(i -> Map.entry(i, (AssignmentStatement) s)))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> {
+                                throw new TunnelException(Level.INFO, true, "Duplicate identifier");
+                            }, IdentityHashMap::new));
             var usedIdentifiers = notEvaluated.stream().flatMap(s -> s.getUsedIdentifiers().stream())
                     .collect(Collectors.toSet());
             List<AssignmentStatement> required = Stream.concat(

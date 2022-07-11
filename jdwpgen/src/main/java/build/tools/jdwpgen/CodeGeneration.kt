@@ -406,8 +406,8 @@ internal object CodeGeneration {
                     }
                     default {
                         `throw new2`(
-                            bg("PacketError"),
-                            "\"Unknown command \" + ${kindNode.name()}"
+                            bg("PacketError.NoSuchSelectKindSetException"),
+                            "ps, ${kindNode.name()}.value"
                         )
                     }
                     this
@@ -580,7 +580,7 @@ internal object CodeGeneration {
     private fun TypeSpec.Builder.genCombinedTypeGet(fields: List<TypeNode.AbstractTypeNode>) {
         `public`(bg("Value"), "get", param("String", "key")) {
             `@Override`()
-            val exCode = { `throw new2`(java.util.NoSuchElementException::class, "\"Unknown field \" + key") }
+            val exCode = { `throw new2`(bg("ValueAccessException.NoSuchFieldException"), "this, key") }
             when (fields.size) {
                 0 -> exCode()
                 1 -> {
@@ -751,12 +751,12 @@ internal object CodeGeneration {
         cmdClassName: String?
     ): TypeSpec.Builder {
 
-        val METADATA_FIELD_NAME = "${if (cmdClassName != null) "$cmdClassName." else ""}METADATA"
+        val metadataFieldName = "${if (cmdClassName != null) "$cmdClassName." else ""}METADATA"
 
         for (field in metadataFields(null).filterNot { it.methodName.contains("Command") }) {
             `public`(field.typeName, field.methodName) {
                 if (field.description.isNotEmpty()) addJavadoc(field.description)
-                _return("$METADATA_FIELD_NAME.${field.name}")
+                _return("$metadataFieldName.${field.name}")
             }
         }
 
@@ -766,12 +766,12 @@ internal object CodeGeneration {
         }
 
         `public`(TypeName.BOOLEAN, "isReplyLikeError", param(TypeName.INT, "errorCode")) {
-            _return("$METADATA_FIELD_NAME.isReplyLikeError(errorCode)")
+            _return("$metadataFieldName.isReplyLikeError(errorCode)")
         }
 
         `public`(bg(METADATA_CLASSNAME), "getMetadata") {
             `@Override`()
-            _return(METADATA_FIELD_NAME)
+            _return(metadataFieldName)
         }
 
         return this
@@ -852,8 +852,8 @@ internal object CodeGeneration {
                     _return("Events.parse(ps)")
                 }.end()
                 `throw new2`(
-                    java.util.NoSuchElementException::class,
-                    "\"Unknown command \" + ps.command()"
+                    bg("PacketError.NoSuchCommandException"),
+                    "ps"
                 )
             } else {
                 switch("ps.command()") {
@@ -864,8 +864,8 @@ internal object CodeGeneration {
                     }
                     default {
                         `throw new2`(
-                            java.util.NoSuchElementException::class,
-                            "\"Unknown command \" + ps.command()"
+                            bg("PacketError.NoSuchCommandException"),
+                            "ps"
                         )
                     }
                     this
@@ -907,8 +907,8 @@ internal object CodeGeneration {
                     }
                     default {
                         `throw new2`(
-                            NoSuchElementException::class,
-                            "\"Unknown command set \" + ps.commandSet()"
+                            bg("PacketError.NoSuchCommandSetException"),
+                            "ps"
                         )
                     }
                     this

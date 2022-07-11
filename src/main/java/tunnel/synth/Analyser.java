@@ -33,12 +33,12 @@ public class Analyser<S extends Analyser<S, T>, T> {
     }
 
     protected void submit(T result) {
-        LOG.error("submit: " + result + "   " + this.getClass().getSimpleName());
+        LOG.debug("submit: " + result + "   " + this.getClass().getSimpleName());
         listeners.forEach(l -> {
             try {
                 l.accept(result);
             } catch (Exception e) {
-                LOG.error(String.format("Failed to handle %s with %s, ignoring this error",
+                LOG.info(String.format("Failed to handle %s with %s, ignoring this error",
                         (result instanceof ToCode ? ((ToCode) result).toCode() : result.toString()),
                         this.getClass()), e);
             }

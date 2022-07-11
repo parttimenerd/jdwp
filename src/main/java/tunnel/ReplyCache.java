@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Logger;
 import jdwp.EventCmds.Events;
 import jdwp.*;
 import jdwp.JDWP.StateProperty;
+import jdwp.exception.TunnelException;
 import jdwp.util.Pair;
 import lombok.Value;
 import lombok.*;
@@ -589,9 +590,12 @@ public class ReplyCache implements Listener {
         }
         try {
             return (ReplyOrError<?>) request.parseReply(replyPacket.toStream(vm)).withNewId(request.getId());
-        } catch (Exception | AssertionError e) {
-            return null;
+        } catch (TunnelException ex) {
+            ex.log(LOG, "cache get " + request);
+        } catch (Exception | AssertionError ex) {
+            LOG.error("cache get " + request, ex);
         }
+        return null;
     }
 
 

@@ -5,6 +5,9 @@ import jdwp.EventCmds.Events.EventCommon;
 import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.PrimitiveValue.*;
 import jdwp.Reference.*;
+import jdwp.exception.PacketError;
+import jdwp.exception.TunnelException.ReflectiveCreationException;
+import jdwp.exception.ValueAccessException;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -108,7 +111,7 @@ public abstract class Value implements ToCode {
                 case Tag.CLASS_OBJECT:
                     return CLASS_OBJECT;
                 default:
-                    throw new AssertionError("unknown primitive tag " + (char)tag);
+                    throw new PacketError("unknown primitive tag " + (char)tag);
             }
         }
 
@@ -162,7 +165,7 @@ public abstract class Value implements ToCode {
         }
 
         protected Value keyError(Object key) {
-            throw new AssertionError(String.format("Unknown key %s", key));
+            throw new ValueAccessException("No such key " + key, this);
         }
 
         @SuppressWarnings("unchecked")
@@ -291,7 +294,7 @@ public abstract class Value implements ToCode {
                     | IllegalAccessException
                     | InvocationTargetException
                     | NoSuchMethodException e) {
-                throw new AssertionError(e);
+                throw new ReflectiveCreationException(String.format("Creating %s with %s", klass, arguments), e);
             }
         }
 
@@ -336,10 +339,10 @@ public abstract class Value implements ToCode {
                                         return ListValue.createForTagged(
                                                 (Class<? extends ListValue<?>>) type, elementType, values.stream());
                                     } else {
-                                        throw new AssertionError();
+                                        throw new ReflectiveCreationException("Error with field " + name);
                                     }
                                 } catch (NoSuchFieldException e) {
-                                    throw new AssertionError(e);
+                                    throw new ReflectiveCreationException("Error with field " + name, e);
                                 }
                             }));
         }
@@ -522,7 +525,7 @@ public abstract class Value implements ToCode {
                     | IllegalAccessException
                     | InvocationTargetException
                     | NoSuchMethodException e) {
-                throw new AssertionError(e);
+                throw new ReflectiveCreationException(String.format("Creating list %s of %s with %s", klass, elementType, arguments), e);
             }
         }
 
@@ -533,7 +536,7 @@ public abstract class Value implements ToCode {
                 Stream<? extends TaggedValue<?>> taggedArguments) {
             Objects.requireNonNull(elementType);
             if (ListValue.class.isAssignableFrom(elementType)) {
-                throw new AssertionError("no nested lists supported");
+                throw new ReflectiveCreationException("no nested lists supported");
             }
             return create(
                     klass,
@@ -543,10 +546,10 @@ public abstract class Value implements ToCode {
                                     taggedArguments,
                                     (name, values) -> {
                                         if (!(name instanceof Integer)) {
-                                            throw new AssertionError();
+                                            throw new ReflectiveCreationException("Field key for list has to be an integer");
                                         }
                                         if (elementType == null) {
-                                            throw new AssertionError(
+                                            throw new ReflectiveCreationException(
                                                     "elementType == null only works for scalar element values, "
                                                             + "probably missing an EntryType annotation");
                                         }
@@ -566,7 +569,8 @@ public abstract class Value implements ToCode {
                                                         (Class<CombinedValue>)Class.forName(elementType.getName().replace("$EventCommon", "").replace("$ModifierCommon", "") + "$" + kindClass),
                                                             values.stream());
                                             } catch (ClassNotFoundException e) {
-                                                throw new AssertionError(e);
+                                                throw new ReflectiveCreationException(String.format("Creating %s with" +
+                                                        " %s", klass, taggedArguments), e);
                                             }
                                         }
                                         return CombinedValue.createForTagged(

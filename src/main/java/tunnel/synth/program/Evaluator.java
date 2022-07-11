@@ -5,10 +5,16 @@ import jdwp.Value.CombinedValue;
 import jdwp.Value.ListValue;
 import jdwp.Value.TaggedValue;
 import jdwp.Value.WalkableValue;
+import jdwp.exception.PacketError;
+import jdwp.exception.TunnelException;
+import jdwp.exception.TunnelException.UnsupportedOperationException;
+import jdwp.exception.ValueAccessException;
 import jdwp.util.Pair;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.event.Level;
 import tunnel.synth.program.AST.*;
 import tunnel.synth.program.Visitors.ReturningExpressionVisitor;
 import tunnel.synth.program.Visitors.StatementVisitor;
@@ -84,14 +90,18 @@ public class Evaluator {
      * went wrong
      */
     @Getter
-    public static class EvaluationAbortException extends RuntimeException {
+    public static class EvaluationAbortException extends TunnelException {
         /**
          * discard whole evaluation (and not only the current call)
          */
         private final boolean discard;
 
         public EvaluationAbortException(boolean discard) {
-            this.discard = discard;
+            this(discard, "");
+        }
+
+        public EvaluationAbortException(String message, Throwable cause) {
+            this(!(cause instanceof EvaluationAbortException) || ((EvaluationAbortException) cause).discard, message, cause);
         }
 
         public EvaluationAbortException() {
@@ -99,13 +109,39 @@ public class Evaluator {
         }
 
         public EvaluationAbortException(boolean discard, String message) {
-            super(message);
+            super(discard ? Level.WARN : Level.INFO, true, message);
+            this.discard = discard;
+        }
+
+        public EvaluationAbortException(Level level, boolean discard, String message) {
+            super(level, true, message);
             this.discard = discard;
         }
 
         public EvaluationAbortException(boolean discard, String message, Throwable cause) {
-            super(message, cause);
+            super(cause instanceof TunnelException ? ((TunnelException) cause).getLevel() : (discard ? Level.WARN : Level.INFO),
+                    (cause instanceof TunnelException &&
+                            ((TunnelException) cause).isExpected()), message, cause);
             this.discard = discard;
+        }
+
+        public EvaluationAbortException(Level level, boolean discard, String message, Throwable cause) {
+            super(level, level != Level.ERROR, message, cause);
+            this.discard = discard;
+        }
+
+        @Override
+        public TunnelException log(Logger logger, String message) {
+            if (!isExpected()) {
+                super.log(logger, message);
+            } else {
+                String app = "";
+                if (getCause() != null) {
+                    app = " (" + getCause().getMessage() + ")";
+                }
+                logMessage(logger, message + (message.isEmpty() ? "" : ": ") + app);
+            }
+            return this;
         }
     }
 
@@ -212,6 +248,10 @@ public class Evaluator {
                                 }
                                 scope.put(assignment.getVariable().getName(), value);
                             }
+                        } catch (ValueAccessException ex) { // we kind of expect those to happen
+                            addToNotEvaluated(assignment);
+                            throw new EvaluationAbortException(Level.DEBUG, false,
+                                    String.format("evaluation of assignment %s failed", assignment), ex);
                         } catch (AssertionError | Exception e) {
                             addToNotEvaluated(assignment);
                             throw new EvaluationAbortException(
@@ -297,9 +337,7 @@ public class Evaluator {
                         } catch (AssertionError | Exception e) {
                             e.printStackTrace();
                             addToNotEvaluated(mapCall);
-                            throw new EvaluationAbortException(
-                                    e instanceof EvaluationAbortException && ((EvaluationAbortException) e).discard,
-                                    String.format("evaluation of assignment %s failed", mapCall), e);
+                            throw new EvaluationAbortException(String.format("evaluation of assignment %s failed", mapCall), e);
                         } finally {
                             scope.pop();
                         }
@@ -382,7 +420,7 @@ public class Evaluator {
                             if(ex.discard){
                                 throw ex;
                             }
-                            LOG.error("Evaluation of recursion body failed", ex);
+                            LOG.debug("Evaluation of recursion body failed", ex);
                         } finally {
                             popNotEvaluatedScope();
                         }
@@ -451,7 +489,7 @@ public class Evaluator {
 
                     @Override
                     public Value visit(CallProperty property) {
-                        throw new UnsupportedOperationException("CallProperty not supported");
+                        throw new UnsupportedOperationException();
                     }
                 });
     }

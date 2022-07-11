@@ -5,6 +5,7 @@ import jdwp.JDWP.Metadata;
 import jdwp.JDWP.ReplyVisitor;
 import jdwp.*;
 import jdwp.VirtualMachineCmds.IDSizesRequest;
+import jdwp.exception.TunnelException.UnsupportedOperationException;
 
 public class TestReply extends AbstractTestParsedPacket implements Reply {
 

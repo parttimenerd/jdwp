@@ -15,12 +15,15 @@ import jdwp.Value.ByteList;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import jdwp.VirtualMachineCmds.DisposeReply;
+import jdwp.exception.PacketError;
+import jdwp.exception.TunnelException;
 import jdwp.util.Pair;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.Triple;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import tunnel.State.Formatter;
 import tunnel.State.Mode;
 import tunnel.State.ReadReplyResult;
@@ -123,15 +126,15 @@ public class BasicTunnel {
         byte[] hsBytes = clientInputStream.readNBytes(handshake.length());
         String hsStr = new String(hsBytes);
         if (!hsStr.equals(handshake)) {
-            LOG.error("Expected \"JDWP-Handshake\" from client, but got \"{}\"", hsStr);
-            throw new IOException();
+            throw new TunnelException(Level.ERROR, false, String.format("Expected \"JDWP-Handshake\" from client, but" +
+                    " got \"%s\"", hsStr));
         }
         jvmOutputStream.write(hsBytes);
         byte[] hsBytes2 = jvmInputStream.readNBytes(handshake.length());
         String hsStr2 = new String(hsBytes2);
         if (!hsStr2.equals(handshake)) {
-            LOG.error("Expected \"JDWP-Handshake\" from jvm, but got \"{}\"", hsStr);
-            throw new IOException();
+            throw new TunnelException(Level.ERROR, false, String.format("Expected \"JDWP-Handshake\" from jvm, but" +
+                    " got \"%s\"", hsStr));
         }
         clientOutputStream.write(hsBytes);
         LOG.info("JDWP-Handshake was successful");
@@ -196,15 +199,17 @@ public class BasicTunnel {
                 if (e.hasContent()) {
                     try {
                         var packet = Packet.fromByteArray(e.getContent());
+                        e.log(LOG);
                         if (packet.getCmd() == TunnelCmds.COMMAND_SET) {
-                            LOG.error("packet error: ", e);
-                            state.addAndWriteError(clientOutputStream,new ReplyOrError<>(
+                            state.addAndWriteError(clientOutputStream, new ReplyOrError<>(
                                     clientRequest.get().getId(), EvaluateProgramRequest.METADATA,
                                     (short) CANNOT_EVALUATE_PROGRAM));
                             continue; // tunnel commands cannot be sent directly to the VM
                         }
-                        LOG.error("packet error: ", e);
+                    } catch (PacketError ex) {
+                        ex.log(LOG);
                     } catch (Exception ex) {
+                        LOG.error("Unknown error", ex);
                     }
                     jvmOutputStream.write(e.getContent());
                 } else {
@@ -237,7 +242,7 @@ public class BasicTunnel {
             } catch (ClosedStreamException e) {
                 return;
             } catch (PacketError e) {
-                LOG.error("packet error: ", e);
+                e.log(LOG);
                 if (e.hasContent()) {
                     clientOutputStream.write(e.getContent());
                     reply = Optional.empty();
@@ -252,7 +257,7 @@ public class BasicTunnel {
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                        throw new TunnelException(Level.ERROR, false, "Got interrupted");
                     }
                     return;
                 }
@@ -362,7 +367,7 @@ public class BasicTunnel {
             requestReplies = handleEvaluateProgramRequest(jvmInputStream, jvmOutputStream, clientOutputStream,
                     request.id, program);
         } catch (EvaluationAbortException e) {
-            LOG.error("Evaluation aborted: ", e);
+            e.log(LOG, "Evaluation aborted");
         }
         if (requestReplies.isEmpty()) {
             return;
@@ -406,7 +411,11 @@ public class BasicTunnel {
                 writeClientReply(clientOutputStream, Either.left(events));
             }
         } catch (Exception e) {
-            LOG.error("error handling events", e);
+            if (e instanceof PacketError) {
+                ((PacketError) e).log(LOG, "error handling events");
+            } else {
+                LOG.error("error handling events", e);
+            }
             state.ignoreUnfinished();
             writeClientReply(clientOutputStream, Either.left(events));
         }
@@ -421,7 +430,7 @@ public class BasicTunnel {
                     events.id, program);
         } catch (EvaluationAbortException e) {
             state.removeCachedProgram(program);
-            LOG.error(String.format("Evaluated %s but got error", program), e);
+            e.log(LOG, String.format("Evaluated %s but got error", program.toPrettyString()));
             return;
         }
         if (requestReplies.isEmpty()) {
@@ -486,7 +495,8 @@ public class BasicTunnel {
                         // state.addEvent(new WrappedPacket<>(reply.getLeft()));
                         state.ignoreUnfinished();
                         writeEvents(jvmInputStream, jvmOutputStream, clientOutputStream, reply.getLeft(), requestReplies, initialId);
-                        throw new EvaluationAbortException(true, String.format("Event %s happened", reply.getLeft()));
+                        throw new EvaluationAbortException(Level.INFO, true, String.format("Event %s happened",
+                                reply.getLeft()));
                     }
                     if (reply.getRight().isReply()) { // the good case, where we have a reply
                         var replOrErr = reply.getRight();
@@ -497,7 +507,7 @@ public class BasicTunnel {
                         } else {
                             LOG.error("got packet {} with id {} but expected reply for packet {} with id {}",
                                     replOrErr, replOrErr.getId(), request, requestId);
-                            throw new EvaluationAbortException(true, "got packet with unexpected id");
+                            throw new EvaluationAbortException(true, "got packet with unexpected id").log(LOG);
                         }
                     } else {
                         var err = reply.getRight().getErrorCode();
@@ -515,11 +525,10 @@ public class BasicTunnel {
                                         formatter.format(request)));
                     }
                 } else {
-                    LOG.error("Assumed that there is data but there is no data");
-                    throw new EvaluationAbortException(true, "Assumed data but there is no data");
+                    throw new EvaluationAbortException(true, "Assumed data but there is no data").log(LOG);
                 }
             }
-        }, e -> LOG.error("Caught error and ignored some program statements", e)).evaluate(program);
+        }, e -> e.log(LOG, "Caught error and ignored some program statements")).evaluate(program);
         return requestReplies;
     }
 

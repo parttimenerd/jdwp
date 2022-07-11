@@ -1,6 +1,7 @@
 package jdwp;
 
 import jdwp.Value.CombinedValue;
+import jdwp.exception.TunnelException.ReflectiveCreationException;
 import jdwp.util.Pair;
 
 import java.lang.reflect.InvocationTargetException;
@@ -71,7 +72,7 @@ public abstract class AbstractParsedPacket extends CombinedValue implements Pars
             return klass.getConstructor(int.class, Map.class).newInstance(id, arguments);
         } catch (InstantiationException | IllegalAccessException |
                 InvocationTargetException | NoSuchMethodException e) {
-            throw new AssertionError(String.format("Cannot create packet (id=%d, class=%s, arguments=%s)",
+            throw new ReflectiveCreationException(String.format("Cannot create packet (id=%d, class=%s, arguments=%s)",
                     id, klass, arguments), e);
         }
     }

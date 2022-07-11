@@ -1,5 +1,6 @@
 package tunnel.synth.program;
 
+import jdwp.exception.TunnelException.UnsupportedOperationException;
 import tunnel.synth.program.AST.*;
 
 public interface Visitors {
@@ -51,7 +52,7 @@ public interface Visitors {
     interface ReturningStatementVisitor<R> {
 
         default R visit(Statement statement) {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         default R visit(AssignmentStatement assignment) {

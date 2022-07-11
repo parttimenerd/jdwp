@@ -4,6 +4,7 @@ import jdwp.JDWP.*;
 import jdwp.*;
 import jdwp.VirtualMachineCmds.IDSizesRequest;
 import jdwp.VirtualMachineCmds.VersionRequest;
+import jdwp.exception.TunnelException.UnsupportedOperationException;
 
 import java.util.List;
 import java.util.Set;

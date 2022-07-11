@@ -57,7 +57,6 @@ public class CostFile {
         this.infoPerCommand = infoPerCommand;
     }
 
-    @SuppressWarnings("unchecked")
     public static CostFile loadJVMFile(Path path) {
         var costsInMillis = new HashMap<Integer, Map<Integer, List<Float>>>();
         var allCount = new int[] { 0 };
@@ -101,7 +100,9 @@ public class CostFile {
         try {
             Files.lines(path).filter(l -> !l.startsWith("C")).forEach(l -> {
                 var parts = l.split(", *");
-                assert parts.length == 5;
+                if (parts.length != 5) {
+                    throw new AssertionError("Expected 5 comma separated values, got " + parts);
+                }
                 var commandSet = Integer.parseInt(parts[0]);
                 var command = Integer.parseInt(parts[1]);
                 var cost = Float.parseFloat(parts[2]);

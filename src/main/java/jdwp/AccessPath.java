@@ -3,6 +3,8 @@ package jdwp;
 import jdwp.Value.CombinedValue;
 import jdwp.Value.ListValue;
 import jdwp.Value.WalkableValue;
+import jdwp.exception.ValueAccessException;
+import jdwp.exception.ValueAccessException.IncorrectAccessException;
 import lombok.EqualsAndHashCode;
 import org.jetbrains.annotations.NotNull;
 
@@ -98,11 +100,11 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
     public static <T> Value access(Value value, Object pathElement) {
         if (isListAccess(pathElement)) {
             if (!(value instanceof ListValue<?>)) {
-                throw new AssertionError("List access on non list " + value);
+                throw new IncorrectAccessException(value, "List access on non list");
             }
         } else {
             if (!(value instanceof CombinedValue)) {
-                throw new AssertionError("Field access on non combined value " + value);
+                throw new IncorrectAccessException(value, "Field access on non combined value");
             }
         }
         return ((WalkableValue<Object>)value).get(pathElement);
@@ -115,7 +117,7 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
                 current = access(current, o);
             }
         } catch (Exception e) {
-            throw new AssertionError("Cannot access " + this + " on " + root.toCode(), e);
+            throw new ValueAccessException("Cannot access " + this + " on " + root.toCode(), root, e);
         }
         return current;
     }
@@ -162,32 +164,6 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
 
     public AccessPath removeListAccesses() {
         return new AccessPath(Arrays.stream(path).filter(e -> e instanceof String).toArray());
-    }
-
-    /**
-     * Returns -1 if both paths either do not differ or differ at more than two indexes
-     *
-     * Assumes that both paths are equal disregarding indexes
-     */
-    public int onlyDifferingIndex(AccessPath other) {
-        assert other.removeListAccesses().equals(removeListAccesses());
-        if (other.path.length != path.length) {
-           return -1;
-        }
-        int differingIndex = -1;
-        for (int i = 0; i < path.length; i++) {
-            if (!other.path[i].equals(path[i])) {
-                if (isListAccess(other.path[i]) && isListAccess(path[i])) {
-                    if (differingIndex != -1) {
-                        return -1;
-                    }
-                    differingIndex = i;
-                } else {
-                    return -1;
-                }
-            }
-        }
-        return differingIndex;
     }
 
     private int normalizeListIndex(int index) {

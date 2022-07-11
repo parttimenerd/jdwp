@@ -9,6 +9,7 @@ import jdwp.Value.BasicValue;
 import jdwp.Value.CombinedValue;
 import jdwp.Value.ListValue;
 import jdwp.Value.TaggedBasicValue;
+import jdwp.exception.TunnelException.SynthesisException;
 import jdwp.util.Pair;
 import lombok.*;
 import org.jetbrains.annotations.Nullable;
@@ -108,7 +109,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         try {
             return synthesizeProgram(DependencyGraph.compute(partition));
         } catch (AssertionError e) {
-            throw new AssertionError("Failed to synthesize program for partition: " + partition.toCode(), e);
+            throw new SynthesisException(partition, e);
         }
     }
 

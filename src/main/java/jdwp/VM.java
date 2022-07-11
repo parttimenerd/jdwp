@@ -47,8 +47,10 @@ import jdwp.ReferenceTypeCmds.*;
 import jdwp.VM.NoTagPresentException.Source;
 import jdwp.VirtualMachineCmds.*;
 import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
+import jdwp.exception.TunnelException;
 import lombok.Getter;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import tunnel.BasicTunnel;
 
 import java.util.HashMap;
@@ -62,13 +64,13 @@ import java.util.Set;
 @Getter
 public class VM {
 
-    public static class NoTagPresentException extends RuntimeException {
+    public static class NoTagPresentException extends TunnelException {
         enum Source {
             FIELD, CLASS, ARRAY
         }
 
         NoTagPresentException(Source source, long id) {
-            super(String.format("No tag present for %s %d", source.name(), id));
+            super(Level.WARN, true, String.format("No tag present for %s %d", source.name(), id));
         }
     }
 

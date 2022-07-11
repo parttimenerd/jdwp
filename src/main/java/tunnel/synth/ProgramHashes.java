@@ -1,6 +1,7 @@
 package tunnel.synth;
 
 import jdwp.JDWP;
+import jdwp.exception.TunnelException.ProgramHashesException;
 import lombok.Getter;
 import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
@@ -72,7 +73,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
 
     public Hashed<Statement> get(Statement statement) {
         if (!statementToHashed.containsKey(statement)) {
-            throw new IllegalArgumentException(String.format("Statement %s not found", statement));
+            throw new ProgramHashesException(String.format("Statement %s not found", statement));
         }
         return Objects.requireNonNull(statementToHashed.get(statement));
     }
@@ -89,7 +90,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
             if (parent != null) {
                 return parent.getOrParent(statement);
             }
-            throw new IllegalArgumentException(String.format("Statement %s not found", statement));
+            throw new ProgramHashesException(String.format("Statement %s not found", statement));
         }
         return Objects.requireNonNull(statementToHashed.get(statement));
     }
@@ -138,7 +139,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
 
     private void add(Hashed<Statement> hashed, int index) {
         if (contains(hashed) && !contains(hashed.get())) {
-            throw new AssertionError(String.format("hash collision: %s (%d) and %s (%d), " +
+            throw new ProgramHashesException(String.format("hash collision: %s (%d) and %s (%d), " +
                             "maybe two similar statements in the same program", hashed.get(), hashed.hash(),
                     getCollision(hashed).get(), hashed.hash()));
         }
@@ -306,7 +307,7 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
                 statement.getSubStatements().forEach(s -> s.accept(visitor));
             }
         } catch (IllegalArgumentException e) {
-            throw new AssertionError("problem with statement " + statement, e);
+            throw new ProgramHashesException("problem with statement " + statement, e);
         }
         if (parentHashes != null && !(statement instanceof Body)) {
             hashes.add(parentHashes.create(statement), 0);

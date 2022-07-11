@@ -4,8 +4,10 @@ import ch.qos.logback.classic.Logger;
 import jdwp.EventCmds.Events;
 import jdwp.*;
 import jdwp.EventCmds.Events.EventCommon;
+import jdwp.exception.TunnelException;
 import lombok.SneakyThrows;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -42,8 +44,8 @@ public class MockClient implements Closeable {
         byte[] hsBytes = serverInputStream.readNBytes(handshake.length());
         String hsStr = new String(hsBytes);
         if (!hsStr.equals(handshake)) {
-            LOG.error("Expected \"JDWP-Handshake\" from client, but got \"{}\"", hsStr);
-            throw new IOException();
+            throw new TunnelException(Level.ERROR, false, String.format("Expected \"JDWP-Handshake\" from client, but" +
+                    " got \"%s\"", hsStr));
         }
         LOG.info("JDWP-Handshake was successful");
     }

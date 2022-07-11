@@ -4,9 +4,11 @@ import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.Value.BasicValue;
 import jdwp.Value.TaggedBasicValue;
+import jdwp.exception.TunnelException;
 import jdwp.util.Pair;
 import lombok.*;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.event.Level;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.program.Functions;
 import tunnel.synth.program.Functions.BasicValueTransformer;
@@ -182,7 +184,7 @@ public class DependencyGraph {
         public Node(int id, @Nullable Pair<Request<?>, ? extends Reply> origin) {
             this.id = id;
             this.origin = origin == null ? null : (origin.second instanceof ReplyOrError<?> ?
-                    (Pair<Request<?>, ReplyOrError<?>>)(Pair)origin : p(origin.first,
+                    (Pair<Request<?>, ReplyOrError<?>>) origin : p(origin.first,
                     new ReplyOrError<>(origin.second)));
         }
 
@@ -686,7 +688,7 @@ public class DependencyGraph {
                 return Set.of();
             }
             if (dependentNodes.stream().mapToInt(this::getLayerIndex).min().getAsInt() <= headerLayer) {
-                throw new AssertionError("missing nodes from header");
+                throw new TunnelException(Level.DEBUG, true, "missing nodes from header");
             }
             // check also that all nodes below only depend on nodes in the set or in the header set
             if (dependentNodes.stream().anyMatch(d -> d.dependsOn.stream()

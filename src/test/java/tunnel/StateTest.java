@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Tests the state without opening real ports */
 public class StateTest {
 
+    @TestInstance(Lifecycle.PER_CLASS)
     static abstract class CollectedPacketsTest {
         final State state = new State();
         final CollectingListener collectingListener = new CollectingListener();
@@ -89,9 +90,7 @@ public class StateTest {
 
     @Test
     public void testFormatterWithLongLines() {
-        IntStream.range(0, 500).mapToObj(i -> "a".repeat(i)).forEach(s -> {
-            assertTrue(Formatter.cut(s).length() <= Formatter.MAX_LENGTH);
-        });
+        IntStream.range(0, 500).mapToObj("a"::repeat).forEach(s -> assertTrue(Formatter.cut(s).length() <= Formatter.MAX_LENGTH));
     }
 
     @Test

@@ -32,6 +32,7 @@ import jdwp.VM.NoTagPresentException;
 import jdwp.Value.*;
 import jdwp.VirtualMachineCmds.*;
 import jdwp.VirtualMachineCmds.ClassesBySignatureReply.ClassInfo;
+import jdwp.exception.PacketError;
 import jdwp.oracle.JDWP;
 import jdwp.oracle.*;
 import jdwp.oracle.JDWP.ArrayReference.GetValues;
@@ -1290,7 +1291,7 @@ class JDWPTest {
         new VariableTableWithGenericRequest(0, Map.of("refType", Reference.classType(1),
                 "methodID", Reference.method(1)));
         // with reference in different group
-        assertThrows(AssertionError.class, () -> new VariableTableWithGenericRequest(0,
+        assertThrows(PacketError.class, () -> new VariableTableWithGenericRequest(0,
                 Map.of("refType", Reference.frame(1), "methodID", Reference.method(1))));
     }
 

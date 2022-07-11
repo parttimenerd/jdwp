@@ -2,6 +2,7 @@ package jdwp;
 
 import jdwp.JDWP.Tag;
 import jdwp.Value.BasicScalarValue;
+import jdwp.exception.PacketError.UnknownTagException;
 import tunnel.util.Hashed;
 
 /**
@@ -340,6 +341,7 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
 
     public static PrimitiveValue<?> readValue(PacketInputStream ps, byte tag) {
         switch ((int)tag) {
+
             case Tag.BOOLEAN:
                 return BooleanValue.read(ps);
             case Tag.BYTE:
@@ -356,8 +358,12 @@ public abstract class PrimitiveValue<T> extends BasicScalarValue<T> {
                 return DoubleValue.read(ps);
             case Tag.VOID:
                 return VoidValue.read(ps);
+            case Tag.LONG:
+                return LongValue.read(ps);
+            case Tag.STRING:
+                return StringValue.read(ps);
             default:
-                throw new AssertionError("Unknown tag " + tag);
+                throw new UnknownTagException(ps, tag);
         }
     }
 

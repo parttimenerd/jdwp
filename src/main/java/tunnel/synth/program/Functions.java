@@ -2,6 +2,8 @@ package tunnel.synth.program;
 
 import jdwp.*;
 import jdwp.Reference.*;
+import jdwp.exception.TunnelException.FunctionsException;
+import jdwp.exception.TunnelException.UnsupportedOperationException;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -68,7 +70,7 @@ public abstract class Functions {
             var refType = wrapper.split("-")[0];
             return Reference.object(Type.valueOf(refType.toUpperCase()), value);
         }
-        throw new AssertionError(String.format("No %s wrapper registered", wrapper));
+        throw new FunctionsException(String.format("No %s wrapper registered", wrapper));
     }
 
     private static String getIntegerWrapperName(BasicScalarValue<?> value) {
@@ -79,7 +81,7 @@ public abstract class Functions {
             return value.type.name().toLowerCase() + "-reference";
         }
         if (!classToWrapperName.containsKey(value.getClass())) {
-            throw new AssertionError(String.format("Cannot find wrapper for %s", value.toCode()));
+            throw new FunctionsException(String.format("Cannot find wrapper for %s", value.toCode()));
         }
         return classToWrapperName.get(value.getClass());
     }
@@ -103,7 +105,7 @@ public abstract class Functions {
                 return new ByteList(Base64.getDecoder().decode((String)value));
             default:
                 if (!(value instanceof Long)) {
-                    throw new AssertionError(String.format("Integer value is not long: %s", value));
+                    throw new FunctionsException(String.format("Integer value is not long: %s", value));
                 }
                 return applyIntegerWrapper(wrapper, (Long)value);
         }
@@ -123,7 +125,7 @@ public abstract class Functions {
         } else if (value instanceof ByteList) {
             literal = literal(Base64.getEncoder().encodeToString(((ByteList) value).bytes));
         } else {
-            throw new AssertionError(String.format("Unknown basic type for wrapping: %s", value));
+            throw new FunctionsException(String.format("Unknown basic type for wrapping: %s", value));
         }
         return new FunctionCall(WRAP, WRAP_FUNCTION, List.of(literal(getWrapperName(value)), literal));
     }
@@ -137,17 +139,17 @@ public abstract class Functions {
         @Override
         public Value evaluate(List<Value> arguments) {
             if (arguments.isEmpty()) {
-                throw new AssertionError("No arguments for get function");
+                throw new FunctionsException("No arguments for get function");
             }
             if (arguments.size() == 1) {
                 return arguments.get(0);
             }
             if (!arguments.stream().skip(1).allMatch(a -> a instanceof PrimitiveValue.IntValue || a instanceof StringValue || a instanceof LongValue)) {
-                throw new AssertionError(String.format("Invalid path %s", arguments.subList(1, arguments.size())));
+                throw new FunctionsException(String.format("Invalid path %s", arguments.subList(1, arguments.size())));
             }
             var obj = arguments.get(0);
             if (!(obj instanceof WalkableValue<?>)) {
-                throw new AssertionError(String.format(String.format("Base object %s is not walkable", obj)));
+                throw new FunctionsException(String.format(String.format("Base object %s is not walkable", obj)));
             }
             var path =
                     new AccessPath(arguments.stream().skip(1).map(s -> ((BasicScalarValue<?>) s).value).map(s -> s instanceof Long ? (int) (long) s : s).toArray());
@@ -193,7 +195,7 @@ public abstract class Functions {
         @Override
         public Value evaluate(List<Value> arguments) {
             if (arguments.size() != 1) {
-                throw new AssertionError(String.format("Const function expects one argument, got %s", arguments));
+                throw new FunctionsException(String.format("Const function expects one argument, got %s", arguments));
             }
             return arguments.get(0);
         }
@@ -205,14 +207,14 @@ public abstract class Functions {
         @Override
         public Value evaluate(List<Value> arguments) {
             if (arguments.size() != 2) {
-                throw new AssertionError(String.format("More than two arguments for wrap function: %s", arguments));
+                throw new FunctionsException(String.format("More than two arguments for wrap function: %s", arguments));
             }
             if (!(arguments.get(0) instanceof StringValue)) {
-                throw new AssertionError(String.format("First argument %s of wrap function is not a string",
+                throw new FunctionsException(String.format("First argument %s of wrap function is not a string",
                         arguments.get(0)));
             }
             if (!(arguments.get(1) instanceof BasicScalarValue<?>)) {
-                throw new AssertionError(String.format("Second argument %s of wrap function is not a basic scalar " +
+                throw new FunctionsException(String.format("Second argument %s of wrap function is not a basic scalar " +
                         "value", arguments.get(1)));
             }
             return applyWrapper(((StringValue) arguments.get(0)).value,
@@ -230,7 +232,7 @@ public abstract class Functions {
                     if (vals.size() == 1) {
                         return vals.get(0).getValue();
                     } else {
-                        throw new AssertionError(String.format("Multiple values for path index %s", index));
+                        throw new FunctionsException(String.format("Multiple values for path index %s", index));
                     }
                 })));
     }
@@ -253,7 +255,7 @@ public abstract class Functions {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static CombinedValue createCombined(Map<Object, Value> values) {
         if (values.entrySet().stream().anyMatch(e -> AccessPath.isListAccess(e.getKey()))) {
-            throw new AssertionError(
+            throw new FunctionsException(
                     String.format("Expected field accesss for combined value creation, but got %s", values.keySet()));
         }
         return new MapCallResultEntry((Map<String, Value>)(Map)values);
@@ -261,7 +263,7 @@ public abstract class Functions {
 
     private static ListValue<?> createList(Map<Object, Value> values) {
         if (values.keySet().stream().anyMatch(k -> !AccessPath.isListAccess(k))) {
-            throw new AssertionError(
+            throw new FunctionsException(
                     String.format("Expected list access for combined value creation, but got %s", values.keySet()));
         }
         int length = values.keySet().stream().mapToInt(v -> (int) v).max().orElse(0) + 1;
@@ -269,7 +271,7 @@ public abstract class Functions {
                 values.entrySet().stream().sorted(Comparator.comparing(e -> (int) e.getKey()))
                         .map(Entry::getValue).collect(Collectors.toList());
         if (sorted.size() != length) {
-            throw new AssertionError(String.format("Expected %s values for list, got %s", length, sorted.size()));
+            throw new FunctionsException(String.format("Expected %s values for list, got %s", length, sorted.size()));
         }
         var type = Type.OBJECT;
         if (length > 0 && sorted.stream().allMatch(v -> v.type == sorted.get(0).type)) {
@@ -310,7 +312,7 @@ public abstract class Functions {
         } else if (value instanceof WalkableValue) {
             return createObjectFunctionCall((WalkableValue<?>) value);
         } else {
-            throw new AssertionError(String.format("Unexpected value type %s", value.getClass()));
+            throw new FunctionsException(String.format("Unexpected value type %s", value.getClass()));
         }
     }
 
@@ -339,7 +341,7 @@ public abstract class Functions {
          * do not call this method, it's called by the other evaluate method
          */
         protected Value evaluate(List<Value> arguments) {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         public List<Value> evaluateArguments(Scopes<Value> scope, List<Expression> arguments,
@@ -364,12 +366,12 @@ public abstract class Functions {
         @Override
         public Value evaluate(VM vm, List<Value> arguments) {
             if (arguments.size() != 1) {
-                throw new AssertionError(String.format("Function %s expected one argument but got %s", this,
+                throw new FunctionsException(String.format("Function %s expected one argument but got %s", this,
                         arguments));
             }
             Value argument = arguments.get(0);
             if (!expectedType.isAssignableFrom(argument.getClass())) {
-                throw new AssertionError(String.format("Function %s expected an instance of %s but got %s",
+                throw new FunctionsException(String.format("Function %s expected an instance of %s but got %s",
                         this, expectedType, argument));
             }
             return evaluate(vm, (T) argument);

@@ -4,6 +4,7 @@ import jdwp.EventCmds.Events;
 import jdwp.EventCollection.NullReply;
 import jdwp.JDWP.*;
 import jdwp.Value.CombinedValue;
+import jdwp.exception.TunnelException.UnsupportedOperationException;
 
 import java.util.Collections;
 import java.util.List;
@@ -18,7 +19,7 @@ public interface EventCollection extends Request<NullReply>, Reply {
 
     @Override
     default ReplyOrError<NullReply> parseReply(PacketInputStream ps) {
-        throw new AssertionError();
+        throw new UnsupportedOperationException();
     }
 
     default int size() {
@@ -51,17 +52,17 @@ public interface EventCollection extends Request<NullReply>, Reply {
 
         @Override
         public int getId() {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public short getFlags() {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public Packet toPacket(VM vm) {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -71,22 +72,22 @@ public interface EventCollection extends Request<NullReply>, Reply {
 
         @Override
         public int getCommand() {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public int getCommandSet() {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public String getCommandName() {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public String getCommandSetName() {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -106,7 +107,7 @@ public interface EventCollection extends Request<NullReply>, Reply {
 
         @Override
         public Value get(String key) {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -121,7 +122,7 @@ public interface EventCollection extends Request<NullReply>, Reply {
 
         @Override
         public Reply withNewId(int id) {
-            throw new AssertionError();
+            throw new UnsupportedOperationException();
         }
 
         @Override

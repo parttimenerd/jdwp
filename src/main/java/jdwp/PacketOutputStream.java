@@ -26,6 +26,7 @@
 package jdwp;
 
 import jdwp.Value.BasicValue;
+import jdwp.exception.PacketError;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -133,7 +134,7 @@ class PacketOutputStream {
                 writeShort((short)data);
                 break;
             default:
-                throw new UnsupportedOperationException("JDWP: ID size not supported: " + size);
+                throw new PacketError("JDWP: ID size not supported: " + size);
         }
     }
 

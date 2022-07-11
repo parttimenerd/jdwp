@@ -495,7 +495,9 @@ interface TypeNode {
             // and there are currently only two different cases
             if (parent.javaType().equals("FieldValue")) {
                 GroupNode groupNode = (GroupNode) parent;
-                assert groupNode.iterVariable() != null;
+                if (groupNode.iterVariable() != null) {
+                    throw new AssertionError();
+                }
                 String iter = groupNode.iterVariable();
                 // we know here that the result is a basic value
                 String fieldVarName = ((FieldTypeNode) this.parent.components.get(0)).name;

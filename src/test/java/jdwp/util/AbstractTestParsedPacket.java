@@ -5,6 +5,7 @@ import jdwp.JDWP.CommandVisitor;
 import jdwp.Packet;
 import jdwp.VM;
 import jdwp.Value;
+import jdwp.exception.TunnelException.UnsupportedOperationException;
 
 import java.util.ArrayList;
 import java.util.Arrays;

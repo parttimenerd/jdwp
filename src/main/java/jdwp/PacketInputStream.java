@@ -29,6 +29,8 @@ import jdwp.Reference.ArrayReference;
 import jdwp.Reference.ClassTypeReference;
 import jdwp.Reference.ObjectReference;
 import jdwp.Value.BasicScalarValue;
+import jdwp.exception.PacketError;
+import lombok.Getter;
 import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
@@ -56,6 +58,7 @@ class PacketInputStream {
     // reply specific data
     private final short errorCode;
 
+    @Getter
     private int cursor;
     private final byte[] data;
 
@@ -235,7 +238,7 @@ class PacketInputStream {
           case 2:
               return readShort();
           default:
-              throw new UnsupportedOperationException("JDWP: ID size not supported: " + size);
+              throw new PacketError("JDWP: ID size not supported: " + size);
         }
     }
 
@@ -317,11 +320,11 @@ class PacketInputStream {
         return n;
     }
 
-    byte command() {
+    public byte command() {
         return command;
     }
 
-    byte commandSet() {
+    public byte commandSet() {
         return commandSet;
     }
 

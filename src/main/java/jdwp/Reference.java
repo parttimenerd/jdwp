@@ -3,6 +3,7 @@ package jdwp;
 import jdwp.JDWP.Tag;
 import jdwp.JDWP.TypeTag;
 import jdwp.Value.BasicScalarValue;
+import jdwp.exception.PacketError;
 import tunnel.util.Hashed;
 
 import java.util.Objects;
@@ -53,7 +54,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
             case Tag.CLASS_OBJECT:
                 return ClassObjectReference.read(ps);
             default:
-                throw new AssertionError(String.format("Unknown reference tag %d", tag));
+                throw new PacketError(String.format("Unknown reference tag %d", tag), ps);
         }
     }
 
@@ -211,7 +212,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
                 case TypeTag.ARRAY:
                     return ArrayTypeReference.read(ps);
                 default:
-                    throw new AssertionError("Unknown type tag " + tag);
+                    throw new PacketError("Unknown type tag " + tag, ps);
             }
         }
     }
@@ -502,7 +503,7 @@ public abstract class Reference extends BasicScalarValue<Long> {
 
     public <R extends Reference, S extends Reference> R checkInGroup(BasicGroup group) {
         if (!getGroup().equals(group)) {
-            throw new AssertionError(String.format("%s not in group %s", this, group));
+            throw new PacketError(String.format("%s not in group %s", this, group));
         }
         return (R)this;
     }

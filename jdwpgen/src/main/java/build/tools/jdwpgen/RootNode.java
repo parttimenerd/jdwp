@@ -89,8 +89,10 @@ class RootNode extends AbstractNamedNode {
         writer.println("import java.util.*;");
         writer.println("import jdwp.util.Pair;");
         writer.println("import tunnel.util.ToCode;");
+        writer.println("import jdwp.exception.PacketError;");
         writer.println("import static jdwp.util.Pair.p;");
         writer.println("import static jdwp.PrimitiveValue.*;");
+        writer.println("import static jdwp.exception.PacketError.*;");
         writer.println();
 
         genJavaClass(writer, jdiFile, costFile);
@@ -126,8 +128,12 @@ class RootNode extends AbstractNamedNode {
         writer.println("import java.util.*;");
         writer.println("import jdwp.util.Pair;");
         writer.println("import jdwp.JDWP.*;");
+        writer.println("import jdwp.exception.ValueAccessException;");
+        writer.println("import jdwp.exception.PacketError;");
         writer.println("import static jdwp.util.Pair.p;");
         writer.println("import static jdwp.PrimitiveValue.*;");
+        writer.println("import static jdwp.exception.ValueAccessException.*;");
+        writer.println("import static jdwp.exception.PacketError.*;");
         writer.println();
         writer.println(CodeGeneration.genCommandCode(commandSet, costFile));
         var result = str.toString();
