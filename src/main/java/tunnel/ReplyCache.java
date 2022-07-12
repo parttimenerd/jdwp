@@ -82,7 +82,7 @@ public class ReplyCache implements Listener {
          * @see StateProperty#GARBAGECOLLECTIONTIME
          */
         @With
-        int garbageCollectionPeriodMillis = 1000;
+        int garbageCollectionPeriodMillis = 100000;
 
         /**
          * Period in which classes are reloaded (wait n milliseconds for the class to appear after it is loaded)
@@ -133,7 +133,7 @@ public class ReplyCache implements Listener {
                 new Column("CommandSet", STRING, (p, l, r) -> p == null ? "" :
                         JDWP.getCommandName((byte) (int) p.first, (byte) (int) p.second) + "(" + p.second + ")"),
                 new Column("%", RATE, (p, ol, l) -> (double) l.size() / ol.size()),
-                new Column("#", RATE, (p, ol, l) -> (double) l.size()),
+                new Column("#", COUNT, (p, ol, l) -> (double) l.size()),
                 new Column("mean hits", AVG_COUNT, (p, ol, l) -> l.stream().mapToInt(i -> i.hits).average().orElse(0)),
                 new Column("% hits > 0", RATE,
                         (p, ol, l) -> l.stream().filter(i -> i.hits > 0).count() / (double) l.size()),
@@ -582,14 +582,14 @@ public class ReplyCache implements Listener {
     public @Nullable ReplyOrError<?> get(Request<?> request) {
         var reply = l1Cache.get(request);
         if (reply != null) {
-            return (ReplyOrError<?>) reply.withNewId(request.getId());
+            return reply.withNewId(request.getId());
         }
         var replyPacket = l2Cache.get(request);
         if (replyPacket == null) {
             return null;
         }
         try {
-            return (ReplyOrError<?>) request.parseReply(replyPacket.toStream(vm)).withNewId(request.getId());
+            return request.parseReply(replyPacket.toStream(vm)).withNewId(request.getId());
         } catch (TunnelException ex) {
             ex.log(LOG, "cache get " + request);
         } catch (Exception | AssertionError ex) {

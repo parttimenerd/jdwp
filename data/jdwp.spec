@@ -223,7 +223,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (OnlyReads false)
             (InvalidatesReplyCache true)
             (AffectedBy everything)
-            (Affects time instances threads threadLoadTime)
+            (Affects time instances threads threadLoadTime currentSuspension)
         )
     )
     (Command Resume=9
@@ -241,7 +241,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (AffectedBy everything)
-            (Affects time instances threads threadLoadTime)
+            (Affects time instances threads threadLoadTime currentSuspension)
         )
     )
     (Command Exit=10
@@ -2145,7 +2145,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (InvalidatesReplyCache true)
-            (Affects instances threads threadLoadTime)
+            (Affects instances threads threadLoadTime currentSuspension)
         )
     )
     (Command Resume=3
@@ -2167,7 +2167,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         )
         (Metadata
             (OnlyReads false)
-            (Affects time instances threads threadLoadTime)
+            (Affects time instances threads threadLoadTime currentSuspension)
         )
     )
     (Command Status=4

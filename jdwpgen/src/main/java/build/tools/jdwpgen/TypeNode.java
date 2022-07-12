@@ -495,7 +495,7 @@ interface TypeNode {
             // and there are currently only two different cases
             if (parent.javaType().equals("FieldValue")) {
                 GroupNode groupNode = (GroupNode) parent;
-                if (groupNode.iterVariable() != null) {
+                if (groupNode.iterVariable() == null) {
                     throw new AssertionError();
                 }
                 String iter = groupNode.iterVariable();

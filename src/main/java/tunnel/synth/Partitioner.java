@@ -440,6 +440,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         if (currentPartition != null) {
             submit(currentPartition);
         }
+        LOG.debug("Partitioner disabled");
         currentPartition = null;
         enabled = false;
     }

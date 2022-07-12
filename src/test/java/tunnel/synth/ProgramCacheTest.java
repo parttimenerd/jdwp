@@ -76,7 +76,7 @@ public class ProgramCacheTest {
                 "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))");
         cache.accept(program);
         ByteArrayOutputStream s = new ByteArrayOutputStream();
-        cache.store(s);
+        cache.store(s, 0);
         var input = new ByteArrayInputStream(s.toByteArray());
         var newCache = new ProgramCache();
         newCache.load(input);
@@ -112,7 +112,7 @@ public class ProgramCacheTest {
                 "\"method\" 105553176478280) (\"refType\")=(wrap \"class-type\" 1129))))");
         cache.accept(program);
         ByteArrayOutputStream s = new ByteArrayOutputStream();
-        cache.store(s);
+        cache.store(s, 0);
         var input = new ByteArrayInputStream(s.toByteArray());
         var newCache = new ProgramCache(Mode.LAST, 1);
         newCache.load(input);

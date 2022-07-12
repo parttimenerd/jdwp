@@ -1,5 +1,7 @@
 package tunnel.synth.program;
 
+import jdwp.JDWP;
+import jdwp.JDWP.Metadata;
 import jdwp.exception.TunnelException.UnsupportedOperationException;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -246,5 +248,17 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     public boolean isEmpty() {
         return getNumberOfAssignments() + (hasCause() ? 1 : 0) == 0;
+    }
+
+    public boolean hasEmptyBody() {
+        return body.isEmpty();
+    }
+
+    public int getBodySize() {
+        return body.size();
+    }
+
+    public @Nullable Metadata getCauseMetadata() {
+        return cause == null ? null : JDWP.getMetadata(cause.getCommandSet(), cause.getCommand());
     }
 }

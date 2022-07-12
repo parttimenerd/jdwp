@@ -242,7 +242,7 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
     }
 
     @Override
-    public ParsedPacket withNewId(int id) {
+    public ReplyOrError<?> withNewId(int id) {
         return isReply() ?
                 new ReplyOrError<>(id, flags, (Reply)getReply().withNewId(id)) :
                 new ReplyOrError<>(id, flags, metadata, errorCode);
@@ -251,7 +251,7 @@ public class ReplyOrError<R extends Reply> extends CombinedValue implements ToSh
     @Override
     public String toShortString() {
         return isReply() ? getReply().toShortString() :
-                String.format("Error(%d,%d%s)", getId(), getErrorCode(),
+                String.format("Error(%d,%d,%s%s)", getId(), getErrorCode(),
                         JDWP.Error.getConstantName(getErrorCode()), isReplyLikeError() ? ",reply" : "");
     }
 

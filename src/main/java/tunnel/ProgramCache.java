@@ -198,16 +198,20 @@ public class ProgramCache implements Consumer<Program> {
         return count;
     }
 
+    public void store(OutputStream stream) throws IOException {
+        store(stream, 3);
+    }
+
     /**
      * Write the whole map into a stream, but only include statements
      * that do not depend on direct pointers written directly in the program.
      * Skip programs that only consist of such statements or whose cause is such a statement
      */
-    public void store(OutputStream stream) throws IOException {
+    public void store(OutputStream stream, int minSizeOfStoredProgram) throws IOException {
         var writer = new OutputStreamWriter(stream);
         for (Program program : causeToProgram.asMap().values()) {
             var filtered = program.removeDirectPointerRelatedStatementsTransitively();
-            if (!filtered.hasCause() || filtered.getNumberOfDistinctCalls() == 0) {
+            if (!filtered.hasCause() || filtered.getNumberOfDistinctCalls() < minSizeOfStoredProgram) {
                 continue;
             }
             writer.write(filtered.toPrettyString());

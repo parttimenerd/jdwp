@@ -7,6 +7,8 @@ import jdwp.ReferenceTypeCmds.SignatureWithGenericRequest;
 import jdwp.Reply;
 import jdwp.ReplyOrError;
 import jdwp.Request;
+import jdwp.ThreadReferenceCmds.FrameCountReply;
+import jdwp.ThreadReferenceCmds.FrameCountRequest;
 import jdwp.VirtualMachineCmds.VersionReply;
 import jdwp.VirtualMachineCmds.VersionRequest;
 import org.junit.jupiter.api.BeforeAll;
@@ -106,12 +108,31 @@ public class StateTest {
         state.getReplyCache().onReply(new SignatureWithGenericRequest(0, Reference.klass(67)),
                 new ReplyOrError<>(new SignatureWithGenericReply(0, wrap(""), wrap("klass"))));
         var reduced = state.reduceProgramToNonCachedRequests(program);
-        System.out.println(reduced.toPrettyString());
-        assertTrue(reduced.hasCause());
+        System.out.println(reduced.getProgram().toPrettyString());
+        assertTrue(reduced.getProgram().hasCause());
         assertEquals("((= cause (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 679)))\n" +
                 "  (= var0 (object (\"signature\")=(wrap \"string\" \"\") (\"genericSignature\")=(wrap \"string\" " +
                 "\"klass\")))\n" +
-                "  (= var2 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\"))))", reduced.toPrettyString());
+                "  (= var2 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\"))))",
+                reduced.getProgram().toPrettyString());
+        assertEquals(1, reduced.getCached().size());
+    }
+
+    @Test
+    public void testReduceProgramToNonCachedRequestsWithSideEffectCause() {
+        State state = new State();
+        Program program = Program.parse("((= cause (request VirtualMachine Resume))\n" +
+                "  (= var0 (request VirtualMachine Resume))" +
+                "  (= var2 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1))))");
+        state.getReplyCache().onReply(new FrameCountRequest(0, Reference.thread(1)),
+                new ReplyOrError<>(new FrameCountReply(0, wrap(1))));
+        var reduced = state.reduceProgramToNonCachedRequests(program).getProgram();
+        System.out.println(reduced.toPrettyString());
+        assertTrue(reduced.hasCause());
+        assertEquals("((= cause (request VirtualMachine Resume))\n" +
+                "  (= var0 (request VirtualMachine Resume))\n" +
+                "  (= var2 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1))))",
+                reduced.toPrettyString());
     }
 
     @Test
@@ -120,7 +141,7 @@ public class StateTest {
         Program program = Program.parse("((= cause (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap " +
                 "\"klass\" 679)))\n" +
                 "(= var11 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap " +
-                        "\"klass\" 679)))\n" +
+                "\"klass\" 679)))\n" +
                 " (for iter (object (0)=(wrap 'klass' 67) (1)=(wrap 'klass' 68))" +
                 "  (= var0 (request ReferenceType SignatureWithGeneric (\"refType\")=iter))\n" +
                 "  (= var2 (request ReferenceType SourceFile (\"refType\")=(get cause \"refType\")))))");
@@ -128,7 +149,7 @@ public class StateTest {
                 new ReplyOrError<>(new SignatureWithGenericReply(0, wrap(""), wrap("klass"))));
         state.getReplyCache().onReply(new SignatureWithGenericRequest(0, Reference.klass(67)),
                 new ReplyOrError<>(new SignatureWithGenericReply(0, wrap(""), wrap("klass"))));
-        var reduced = state.reduceProgramToNonCachedRequests(program);
+        var reduced = state.reduceProgramToNonCachedRequests(program).getProgram();
         System.out.println(reduced.toPrettyString());
         assertTrue(reduced.hasCause());
         assertEquals("((= cause (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" 679)))\n" +

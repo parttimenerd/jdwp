@@ -1001,7 +1001,7 @@ internal object CodeGeneration {
                 bg(METADATA_CLASSNAME), "getMetadata", param("String", "commandSetName"),
                 param("String", "commandName")
             ) {
-                _return("commandToMetadata.get(getCommandSetByte(commandSetName)).get(getCommandByte(commandSetName, commandName))")
+                _return("commandToMetadata.get((int)getCommandSetByte(commandSetName)).get((int)getCommandByte(commandSetName, commandName))")
             }
 
             addType(genMetadataClass())

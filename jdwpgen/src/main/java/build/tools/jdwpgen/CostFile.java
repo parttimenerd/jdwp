@@ -100,8 +100,8 @@ public class CostFile {
         try {
             Files.lines(path).filter(l -> !l.startsWith("C")).forEach(l -> {
                 var parts = l.split(", *");
-                if (parts.length != 5) {
-                    throw new AssertionError("Expected 5 comma separated values, got " + parts);
+                if (parts.length != 6) {
+                    throw new AssertionError("Expected 5 comma separated values, got " + Arrays.toString(parts));
                 }
                 var commandSet = Integer.parseInt(parts[0]);
                 var command = Integer.parseInt(parts[1]);

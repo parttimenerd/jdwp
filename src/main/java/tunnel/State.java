@@ -125,7 +125,7 @@ public class State {
     private final Map<Integer, WrappedPacket<Request<?>>> unfinished;
     private final Set<Integer> ignoredUnfinished;
 
-    private final Map<Integer, EvaluateProgramRequest> unfinishedEvaluateRequests;
+    private final Map<Integer, Pair<EvaluateProgramRequest, ReducedProgram>> unfinishedEvaluateRequests;
     private final LinkedBlockingQueue<Program> programsToSendToServer = new LinkedBlockingQueue<>();
     private final Set<Listener> listeners;
     private Partitioner clientPartitioner;
@@ -135,6 +135,9 @@ public class State {
     private ProgramCache programCache;
     private Formatter formatter;
     private @Nullable Path programCacheFile;
+    @Setter
+    private int minPartitionSizeForPartitioning = 3;
+    private int minSizeOfStoredProgram = 3;
 
     public State(VM vm, Mode mode, ReplyCache.Options replyCacheOptions) {
         this(vm, mode, replyCacheOptions, new Formatter(ToStringMode.CODE, ToStringMode.CODE));
@@ -195,7 +198,7 @@ public class State {
             }
         }
         try (var out = Files.newOutputStream(programCacheFile)) {
-            programCache.store(out);
+            programCache.store(out, minSizeOfStoredProgram);
         } catch (IOException e) {
             LOG.error("Cannot store program cache", e);
         }
@@ -226,10 +229,18 @@ public class State {
     private void registerPartitionListener() {
         assert mode == CLIENT;
         clientPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
-            LOG.debug("Partition: {}", partition);
             if (partition.hasCause()) {
                 var cause = partition.getCause();
+                if (cause == null) {
+                    LOG.info("Null cause partition {}", formatter.format(partition));
+                    return;
+                }
                 if (cause.isLeft()) {
+                    LOG.debug("Partition: {}", formatter.format(partition));
+                    if (partition.size() < minPartitionSizeForPartitioning) {
+                        LOG.debug("Ignoring partition as it is too small");
+                        return;
+                    }
                     try {
                         var program = Synthesizer.synthesizeProgram(partition);
                         if (programCache.isAcceptableProgram(program)) {
@@ -249,10 +260,19 @@ public class State {
         });
         addPartitionerListener(clientPartitioner);
         serverPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
-            LOG.debug("Partition: {}", partition);
             if (partition.hasCause()) {
                 var cause = partition.getCause();
+                if (cause == null) {
+                    LOG.info("Null cause partition {}", formatter.format(partition));
+                    return;
+                }
                 if (cause.isRight()) {
+                    LOG.debug("Partition: {}", formatter.format(partition));
+                    if (partition.size() < minPartitionSizeForPartitioning) {
+                        LOG.debug("Ignoring partition as it is too small (size {} < {})",
+                                partition.size(), minPartitionSizeForPartitioning);
+                        return;
+                    }
                     try {
                         var program = Synthesizer.synthesizeProgram(partition);
                         if (programCache.isAcceptableProgram(program)) {
@@ -408,14 +428,19 @@ public class State {
             if (unfinishedEvaluateRequests.containsKey(ps.id())) {
                 var reply = PacketError.call(() -> EvaluateProgramReply.parse(ps), ps);
                 LOG.debug(formatter.format(reply));
-                var program = unfinishedEvaluateRequests.get(ps.id()).program;
-                LOG.debug("original program " + unfinishedEvaluateRequests.get(ps.id()));
+                var reduced = unfinishedEvaluateRequests.get(ps.id());
+                var program = reduced.first.program;
+                LOG.debug("original program " + unfinishedEvaluateRequests.get(ps.id()).first.program);
+                handleCachedInitiatingRequest(serverOutputStream, clientOutputStream, ps.id(),
+                        unfinishedEvaluateRequests.get(ps.id()).second.getCached(), null);
                 unfinishedEvaluateRequests.remove(ps.id());
                 if (reply.isError()) {
-                    LOG.error("Error in evaluate program reply: " + reply);
-                    addReply(new WrappedPacket<>(new ReplyOrError<>(ps.id(), EvaluateProgramRequest.METADATA,
-                            (short) 1)));
+                    LOG.error("Error in evaluate program reply (resending original request): " + reply);
                     removeCachedProgram(Program.parse(program.getValue()));
+                    var originalRequest = getUnfinishedRequest(ps.id());
+                    unfinished.remove(ps.id());
+                    addRequest(originalRequest);
+                    writeRequest(serverOutputStream, originalRequest.packet);
                     return null;
                 } else {
                     var request = hasUnfinishedRequest(ps.id()) ? getUnfinishedRequest(ps.id()).getPacket() : null;
@@ -424,6 +449,13 @@ public class State {
                             BasicTunnel.parseEvaluateProgramReply(vm, realReply), ps.id());
                     LOG.debug("original reply " + originalReply);
                     return originalReply == null ? null : new ReadReplyResult(null, originalReply, false);
+                }
+            }
+            if (!unfinished.containsKey(ps.id())) {
+                LOG.debug("Ignore reply {}, it is possibly already answered using a cached reply", ps.id());
+                if (ignoredUnfinished.contains(ps.id())) {
+                    ignoredUnfinished.remove(ps.id());
+                    return new ReadReplyResult(null, null, true);
                 }
             }
             var request = getUnfinishedRequest(ps.id());
@@ -460,14 +492,28 @@ public class State {
                             for (Pair<Request<?>, ReplyOrError<?>> p : parsed.getRight()) {
                                 replyCache.put(p.first, p.second, true);
                             }
+                            for (WrappedPacket<Request<?>> unfinishedReq : unfinished.values()) {
+                                var unf = unfinishedReq.getPacket();
+                                if (replyCache.contains(unf)) {
+                                    var cachedReply = replyCache.get(unf);
+                                    if (cachedReply != null) {
+                                        addReply(new WrappedPacket<>(cachedReply, System.currentTimeMillis()));
+                                        writeReply(clientOutputStream, Either.right(cachedReply));
+                                        ignoredUnfinished.add(unf.getId());
+                                    }
+                                }
+                            }
                         } else {
                             // the event caused the abortion of an EvaluateProgramRequest
                             // but we collected some requests before
                             // and possibly after, as the event might have an associated program
+                            var request = unfinished.entrySet().stream().filter(e -> unfinishedEvaluateRequests.containsKey(e.getKey()))
+                                    .map(e -> e.getValue().getPacket()).findFirst();
+                            var cached =
+                                    request.map(r -> unfinishedEvaluateRequests.get(r.getId()).second.getCached())
+                                            .orElse(Map.of());
                             if (!parsed.getLeft().isEmpty()) {
                                 // we did collect some replies before receiving the event
-                                var request = unfinished.entrySet().stream().filter(e -> unfinishedEvaluateRequests.containsKey(e.getKey()))
-                                        .map(e -> e.getValue().getPacket()).findFirst();
                                 request.ifPresent(value -> processReceivedRequestRepliesFromEvent(clientOutputStream,
                                         value,
                                         parsed.getLeft(), abortedRequestId));
@@ -481,6 +527,8 @@ public class State {
                             // this order of statements ensures that the event can invalidate the appropriate cache
                             // entries
                             addEvent(new WrappedPacket<>(parsed.getMiddle()));
+                            handleCachedInitiatingRequest(serverOutputStream, clientOutputStream,
+                                    abortedRequestId, cached, parsed.getMiddle());
                             if (parsed.getRight().size() > 0) {
                                 processReceivedRequestRepliesFromEvent(clientOutputStream, null, parsed.getRight(), abortedRequestId);
                             }
@@ -497,54 +545,77 @@ public class State {
         }
     }
 
-    @Nullable
-    private ReplyOrError<?>
+    /**
+     * check whether there is an unfinished request with the passed id, which is also present in cached,
+     * if so: check if it is invalidated by the passed event, if so write a new request
+     *  */
+    private void handleCachedInitiatingRequest(OutputStream jvmOutputStream,
+                                               OutputStream clientOutputStream,
+                                               int originalRequestId, Map<Request<?>, ReplyOrError<?>> cached,
+                                               @Nullable Events possibleInvalidatingEvents) {
+        var unfinishedRequest = unfinished.get(originalRequestId);
+        if (unfinishedRequest == null || !unfinishedRequest.packet.onlyReads()) {
+            return;
+        }
+        var cachedReplyOrNull = cached.get(unfinishedRequest.getPacket());
+        if (cachedReplyOrNull == null) {
+            return;
+        }
+        var cachedReply = cachedReplyOrNull.withNewId(originalRequestId);
+        if (possibleInvalidatingEvents != null && cachedReply.isAffectedBy(possibleInvalidatingEvents)) {
+            // the important case where the cached cause is invalidated by an event
+            // leading to the request never being answered
+            LOG.debug("Resending cached request {} as it has been invalidated by {}",
+                    formatter.format(unfinishedRequest.getPacket()), formatter.format(possibleInvalidatingEvents));
+            unfinished.remove(originalRequestId);
+            addRequest(new WrappedPacket<>(unfinishedRequest.getPacket()));
+            writeRequest(jvmOutputStream, unfinishedRequest.getPacket());
+            return;
+        }
+        LOG.debug("Cached request {} for reduced program, sending it now",
+                formatter.format(unfinishedRequest.getPacket()));
+        addReply(new WrappedPacket<>(cachedReply));
+        writeReply(clientOutputStream, Either.right(cachedReply));
+        // all other requests are not important, as their replies are still in the cache
+        // so probably the last case should never happen
+    }
+
+    /**
+     * @param id (aborted) request id, or -1 in case of an event
+     */
+    private @Nullable ReplyOrError<?>
     processReceivedRequestRepliesFromEvent(@Nullable OutputStream clientOutputStream,
                                            @Nullable Request<?> request, List<Pair<Request<?>, ReplyOrError<?>>> realReply,
                                            int id) {
         ReplyOrError<?> originalReply = null;
-        assert clientOutputStream != null;
         for (var p : realReply) {
             captureInformation(p.first, p.second);
             if (originalReply == null && p.first.equals(request)) {
-                originalReply = (ReplyOrError<?>) p.second.withNewId(id);
-            }
-            if (p.first.onlyReads()) {
+                originalReply = p.second.withNewId(id);
+                try {
+                    addReply(new WrappedPacket<>(originalReply, System.currentTimeMillis()));
+                    clientPartitioner.onReply(new WrappedPacket<>(request), new WrappedPacket<>(originalReply));
+                } catch (Exception e) {
+                    LOG.error("Failed to add reply to reply cache", e);
+                }
+            } else if (p.first.onlyReads()) {
                 cache(p.first, p.second, p.second != originalReply);
                 LOG.debug("put into reply cache: {} -> {}", formatter.format(p.first),
                         formatter.format(p.second));
-            }
-        }
-        clientPartitioner.disable();
-        serverPartitioner.disable();
-        // now go through all unfinished requests and check (but only if is not the original request)
-        for (WrappedPacket<Request<?>> value : new HashMap<>(unfinished).values()) {
-            // might cause a concurrent modification exception
-            var unfinishedRequest = value.packet;
-            if (unfinishedRequest.getId() != id) {
-                var cachedReply = replyCache.get(unfinishedRequest);
-                if (cachedReply != null) {
-                    addReply(new WrappedPacket<>(cachedReply, System.currentTimeMillis()));
-                    writeReply(clientOutputStream, Either.right(cachedReply));
+                if (unfinished.containsKey(p.first.getId())) {
+                    LOG.debug("Removing request {} from unfinished requests",
+                            formatter.format(unfinished.get(p.first.getId()).packet));
+                    var cachedReply = replyCache.get(p.first);
+                    if (cachedReply != null) {
+                        addReply(new WrappedPacket<>(cachedReply, System.currentTimeMillis()));
+                        writeReply(clientOutputStream, Either.right(cachedReply));
+                        ignoredUnfinished.add(p.first.getId());
+                    }
                 }
             }
         }
-        // handle the original request
-        if (originalReply != null) {
-            try {
-                addReply(new WrappedPacket<>(originalReply, System.currentTimeMillis()));
-            } catch (Exception e) {
-                LOG.error("Failed to add reply to reply cache", e);
-            }
-        }
-        clientPartitioner.enable();
-        serverPartitioner.enable();
-        if (originalReply != null) { // add to partition
-            clientPartitioner.onReply(new WrappedPacket<>(request), new WrappedPacket<>(originalReply));
-        }
         return originalReply;
     }
-
     public void captureInformation(Request<?> request, Reply reply) {
         try {
             vm.captureInformation(request, reply);
@@ -641,8 +712,8 @@ public class State {
         return programCache.get(packet).or(() -> programCache.getSimilar(packet)).orElse(null);
     }
 
-    public void addUnfinishedEvaluateRequest(EvaluateProgramRequest evaluateRequest) {
-        unfinishedEvaluateRequests.put(evaluateRequest.getId(), evaluateRequest);
+    public void addUnfinishedEvaluateRequest(EvaluateProgramRequest evaluateRequest, ReducedProgram reducedProgram) {
+        unfinishedEvaluateRequests.put(evaluateRequest.getId(), p(evaluateRequest, reducedProgram));
     }
 
     public List<Program> drainProgramsToSendToServer() {
@@ -673,22 +744,37 @@ public class State {
         programCache.remove(program);
     }
 
+    @lombok.Value
+    public static class ReducedProgram {
+        Program program;
+        /** replies that are considered cached */
+        Map<Request<?>, ReplyOrError<?>> cached;
+
+        public boolean hasCached() {
+            return !cached.isEmpty();
+        }
+    }
+
     /**
      * remove all requests from the program that are cached, returns the same program if nothing can be cached
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public Program reduceProgramToNonCachedRequests(Program program) {
+    public ReducedProgram reduceProgramToNonCachedRequests(Program program) {
         Map<RequestCall, Value> cachedRequests = new HashMap<>();
+        Map<RequestCall, Pair<Request<?>, ReplyOrError<?>>> cachedRequests2 = new HashMap<>();
         Box<Value> causeCache = new Box<>(null);
         Set<Statement> notEvaluated;
+        var causeAffects = program.hasCause() ? program.getCauseMetadata().getAffectsBits() : 0;
         try {
             notEvaluated = new Evaluator(vm, new Functions() {
                 @Override
                 public Optional<Value> processRequest(RequestCall call, Request<?> request) {
                     var reply = replyCache.get(request);
-                    if (reply != null) {
+                    if (reply != null && (call.equals(program.getCause()) ||
+                            (!request.isAffectedByTime() && (request.getAffectedByBits() & causeAffects) == 0))) {
                         var cached = reply.isError() ? wrap(1) : reply.getReply().asCombined();
                         cachedRequests.put(call, cached);
+                        cachedRequests2.put(call, p(request, reply));
                         if (call.equals(program.getCause())) {
                             causeCache.set(cached);
                         }
@@ -699,14 +785,15 @@ public class State {
             }).evaluate(program).second;
         } catch (EvaluationAbortException e) {
             LOG.debug("Cannot evaluate program {} properly", program.toPrettyString(), e);
-            return program;
+            return new ReducedProgram(program, Map.of());
         }
         var toRemove = program.collectBodyStatements();
         toRemove.removeAll(notEvaluated);
         if (toRemove.isEmpty()) {
-            return program;
+            return new ReducedProgram(program, Map.of());
         }
         try {
+            Map<Request<?>, ReplyOrError<?>> cached = new HashMap<>();
             // check if there is any non-removed statement that depends on a removed statement
             // collect all defined identifiers with their assignment statements
             Map<Identifier, AssignmentStatement> removedVars =
@@ -726,19 +813,28 @@ public class State {
                                     .filter(e -> usedIdentifiers.contains(e.getKey()))
                                     .sorted(Comparator.comparing(e -> e.getValue().getHashes().get(e.getValue()).hash()))
                                     .map(e -> p(e.getKey(),
-                                            cachedRequests.get((RequestCall) e.getValue().getExpression()))))
+                                            cachedRequests.get((RequestCall) e.getValue().getExpression())))
+                                    .filter(p -> p.second != null))
+                    .distinct()
+                    .peek(p -> {
+                        var rr = cachedRequests2.get((RequestCall)removedVars.get(p.first).getExpression());
+                        if (rr == null) {
+                            throw new TunnelException(Level.INFO, true, "Cannot find request for removed statement");
+                        }
+                        cached.put(rr.first, rr.second);
+                    })
                     .map(e -> new AssignmentStatement(e.first, Functions.createWrappingFunctionCall(e.second)))
                     .collect(Collectors.toList());
             Program reduced = program.removeStatementsIgnoreCause(
                     new HashSet<>(toRemove), (List<Statement>) (List) required, false);
             LOG.debug("Reduced program {} to non-cached requests {} by removing {}",
                     program.toPrettyString(), reduced.toPrettyString(), toRemove);
-            return reduced;
-        } catch (AssertionError e) {
+            return new ReducedProgram(reduced, cached);
+        } catch (Exception | AssertionError e) {
             e.printStackTrace();
             LOG.error("Failed to remove cached requests ({}) from program {}", program, toRemove, e);
         }
-        return program;
+        return new ReducedProgram(program, Map.of());
     }
 
     public void onDispose() {

@@ -171,8 +171,10 @@ public class Evaluator {
     public Pair<Scopes<Value>, Set<Statement>> evaluate(Program program) {
         var scope = new Scopes<Value>();
         if (program.hasCause()) {
+            // evaluate the cause first
             evaluate(scope, new Body(List.of(program.getCauseStatement())));
         }
+        // the scope now contains the cause value (if the program has a cause)
         return evaluate(scope, program.getBody());
     }
 

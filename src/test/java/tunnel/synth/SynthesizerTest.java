@@ -13,8 +13,6 @@ import jdwp.ReferenceTypeCmds.MethodsWithGenericReply.MethodInfo;
 import jdwp.StackFrameCmds.GetValuesReply;
 import jdwp.StackFrameCmds.GetValuesRequest;
 import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
-import jdwp.Value.ListValue;
-import jdwp.Value.Type;
 import jdwp.util.Pair;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
