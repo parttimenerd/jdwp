@@ -561,12 +561,13 @@ public class BasicTunnel {
                     var reply = optReply.get();
                     if (reply.isLeft()) { // abort the evaluation if an event happened
                         // state.addEvent(new WrappedPacket<>(reply.getLeft()));
-                        state.ignoreUnfinished();
                         LOG.debug("event {} causes the descend into another handleEvaluateProgramRequest",
                                 reply.getLeft());
                         if (!request.onlyReads()) {
                             LOG.error("request {} is not read-only but got aborted by event {}", request,
                                     reply.getLeft());
+                        } else {
+                            state.ignoreUnfinished();
                         }
                         writeEvents(io, reply.getLeft(), requestReplies, initialId, false, depth + 1);
                         throw new EvaluationAbortException(Level.INFO, true, String.format("Event %s happened",
