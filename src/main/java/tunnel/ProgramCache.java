@@ -6,8 +6,10 @@ import jdwp.EventCmds.Events;
 import jdwp.ParsedPacket;
 import jdwp.Request;
 import jdwp.exception.TunnelException.MergeException;
+import jdwp.exception.TunnelException.ProgramHashesException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.LoggerFactory;
 import tunnel.synth.DependencyGraph;
 import tunnel.synth.Partitioner.Partition;
@@ -32,7 +34,7 @@ public class ProgramCache implements Consumer<Program> {
 
     @Getter
     @AllArgsConstructor
-    static class AccessPathKey {
+    public static class AccessPathKey {
 
         private final String group;
         private final List<Object> pathValues;
@@ -87,13 +89,9 @@ public class ProgramCache implements Consumer<Program> {
                 if (metadata.getKeyGroup().isEmpty()) {
                     keyGroup = metadata.getCommandSet() + "." + metadata.getCommand();
                 }
-                try {
-                    return new AccessPathKey(keyGroup, metadata.getKeyPath().stream()
-                            .map(p -> req.getProperties().stream().filter(c -> c.getPath().equals(p)).findFirst().get())
-                            .collect(Collectors.toList()));
-                } catch (NoSuchElementException e) {
-                    throw new IllegalArgumentException("no property found for key path " + metadata.getKeyPath());
-                }
+                return new AccessPathKey(keyGroup, metadata.getKeyPath().stream()
+                        .map(p -> req.getProperties().stream().filter(c -> c.getPath().equals(p)).findFirst().get())
+                        .collect(Collectors.toList()));
             }
         }
     }
@@ -123,6 +121,10 @@ public class ProgramCache implements Consumer<Program> {
 
     private final boolean addAsynchronously;
 
+    /** merge a found program programs with access path keys of upper levels */
+    @Setter
+    private boolean mergeWithUpperPrograms;
+
     public ProgramCache() {
         this(DEFAULT_MIN_SIZE);
     }
@@ -145,6 +147,7 @@ public class ProgramCache implements Consumer<Program> {
         this.sizeToGroupAndAccess = new HashMap<>();
         this.toAdd = new LinkedBlockingQueue<>();
         this.addAsynchronously = addAsynchronously;
+        this.mergeWithUpperPrograms = true;
     }
 
     @Override
@@ -234,7 +237,9 @@ public class ProgramCache implements Consumer<Program> {
     }
 
     public Optional<Program> get(PacketCall packetCall) {
-        return get(AccessPathKey.from(packetCall), packetCall);
+        return mergeWithUpperPrograms ?
+                mergingGet(AccessPathKey.from(packetCall), packetCall) :
+                get(AccessPathKey.from(packetCall), packetCall);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -287,6 +292,43 @@ public class ProgramCache implements Consumer<Program> {
             return get(key.dropLast(), packetCall);
         }
         return Optional.ofNullable(groupToProgram.get(key.group)).map(p -> p.setCause(packetCall));
+    }
+
+    private Optional<Program> mergingGet(AccessPathKey key, PacketCall packetCall) {
+        var topMost = get(key, packetCall);
+        if (topMost.isEmpty()) {
+            return topMost;
+        }
+        var programs = new ArrayList<Program>();
+        programs.add(topMost.get());
+
+        while (key.size() >= 0) {
+            if (groupToAccess.containsKey(key)) {
+                programs.add(groupToAccess.get(key));
+            }
+            if (key.size() == 0) {
+                break;
+            }
+            key = key.dropLast();
+        }
+        if (programs.isEmpty()) {
+            return Optional.empty();
+        }
+        var topProgram = programs.get(0);
+        var topProgramSize = topProgram.collectBodyStatements().size();
+        if (programs.size() == 1 ||
+                programs.stream().mapToInt(p -> p.collectBodyStatements().size()).max().getAsInt() == topProgramSize) {
+            return Optional.of(programs.get(0));
+        }
+        var merged = topProgram;
+        for (int i = 1; i < programs.size(); i++) {
+            try {
+                merged = merge(merged, programs.get(i));
+            } catch (ProgramHashesException e) {
+                return Optional.of(merged);
+            }
+        }
+        return Optional.of(merged);
     }
 
     public Optional<Program> get(Request<?> request) {

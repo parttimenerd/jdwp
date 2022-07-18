@@ -3,13 +3,17 @@ package tunnel.synth;
 import jdwp.EventCmds;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.ClassUnload;
+import jdwp.EventCmds.Events.SingleStep;
+import jdwp.Location;
 import jdwp.ReplyOrError;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import tunnel.ProgramCache;
+import tunnel.ProgramCache.AccessPathKey;
 import tunnel.synth.Partitioner.Partition;
+import tunnel.synth.program.AST.EventsCall;
 import tunnel.synth.program.Program;
 import tunnel.util.Either;
 import tunnel.util.Util;
@@ -21,7 +25,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static jdwp.PrimitiveValue.wrap;
-import static jdwp.Reference.thread;
+import static jdwp.Reference.*;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -217,5 +221,14 @@ public class ProgramCacheTest {
                 "(wrap \"thread\" 2)))\n" +
                 "      (= var0 (request VirtualMachine IDSizes))\n" +
                 "      (= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\"))))))", program2.toPrettyString());
+    }
+
+    @Test
+    public void testAccessPathKeyFromEvent() {
+        var event =
+                new SingleStep(wrap(1), thread(1), new Location(classType(1), method(0), wrap(1L)));
+        AccessPathKey key = AccessPathKey.from(EventsCall.create(new Events(0, wrap((byte)1),
+                new ListValue<>(event))));
+        assertEquals(3, key.size());
     }
 }
