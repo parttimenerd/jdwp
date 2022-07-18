@@ -788,12 +788,248 @@ public class ProgramTest {
                 .merge(Program.parse("((= y 1) (= z y))")).toString());
     }
 
+    private static Object[][] mergeOfProgramsTestSource() {
+        return new Object[][]{
+                {"((= cause (request VirtualMachine Resume))\n" +
+                        "  (= var0 (request VirtualMachine Resume)))",
+                        "((= cause (request VirtualMachine Resume))\n" +
+                                "  (= var0 (request VirtualMachine Resume)))",
+                        "((= cause (request VirtualMachine Resume))\n" +
+                                "  (= var0 (request VirtualMachine Resume)))"},
+                {
+                        "((= cause (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var0 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var1 (request ThreadReference Name (\"thread\")=(get cause \"thread\"))))",
+                        "((= cause (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var0 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var1 (request ThreadReference Name (\"thread\")=(get cause \"thread\"))))",
+                        "((= cause (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var0 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var1 (request ThreadReference Name (\"thread\")=(get cause \"thread\"))))"
+                }, {
+                "((= cause (request VirtualMachine IDSizes))\n" +
+                        "  (= var0 (request VirtualMachine IDSizes))\n" +
+                        "  (= var2 (request VirtualMachine TopLevelThreadGroups)))",
+                "((= cause (request VirtualMachine IDSizes))\n" +
+                        "  (= var0 (request VirtualMachine IDSizes))\n" +
+                        "  (= var2 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
+                        "\"Lcom/springsource/loaded/agent/SpringLoadedAgent;\")))\n" +
+                        "  (= var3 (request VirtualMachine TopLevelThreadGroups)))",
+                "((= cause (request VirtualMachine IDSizes))\n" +
+                        "  (= var0 (request VirtualMachine IDSizes))\n" +
+                        "  (= var4 (request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" " +
+                        "\"Lcom/springsource/loaded/agent/SpringLoadedAgent;\")))\n" +
+                        "  (= var2 (request VirtualMachine TopLevelThreadGroups)))"
+        }, {
+                "((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 1) (\"events\" 0 \"kind\")=" +
+                        "(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+                        "\"thread\")=(wrap \"thread\" 0)" +
+                        "(\"events\" 1 \"kind\")=(wrap \"string\" \"VMStart\") (\"events\" 1 \"requestID\")=(wrap" +
+                        " \"int\" 0) (\"events\" 1 \"thread\")=(wrap \"thread\" 1)))\n" +
+                        "  (= var0 (request ReferenceType SourceFile (\"refType\")=(get cause \"events\" 0 " +
+                        "\"typeID\")))\n" +
+                        "  (= var1 (request ReferenceType SourceDebugExtension (\"refType\")=(get cause " +
+                        "\"events\" 0 \"typeID\")))\n" +
+                        "  (= var2 (request ReferenceType MethodsWithGeneric (\"refType\")=(get cause \"events\" " +
+                        "0 \"typeID\")))\n" +
+                        "  (for iter0 (get var2 \"declared\") \n" +
+                        "    (= var3 (request Method LineTable (\"methodID\")=(get iter0 \"methodID\") " +
+                        "(\"refType\")=(get cause \"events\" 0 \"typeID\")))))",
+                "((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 1) (\"events\" 0 \"kind\")=" +
+                        "(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+                        "\"thread\")=(wrap \"thread\" 1) " +
+                        "(\"events\" 1 \"kind\")=(wrap \"string\" \"VMStart\") (\"events\" 1 \"requestID\")=(wrap " +
+                        "\"int\" 0) (\"events\" 1 \"thread\")=(wrap \"thread\" 0)))\n" +
+                        "  (= var0 (request ReferenceType SourceFile (\"refType\")=(get cause \"events\" 0 " +
+                        "\"typeID\")))\n" +
+                        "  (= var1 (request ReferenceType SourceDebugExtension (\"refType\")=(get cause " +
+                        "\"events\" 0 \"typeID\")))\n" +
+                        "  (= var2 (request ReferenceType MethodsWithGeneric (\"refType\")=(get cause \"events\" " +
+                        "0 \"typeID\")))\n" +
+                        "  (for iter0 (get var2 \"declared\") \n" +
+                        "    (= var3 (request Method LineTable (\"methodID\")=(get iter0 \"methodID\") " +
+                        "(\"refType\")=(get cause \"events\" 0 \"typeID\")))))",
+                "((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 1) (\"events\" 0 \"kind\")=" +
+                        "(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+                        "\"thread\")=(wrap \"thread\" 0) (\"events\" 1 \"kind\")=(wrap \"string\" \"VMStart\") " +
+                        "(\"events\" 1 \"requestID\")=(wrap \"int\" 0) (\"events\" 1 \"thread\")=(wrap \"thread\" 1))" +
+                        ")\n" +
+                        "  (= var0 (request ReferenceType SourceFile (\"refType\")=(get cause \"events\" 0 " +
+                        "\"typeID\")))\n" +
+                        "  (= var1 (request ReferenceType SourceDebugExtension (\"refType\")=(get cause \"events\" 0 " +
+                        "\"typeID\")))\n" +
+                        "  (= var2 (request ReferenceType MethodsWithGeneric (\"refType\")=(get cause \"events\" 0 " +
+                        "\"typeID\")))\n" +
+                        "  (for iter0 (get var2 \"declared\") \n" +
+                        "    (= var3 (request Method LineTable (\"methodID\")=(get iter0 \"methodID\") (\"refType\")=" +
+                        "(get cause \"events\" 0 \"typeID\")))))"
+        },
+                {
+                        "((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
+                                "\"kind\")=" +
+                                "(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) " +
+                                "(\"events\" " +
+                                "0 \"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var0 (request VirtualMachine IDSizes))\n" +
+                                "  (= var3 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 2)))\n" +
+                                "  (= var5 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var2 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 3)))\n" +
+                                "  (= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 " +
+                                "\"thread\"))))",
+                        "((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
+                                "\"kind\")=(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" " +
+                                "0) (\"events\" 0 \"thread\")=(wrap \"thread\" 3)))\n" +
+                                "  (= var0 (request VirtualMachine IDSizes))\n" +
+                                "  (= var3 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 2)))\n" +
+                                "  (= var1 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var2 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 " +
+                                "\"thread\"))))",
+                        "((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
+                                "\"kind\")=(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" " +
+                                "0) (\"events\" 0 \"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var0 (request VirtualMachine IDSizes))\n" +
+                                "  (= var3 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 2)))\n" +
+                                "  (= var5 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var2 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 3)))\n" +
+                                "  (= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 " +
+                                "\"thread\"))))"
+                },
+                {
+                        "((= cause (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) (\"requestID\")=" +
+                                "(wrap " +
+                                "\"int\" 68)))\n" +
+                                "  (= var0 (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) " +
+                                "(\"requestID\")=" +
+                                "(wrap \"int\" 68)))\n" +
+                                "  (= var1 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var2 (request ThreadReference Status (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var3 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) " +
+                                "(\"startFrame\")" +
+                                "=(wrap \"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var4 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var5 (request Method LineTable (\"methodID\")=(get var3 \"frames\" 0 " +
+                                "\"location\" " +
+                                "\"methodRef\") (\"refType\")=(get var3 \"frames\" 0 \"location\" \"declaringType\"))" +
+                                ")\n" +
+                                "  (= var6 (request Method IsObsolete (\"methodID\")=(get var3 \"frames\" 0 " +
+                                "\"location\" " +
+                                "\"methodRef\") (\"refType\")=(get var3 \"frames\" 0 \"location\" \"declaringType\"))" +
+                                ")\n" +
+                                "  (= var7 (request ThreadReference Frames (\"length\")=(get var4 \"frameCount\") " +
+                                "(\"startFrame\")=(wrap \"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (rec recursion0 1000 var9 (request ReferenceType Interfaces (\"refType\")=(wrap " +
+                                "\"klass\" 658))\n" +
+                                "    (for var10 (get var9 \"interfaces\") \n" +
+                                "      (= var11 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var3 " +
+                                "\"interfaces\" 0)))))\n" +
+                                "  (= var12 (request ReferenceType SourceFile (\"refType\")=(wrap \"klass\" 658)))\n" +
+                                "  (= var11 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"klass\"" +
+                                " " +
+                                "658)))\n" +
+                                "  (= var13 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\"" +
+                                " " +
+                                "658)))\n" +
+                                "  (= var14 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" " +
+                                "658)))" +
+                                "\n" +
+                                "  (= var15 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" " +
+                                "658))" +
+                                ")\n" +
+                                "  (= var16 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 658)))\n" +
+                                "  (= var17 (request ThreadReference Frames (\"length\")=(wrap \"int\" 2) " +
+                                "(\"startFrame\")=(wrap \"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var18 (request ReferenceType Interfaces (\"refType\")=(get var16 " +
+                                "\"superclass\")))" +
+                                "\n" +
+                                "  (= var19 (request ReferenceType SignatureWithGeneric (\"refType\")=(get var16 " +
+                                "\"superclass\")))\n" +
+                                "  (= var20 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var16 " +
+                                "\"superclass\")))\n" +
+                                "  (= var21 (request ClassType Superclass (\"clazz\")=(get var16 \"superclass\")))\n" +
+                                "  (= var22 (request ReferenceType Interfaces (\"refType\")=(get var18 \"interfaces\"" +
+                                " 0))))",
+                        "((= cause (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) (\"requestID\")=" +
+                                "(wrap \"int\" 15)))\n" +
+                                "  (= var0 (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) " +
+                                "(\"requestID\")=(wrap \"int\" 15)))\n" +
+                                "  (= var1 (request ReferenceType SourceFile (\"refType\")=(wrap \"klass\" 658)))\n" +
+                                "  (= var2 (request ReferenceType Interfaces (\"refType\")=(wrap \"klass\" 658)))\n" +
+                                "  (= var3 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"klass\" " +
+                                "658)))\n" +
+                                "  (= var4 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\" " +
+                                "658)))\n" +
+                                "  (= var5 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 658)))\n" +
+                                "  (= var6 (request Method LineTable (\"methodID\")=(wrap \"method\" 105553141894768)" +
+                                " (\"refType\")=(wrap \"klass\" 658)))\n" +
+                                "  (= var7 (request ThreadReference Status (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var9 (request ReferenceType Interfaces (\"refType\")=(get var2 \"interfaces\" " +
+                                "0)))\n" +
+                                "  (= var8 (request ReferenceType Interfaces (\"refType\")=(get var5 \"superclass\"))" +
+                                ")\n" +
+                                "  (= var10 (request ClassType Superclass (\"clazz\")=(get var5 \"superclass\")))\n" +
+                                "  (= var11 (request ReferenceType Interfaces (\"refType\")=(get var8 \"interfaces\" " +
+                                "0)))\n" +
+                                "  (= var12 (request ReferenceType SignatureWithGeneric (\"refType\")=(get var8 " +
+                                "\"interfaces\" 0))))",
+                        "((= cause (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) (\"requestID\")=" +
+                                "(wrap \"int\" 68)))\n" +
+                                "  (= var0 (request EventRequest Clear (\"eventKind\")=(wrap \"byte\" 1) " +
+                                "(\"requestID\")=(wrap \"int\" 68)))\n" +
+                                "  (= var1 (request ThreadReference Name (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var2 (request ThreadReference Status (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var3 (request ThreadReference Frames (\"length\")=(wrap \"int\" 1) " +
+                                "(\"startFrame\")=(wrap \"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var4 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var5 (request Method LineTable (\"methodID\")=(get var3 \"frames\" 0 " +
+                                "\"location\" \"methodRef\") (\"refType\")=(get var3 \"frames\" 0 \"location\" " +
+                                "\"declaringType\")))\n" +
+                                "  (= var6 (request Method IsObsolete (\"methodID\")=(get var3 \"frames\" 0 " +
+                                "\"location\" \"methodRef\") (\"refType\")=(get var3 \"frames\" 0 \"location\" " +
+                                "\"declaringType\")))\n" +
+                                "  (= var7 (request ThreadReference Frames (\"length\")=(get var4 \"frameCount\") " +
+                                "(\"startFrame\")=(wrap \"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (rec recursion0 1000 var9 (request ReferenceType Interfaces (\"refType\")=(wrap " +
+                                "\"klass\" 658))\n" +
+                                "    (for var10 (get var9 \"interfaces\") \n" +
+                                "      (= var11 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var3 " +
+                                "\"interfaces\" 0)))))\n" +
+                                "  (= var12 (request ReferenceType SourceFile (\"refType\")=(wrap \"klass\" 658)))\n" +
+                                "  (= var11 (request ReferenceType SourceDebugExtension (\"refType\")=(wrap \"klass\"" +
+                                " 658)))\n" +
+                                "  (= var13 (request ReferenceType SignatureWithGeneric (\"refType\")=(wrap \"klass\"" +
+                                " 658)))\n" +
+                                "  (= var14 (request ReferenceType FieldsWithGeneric (\"refType\")=(wrap \"klass\" " +
+                                "658)))\n" +
+                                "  (= var15 (request ReferenceType MethodsWithGeneric (\"refType\")=(wrap \"klass\" " +
+                                "658)))\n" +
+                                "  (= var16 (request ClassType Superclass (\"clazz\")=(wrap \"class-type\" 658)))\n" +
+                                "  (= var17 (request ThreadReference Frames (\"length\")=(wrap \"int\" 2) " +
+                                "(\"startFrame\")=(wrap \"int\" 0) (\"thread\")=(wrap \"thread\" 1)))\n" +
+                                "  (= var18 (request ReferenceType Interfaces (\"refType\")=(get var16 " +
+                                "\"superclass\")))\n" +
+                                "  (= var19 (request ReferenceType SignatureWithGeneric (\"refType\")=(get var16 " +
+                                "\"superclass\")))\n" +
+                                "  (= var20 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var16 " +
+                                "\"superclass\")))\n" +
+                                "  (= var21 (request ClassType Superclass (\"clazz\")=(get var16 \"superclass\")))\n" +
+                                "  (= var22 (request ReferenceType Interfaces (\"refType\")=(get var18 \"interfaces\"" +
+                                " 0))))"
+                }
+        };
+    }
+
+    @ParameterizedTest
+    @MethodSource("mergeOfProgramsTestSource")
+    public void testMergeOfPrograms(String program1, String program2, String expected) {
+        assertEquals(Program.parse(expected).toPrettyString(),
+                Program.parse(program1).merge(Program.parse(program2)).toPrettyString());
+    }
+
     private static Object[][] removeStatementTestSource() {
         return new Object[][]{
                 {0, "(\n" +
                         "  (= var1 (request ClassObjectReference ReflectedType (\"classObject\")=(wrap " +
-                        "\"classObject\" 1135)))" +
-                        "\n" +
+                        "\"classObject\" 1135)))\n" +
                         "  (= var2 (request ReferenceType Interfaces (\"refType\")=(get var1 \"typeID\")))\n" +
                         "  (= var3 (request ReferenceType FieldsWithGeneric (\"refType\")=(get var1 \"typeID\")))\n" +
                         "  (= var4 (request ClassType Superclass (\"clazz\")=(get var1 \"typeID\")))\n" +
@@ -956,6 +1192,48 @@ public class ProgramTest {
         var ret = new Evaluator(vm, new RecordingFunctions()).evaluate(program);
         assertEquals(functionCall,
                 Functions.createWrappingFunctionCall(ret).toString().replace("\"", "'"));
+    }
+
+    @Test
+    public void testRemoveDirectPointerRelatedStatementsWithoutCause() {
+        var program = Program.parse("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 2) " +
+                "(\"suspendPolicy\")=(wrap \"byte\" 2) (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"LocationOnly\") " +
+                "(\"modifiers\" 0 \"loc\" \"codeIndex\")=(wrap \"long\" 9) (\"modifiers\" 0 \"loc\" " +
+                "\"declaringType\")=(wrap \"class-type\" 649) (\"modifiers\" 0 \"loc\" \"methodRef\")=(wrap " +
+                "\"method\" 105553138414288)))\n" +
+                "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 2) (\"suspendPolicy\")=(wrap " +
+                "\"byte\" 2) (\"modifiers\" 0 \"kind\")=(wrap \"string\" \"LocationOnly\") (\"modifiers\" 0 \"loc\" " +
+                "\"codeIndex\")=(wrap \"long\" 9) (\"modifiers\" 0 \"loc\" \"declaringType\")=(wrap \"class-type\" " +
+                "649) (\"modifiers\" 0 \"loc\" \"methodRef\")=(wrap \"method\" 105553138414288)))\n" +
+                "  (= var1 (request ReferenceType Interfaces (\"refType\")=(get cause \"modifiers\" 0 \"loc\" " +
+                "\"declaringType\"))))");
+        assertEquals(program.toPrettyString(),
+                program.removeDirectPointerRelatedStatementsTransitivelyWithoutCause().toPrettyString());
+    }
+
+    @Test
+    public void testShadowingInParser() {
+        var program = Program.parse("((= var18 (request ReferenceType Interfaces (\"refType\")=(get var14 \"typeID\")" +
+                ")" +
+                ")\n" +
+                "        (= var19 (request ReferenceType SourceDebugExtension (\"refType\")=(get var14 \"typeID\")))" +
+                "\n" +
+                "        (for iter2 (get var18 \"interfaces\") \n" +
+                "          (= var19 (request ReferenceType Interfaces (\"refType\")=iter2)))))");
+    }
+
+    @Test
+    public void testBodyLayers() {
+        var program = Program.parse("((= x 1) (= y x) (= z 2))");
+        var layers = program.getBody().computeLayers();
+        assertEquals(2, layers.size());
+    }
+
+    @Test
+    public void testBodySort() {
+        var program = Program.parse("((= x 1) (= y x) (= z 2))");
+        var sorted = program.sort();
+        assertEquals("((= x 1) (= z 2) (= y x))", sorted.toString());
     }
 
     @Test

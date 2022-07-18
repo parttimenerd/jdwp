@@ -278,31 +278,14 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
 
     public static void setInStatement(@Nullable ProgramHashes parentHashes, Statement statement) {
         ProgramHashes hashes = new ProgramHashes(parentHashes);
-        var visitor = new StatementVisitor() {
-            @Override
-            public void visit(Statement statement) {
-                hashes.add(hashes.create(statement), hashes.size());
-                if (statement.getSubStatements().size() > 0) {
-                    setInStatement(hashes, statement);
-                    statement.getHashes().add(hashes.get(statement), 0);
-                } else {
-                    statement.setHashes(hashes);
-                }
-            }
-
-            @Override
-            public void visit(Body body) {
-                body.forEach(s -> s.accept(this));
-                body.setHashes(hashes);
-            }
-        };
+        var visitor = new HashedVisitor(hashes);
         try {
             if (statement instanceof Program) {
                 var program = (Program) statement;
                 if (program.hasCause()) {
-                    hashes.add(hashes.create(program.getCauseStatement()), hashes.size());
+                    hashes.add(hashes.create(program.getCauseStatement()), -1);
                 }
-                program.getBody().accept(visitor);
+                visitor.visit(program.getBody(), program.hasCause() ? -1 : 0);
             } else {
                 statement.getSubStatements().forEach(s -> s.accept(visitor));
             }
@@ -319,5 +302,45 @@ public class ProgramHashes extends AbstractSet<Hashed<Statement>> {
     public String toString() {
         return String.format("{%s}", statementToHashed.entrySet().stream()
                 .map(e -> e.getKey() + ": " + e.getValue().hash()).collect(Collectors.joining(", ")));
+    }
+
+    private static class HashedVisitor implements StatementVisitor {
+
+        private final ProgramHashes hashes;
+
+        public HashedVisitor(ProgramHashes hashes) {
+            this.hashes = hashes;
+        }
+
+        @Override
+        public void visit(Statement statement) {
+            visit(statement, 0);
+        }
+
+        public void visit(Statement statement, int offset) {
+            hashes.add(hashes.create(statement), hashes.size() + offset);
+            if (statement.getSubStatements().size() > 0) {
+                setInStatement(hashes, statement);
+                statement.getHashes().add(hashes.get(statement), 0);
+            } else {
+                statement.setHashes(hashes);
+            }
+        }
+
+        @Override
+        public void visit(Body body) {
+            visit(body, 0);
+        }
+
+        public void visit(Body body, int offset) {
+            body.forEach(s -> {
+                if (s instanceof Body) {
+                    visit((Body) s, 0);
+                } else {
+                    visit(s, offset);
+                }
+            });
+            body.setHashes(hashes);
+        }
     }
 }

@@ -8,6 +8,7 @@ import jdwp.Reply;
 import jdwp.ReplyOrError;
 import jdwp.Request;
 import jdwp.TunnelCmds.EvaluateProgramRequest;
+import jdwp.Value.ListValue;
 import jdwp.util.Pair;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -130,8 +131,17 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<? extends Request<?>, ? extends Reply>> items,
                   boolean conservative) {
             this.cause = cause;
-            this.items = items.stream().map(p -> p(p.first, p.second instanceof ReplyOrError ? (ReplyOrError<?>) p.second :
+            this.items = items.stream().map(p -> p(p.first, p.second instanceof ReplyOrError ?
+                    (ReplyOrError<?>) p.second :
                     new ReplyOrError<>(p.second))).collect(Collectors.toList());
+            this.conservative = conservative;
+            checkInvariant();
+        }
+
+        private Partition(Events cause, List<Pair<? extends Request<?>, ReplyOrError<?>>> items,
+                          boolean conservative) {
+            this.cause = Either.right(cause);
+            this.items = items;
             this.conservative = conservative;
             checkInvariant();
         }
@@ -146,7 +156,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         }
 
         Partition(boolean conservative) {
-            this(null, new ArrayList<>(), conservative);
+            this((Either<Request<?>, Events>) null, new ArrayList<>(), conservative);
         }
 
         Partition(@Nullable Either<Request<?>, Events> cause, List<Pair<? extends Request<?>, ? extends Reply>> items) {
@@ -273,6 +283,19 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         public List<Request<?>> getRequests() {
             return items.stream().map(p -> p.first).collect(Collectors.toList());
         }
+
+        /**
+         * split the partition so that its cause has at most one event
+         */
+        public List<Partition> splitOnCause() {
+            if (cause == null || cause.isLeft() || cause.getRight().events.size() <= 1) {
+                return List.of(this);
+            }
+            var events = cause.getRight();
+            return events.events.stream()
+                    .map(e -> new Partition(new Events(events.id, events.suspendPolicy, new ListValue<>(e)),
+                            items, conservative)).collect(Collectors.toList());
+        }
     }
 
     private static final Integer DEFAULT_TIMINGS_FACTOR = 100;
@@ -282,7 +305,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
     private @Nullable Partition currentPartition;
 
     private boolean enabled = true;
-    private boolean conservative = false;
+    private boolean conservative;
 
     public Partitioner(Timings timings, boolean conservative) {
         this.timings = timings;

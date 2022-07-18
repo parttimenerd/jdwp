@@ -3,6 +3,7 @@ package tunnel.synth;
 import jdwp.*;
 import jdwp.EventCmds.Events;
 import jdwp.Value.BasicValue;
+import jdwp.Value.ListValue;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.exception.TunnelException;
 import jdwp.util.Pair;
@@ -18,6 +19,7 @@ import tunnel.util.Hashed;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -633,6 +635,100 @@ public class DependencyGraph {
 
     boolean hasCauseNode() {
         return causeNode != null;
+    }
+
+    /**
+     * Better version of {@link Partition#splitOnCause()}
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public List<DependencyGraph> splitOnCause() {
+        if (cause == null) {
+            return List.of(this);
+        }
+        var ccause = cause.<Request<?>>get();
+        var splitGraphAt = ccause.getMetadata().splitGraphAt;
+        if (splitGraphAt.isEmpty()) {
+            return List.of(this);
+        }
+        var value = ccause.asCombined().get(splitGraphAt);
+        assert value instanceof ListValue;
+        var list = (ListValue<?>) value;
+        Map<Integer, Set<Node>> nodesByIndex = new HashMap<>();
+        Set<Node> indexDependentNodes = new HashSet<>();
+        for (int i = 0; i < list.size(); i++) {
+            // find all nodes that transitively depend on a given index
+            var path = new AccessPath(splitGraphAt, i);
+            var fieldDependent = getCauseNode().getDependedByField(path).stream()
+                    .map(Edge::getTarget).collect(Collectors.toSet());
+            var ns = computeDependedByTransitive(fieldDependent);
+            ns.addAll(fieldDependent);
+            nodesByIndex.put(i, ns);
+            indexDependentNodes.addAll(ns);
+        }
+        var nonIndexDependent = nodes.values().stream()
+                .filter(n -> !indexDependentNodes.contains(n)).collect(Collectors.toSet());
+        // the graph for every index consists now of the modified cause node,
+        // its dependent nodes and the non index dependent nodes
+        List<DependencyGraph> graphs = new ArrayList<>();
+        return nodesByIndex.entrySet().stream().map(e -> {
+            // create a new graph for the given index
+            // first we collect the nodes
+            var graphNodes = new HashSet<>(e.getValue());
+            graphNodes.addAll(nonIndexDependent);
+            // then we create the new node
+            var path = new AccessPath(splitGraphAt, e.getKey());
+            var taggedValues = ccause.asCombined().getTaggedValueWithKind()
+                    .filter(t -> !t.getPath().startsWith(new AccessPath(splitGraphAt)) || t.getPath().startsWith(path)).collect(Collectors.toList());
+            Request<?> newCause = (Request<?>) AbstractParsedPacket.createForTagged(ccause.getId(),
+                    (Class) ccause.getClass(),
+                    taggedValues.stream());
+            var newGraph = new DependencyGraph(new Node(), (Either<Request<?>, Events>) (newCause instanceof Events ?
+                    Either.right(newCause) : Either.left(newCause)));
+            newGraph.nodes.putAll(cloneNodesForCause(graphNodes, path, new AccessPath(splitGraphAt), newCause));
+            return newGraph;
+        }).collect(Collectors.toList());
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Map<Integer, Node> cloneNodesForCause(Set<Node> nodes, AccessPath causePath, AccessPath splitAtPath,
+                                                  Request<?> newCause) {
+        Map<Node, Node> newNodesForOld = new HashMap<>();
+        BiFunction<BiFunction, Node, Node> get = (getFunc, oldNode) -> {
+            var gf = (BiFunction<BiFunction, Node, Node>) getFunc;
+            if (!newNodesForOld.containsKey(oldNode)) {
+                if (cause != null && cause.isLeft() && oldNode.origin != null && oldNode.getId() == cause.getLeft().getId()) {
+                    return new Node(oldNode.getId(), p(newCause, oldNode.origin.second));
+                }
+                Node newNode = new Node(oldNode.getId(), oldNode.getOrigin());
+                for (Edge edge : oldNode.getDependsOn()) {
+                    if (edge.getTarget().isCauseNode()) {
+                        var usedValues = (List<DoublyTaggedBasicValue<?, ?>>) (List) edge.getUsedValues().stream()
+                                .map(d -> {
+                                    if (!d.getOriginPath().startsWith(splitAtPath)) {
+                                        return d;
+                                    }
+                                    if (d.getOriginPath().startsWith(causePath)) {
+                                        return new DoublyTaggedBasicValue(d.targetPaths,
+                                                d.getOriginPath().replace(splitAtPath.size(), 0),
+                                                d.valueAtOrigin,
+                                                d.valueAtTarget, d.transformers);
+                                    }
+                                    return null;
+                                }).filter(Objects::nonNull).collect(Collectors.toList());
+                        if (usedValues.size() > 0) {
+                            newNode.addDependsOn(new Edge(newNode, gf.apply(getFunc, edge.getTarget()), usedValues));
+                        }
+                    }
+                    if (!nodes.contains(edge.getSource())) {
+                        continue;
+                    }
+                    newNode.addDependsOn(new Edge(newNode, gf.apply(getFunc, edge.getTarget()), edge.getUsedValues()));
+                }
+                newNodesForOld.put(oldNode, newNode);
+            }
+            return newNodesForOld.get(oldNode);
+        };
+        return nodes.stream().map(n -> get.apply(get, n)).collect(Collectors.toMap(Node::getId, n -> n));
     }
 
     @Getter

@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 import tunnel.ProgramCache.DisabledProgramCache;
 import tunnel.ReplyCache.DisabledReplyCache;
+import tunnel.synth.DependencyGraph;
 import tunnel.synth.Partitioner;
 import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.Synthesizer;
@@ -229,69 +230,53 @@ public class State {
     private void registerPartitionListener() {
         assert mode == CLIENT;
         clientPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
-            if (partition.hasCause()) {
-                var cause = partition.getCause();
-                if (cause == null) {
-                    LOG.info("Null cause partition {}", formatter.format(partition));
-                    return;
-                }
-                if (cause.isLeft()) {
-                    LOG.debug("Partition: {}", formatter.format(partition));
-                    if (partition.size() < minPartitionSizeForPartitioning) {
-                        LOG.debug("Ignoring partition as it is too small");
-                        return;
-                    }
-                    try {
-                        var program = Synthesizer.synthesizeProgram(partition);
-                        if (programCache.isAcceptableProgram(program)) {
-                            LOG.info("Synthesized client program: {}", program.toPrettyString());
-                            programCache.accept(program);
-                            storeProgramCache();
-                        }
-                    } catch (SynthesisException err) {
-                        err.log(LOG);
-                    } catch (Exception ex) {
-                        LOG.error("Error synthesizing program for " + formatter.format(partition), ex);
-                    }
-                }
-            } else {
-                LOG.debug("omit because of missing cause");
-            }
+            handlePartition(partition, true);
         });
         addPartitionerListener(clientPartitioner);
         serverPartitioner = new Partitioner(replyCache.getOptions().conservative).addListener(partition -> {
-            if (partition.hasCause()) {
-                var cause = partition.getCause();
-                if (cause == null) {
-                    LOG.info("Null cause partition {}", formatter.format(partition));
-                    return;
-                }
-                if (cause.isRight()) {
-                    LOG.debug("Partition: {}", formatter.format(partition));
-                    if (partition.size() < minPartitionSizeForPartitioning) {
-                        LOG.debug("Ignoring partition as it is too small (size {} < {})",
-                                partition.size(), minPartitionSizeForPartitioning);
-                        return;
-                    }
-                    try {
-                        var program = Synthesizer.synthesizeProgram(partition);
-                        if (programCache.isAcceptableProgram(program)) {
-                            LOG.info("Synthesized server program: {}", program.toPrettyString());
-                            programCache.accept(program);
-                            storeProgramCache();
-                            programsToSendToServer.add(program);
-                        }
-                    } catch (SynthesisException err) {
-                        err.log(LOG);
-                    } catch (Exception ex) {
-                        LOG.error("Error synthesizing program for " + formatter.format(partition), ex);
-                    }
-                }
-            } else {
-                LOG.debug("omit because of missing cause");
-            }
+            handlePartition(partition, false);
         });
         addPartitionerListener(serverPartitioner);
+    }
+
+    private void handlePartition(Partition partition, boolean isClient) {
+        if (partition.hasCause()) {
+            var cause = partition.getCause();
+            if (cause == null) {
+                LOG.info("Null cause partition {}", formatter.format(partition));
+                return;
+            }
+            if (cause.isLeft() == isClient) {
+                LOG.debug("Partition: {}", formatter.format(partition));
+                if (partition.size() < minPartitionSizeForPartitioning) {
+                    LOG.debug("Ignoring partition as it is too small");
+                    return;
+                }
+                try {
+                    boolean foundAcceptable = false;
+                    for (DependencyGraph part : DependencyGraph.compute(partition).splitOnCause()) {
+                        var program = Synthesizer.synthesizeProgram(part);
+                        if (programCache.isAcceptableProgram(program)) {
+                            LOG.info("Synthesized client program: {}", program.toPrettyString());
+                            programCache.accept(program);
+                            if (!isClient) {
+                                programsToSendToServer.add(program);
+                            }
+                            foundAcceptable = true;
+                        }
+                    }
+                    if (foundAcceptable) {
+                        storeProgramCache();
+                    }
+                } catch (SynthesisException err) {
+                    err.log(LOG);
+                } catch (Exception ex) {
+                    LOG.error("Error synthesizing program for " + formatter.format(partition), ex);
+                }
+            }
+        } else {
+            LOG.debug("omit because of missing cause");
+        }
     }
 
     private void addPartitionerListener(Partitioner partitioner) {
@@ -353,9 +338,17 @@ public class State {
     }
 
     public void addReply(WrappedPacket<ReplyOrError<?>> reply) {
+        addReply(reply, false);
+    }
+
+    public void addReply(WrappedPacket<ReplyOrError<?>> reply, boolean withOutReplyCache) {
         var id = reply.packet.getId();
         var request = getUnfinishedRequest(id);
-        listeners.forEach(l -> l.onReply(request, reply));
+        listeners.forEach(l -> {
+            if (!(withOutReplyCache && l instanceof ReplyCache)) {
+                l.onReply(request, reply);
+            }
+        });
         unfinished.remove(id);
     }
 
@@ -431,8 +424,7 @@ public class State {
                 var reduced = unfinishedEvaluateRequests.get(ps.id());
                 var program = reduced.first.program;
                 LOG.debug("original program " + unfinishedEvaluateRequests.get(ps.id()).first.program);
-                handleCachedInitiatingRequest(serverOutputStream, clientOutputStream, ps.id(),
-                        unfinishedEvaluateRequests.get(ps.id()).second.getCached(), null);
+                var evalRequest = unfinishedEvaluateRequests.get(ps.id());
                 unfinishedEvaluateRequests.remove(ps.id());
                 if (reply.isError()) {
                     LOG.error("Error in evaluate program reply (resending original request): " + reply);
@@ -445,8 +437,15 @@ public class State {
                 } else {
                     var request = hasUnfinishedRequest(ps.id()) ? getUnfinishedRequest(ps.id()).getPacket() : null;
                     var realReply = reply.getReply();
+                    var rrs = BasicTunnel.parseEvaluateProgramReply(vm, realReply);
+                    boolean shouldReturnNull = handleCachedInitiatingRequest(serverOutputStream, clientOutputStream,
+                            ps.id(),
+                            evalRequest.second.getCached(), rrs, null);
+                    if (shouldReturnNull) {
+                        return null;
+                    }
                     ReplyOrError<?> originalReply = processReceivedRequestRepliesFromEvent(clientOutputStream, request,
-                            BasicTunnel.parseEvaluateProgramReply(vm, realReply), ps.id());
+                            rrs, ps.id());
                     LOG.debug("original reply " + originalReply);
                     return originalReply == null ? null : new ReadReplyResult(null, originalReply, false);
                 }
@@ -528,7 +527,7 @@ public class State {
                             // entries
                             addEvent(new WrappedPacket<>(parsed.getMiddle()));
                             handleCachedInitiatingRequest(serverOutputStream, clientOutputStream,
-                                    abortedRequestId, cached, parsed.getMiddle());
+                                    abortedRequestId, cached, parsed.getLeft(), parsed.getMiddle());
                             if (parsed.getRight().size() > 0) {
                                 processReceivedRequestRepliesFromEvent(clientOutputStream, null, parsed.getRight(), abortedRequestId);
                             }
@@ -548,18 +547,24 @@ public class State {
     /**
      * check whether there is an unfinished request with the passed id, which is also present in cached,
      * if so: check if it is invalidated by the passed event, if so write a new request
-     *  */
-    private void handleCachedInitiatingRequest(OutputStream jvmOutputStream,
-                                               OutputStream clientOutputStream,
-                                               int originalRequestId, Map<Request<?>, ReplyOrError<?>> cached,
-                                               @Nullable Events possibleInvalidatingEvents) {
+     */
+    private boolean handleCachedInitiatingRequest(OutputStream jvmOutputStream,
+                                                  OutputStream clientOutputStream,
+                                                  int originalRequestId, Map<Request<?>, ReplyOrError<?>> cached,
+                                                  List<Pair<Request<?>, ReplyOrError<?>>> rrs,
+                                                  @Nullable Events possibleInvalidatingEvents) {
         var unfinishedRequest = unfinished.get(originalRequestId);
+        if (unfinishedRequest != null && !unfinishedRequest.packet.onlyReads() &&
+                !cached.containsKey(unfinishedRequest.packet) &&
+                rrs.stream().noneMatch(p -> p.first.equals(unfinishedRequest.packet))) {
+            return true;
+        }
         if (unfinishedRequest == null || !unfinishedRequest.packet.onlyReads()) {
-            return;
+            return false;
         }
         var cachedReplyOrNull = cached.get(unfinishedRequest.getPacket());
         if (cachedReplyOrNull == null) {
-            return;
+            return false;
         }
         var cachedReply = cachedReplyOrNull.withNewId(originalRequestId);
         if (possibleInvalidatingEvents != null && cachedReply.isAffectedBy(possibleInvalidatingEvents)) {
@@ -570,7 +575,7 @@ public class State {
             unfinished.remove(originalRequestId);
             addRequest(new WrappedPacket<>(unfinishedRequest.getPacket()));
             writeRequest(jvmOutputStream, unfinishedRequest.getPacket());
-            return;
+            return false;
         }
         LOG.debug("Cached request {} for reduced program, sending it now",
                 formatter.format(unfinishedRequest.getPacket()));
@@ -578,6 +583,7 @@ public class State {
         writeReply(clientOutputStream, Either.right(cachedReply));
         // all other requests are not important, as their replies are still in the cache
         // so probably the last case should never happen
+        return false;
     }
 
     /**
@@ -674,6 +680,9 @@ public class State {
         try {
             assert isClient() || !(request instanceof EvaluateProgramRequest); // just a sanity check
             LOG.debug("Write {}", formatter.format(request));
+            if (replyCache.contains(request)) {
+                LOG.error("Should be cached");
+            }
             request.toPacket(vm).write(outputStream);
         } catch (Exception | AssertionError e) {
             throw new PacketError(String.format("Failed to write request %s", request), e);
@@ -685,6 +694,7 @@ public class State {
     }
 
     public void tick() {
+        programCache.tick();
         listeners.forEach(Listener::onTick);
     }
 
@@ -709,7 +719,7 @@ public class State {
     }
 
     public @Nullable Program getCachedProgram(ParsedPacket packet) {
-        return programCache.get(packet).or(() -> programCache.getSimilar(packet)).orElse(null);
+        return programCache.get(packet).orElse(null);
     }
 
     public void addUnfinishedEvaluateRequest(EvaluateProgramRequest evaluateRequest, ReducedProgram reducedProgram) {

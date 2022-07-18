@@ -1,55 +1,114 @@
 package tunnel;
 
 import ch.qos.logback.classic.Logger;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
+import jdwp.AccessPath;
 import jdwp.EventCmds.Events;
 import jdwp.ParsedPacket;
 import jdwp.Request;
+import jdwp.exception.TunnelException.MergeException;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import org.slf4j.LoggerFactory;
-import tunnel.synth.program.AST.EventsCall;
-import tunnel.synth.program.AST.PacketCall;
-import tunnel.synth.program.AST.RequestCall;
+import tunnel.synth.DependencyGraph;
+import tunnel.synth.Partitioner.Partition;
+import tunnel.synth.Synthesizer;
+import tunnel.synth.program.AST.*;
+import tunnel.synth.program.Functions;
 import tunnel.synth.program.Program;
+import tunnel.util.Util;
 
 import java.io.*;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static jdwp.util.Pair.p;
-
 /**
- * Similar to {@link tunnel.synth.ProgramCollection} with the aim to cache the most recent program for a given
- * cause
+ * A cache for programs that merges programs with similar causes
  */
 public class ProgramCache implements Consumer<Program> {
 
     public final static Logger LOG = (Logger) LoggerFactory.getLogger("ProgramCache");
-    public enum Mode {
+
+    @Getter
+    @AllArgsConstructor
+    static class AccessPathKey {
+
+        private final String group;
+        private final List<Object> pathValues;
+
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof AccessPathKey &&
+                    ((AccessPathKey) obj).pathValues.equals(pathValues) &&
+                    ((AccessPathKey) obj).group.equals(group);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(group, Objects.hash(pathValues.toArray()));
+        }
+
+        public int size() {
+            return pathValues.size();
+        }
+
+        public AccessPathKey dropLast() {
+            return new AccessPathKey(group, pathValues.subList(0, pathValues.size() - 1));
+        }
+
+        @Override
+        public String toString() {
+            return group + ":" + pathValues.stream().map(Object::toString).collect(Collectors.joining("."));
+        }
+
         /**
-         * always use the last cached program
+         * returns the key for a given packet call, considers only the first event if multiple are given,
+         * if no KeyGroup is specific in spec, then the key group is related to the call type
          */
-        LAST,
-        /**
-         * Merge programs for the same cause
-         */
-        MERGE
+        public static AccessPathKey from(PacketCall call) {
+            if (call instanceof EventsCall) {
+                var events = (EventsCall) call;
+                var propsOfFirstEvent = events.getPropertiesOfEvent(0, true);
+                var metadata = events.getMetadata(0);
+                assert metadata != null;
+                String keyGroup = metadata.getKeyGroup();
+                if (metadata.getKeyGroup().isEmpty()) {
+                    keyGroup = metadata.getCommandSet() + "." + metadata.getCommand();
+                }
+                return new AccessPathKey(keyGroup, metadata.getKeyPath().stream()
+                        .map(p -> propsOfFirstEvent.stream().filter(c -> c.getPath().equals(p)).findFirst().get())
+                        .collect(Collectors.toList()));
+            } else {
+                var req = (RequestCall) call;
+                var metadata = req.getMetadata();
+                String keyGroup = metadata.getKeyGroup();
+                if (metadata.getKeyGroup().isEmpty()) {
+                    keyGroup = metadata.getCommandSet() + "." + metadata.getCommand();
+                }
+                return new AccessPathKey(keyGroup, metadata.getKeyPath().stream()
+                        .map(p -> req.getProperties().stream().filter(c -> c.getPath().equals(p)).findFirst().get())
+                        .collect(Collectors.toList()));
+            }
+        }
     }
 
-    private final Mode mode;
-    private final Cache<PacketCall, Program> causeToProgram;
-    private final Cache<Program, Program> originForSimilars;
-    private Set<Program> removedSimilars;
+    private final Map<AccessPathKey, Program> groupToAccess;
+    /**
+     * the base programs for every group
+     */
+    private final Map<String, Program> groupToProgram;
+    private final Map<PacketCall, Program> packetCallToProgram;
+    private final Map<Program, PacketCall> programToPacketCall;
+    private final Map<Integer, List<AccessPathKey>> sizeToGroupAndAccess;
+
+    private final LinkedBlockingQueue<Program> toAdd;
 
     public static final int DEFAULT_MIN_SIZE = 2;
 
-    public static final int DEFAULT_MAX_CACHE_SIZE = 200;
+    public static final int DEFAULT_MAX_CACHE_SIZE = 500;
 
-    public static final float DEFAULT_MAX_COST_FOR_SIMILAR = 2;
 
     /**
      * minimal number assignments in a program to be added, event causes are included
@@ -58,53 +117,172 @@ public class ProgramCache implements Consumer<Program> {
 
     private final int maxCacheSize;
 
-    /** only include statements in programs for getSimilar if their cost is <= this value (in milli seconds)*/
-    private final float maxCostForSimilar;
+    private final boolean addAsynchronously;
 
     public ProgramCache() {
-        this(Mode.LAST, DEFAULT_MIN_SIZE);
+        this(DEFAULT_MIN_SIZE);
     }
 
-    public ProgramCache(Mode mode, int minSize) {
-        this(mode, minSize, DEFAULT_MAX_CACHE_SIZE, DEFAULT_MAX_COST_FOR_SIMILAR);
+    public ProgramCache(int minSize) {
+        this(minSize, DEFAULT_MAX_CACHE_SIZE);
     }
-    public ProgramCache(Mode mode, int minSize, int maxCacheSize, float maxCostForSimilar) {
+
+    public ProgramCache(int minSize, int maxCacheSize) {
+        this(minSize, maxCacheSize, true);
+    }
+
+    public ProgramCache(int minSize, int maxCacheSize, boolean addAsynchronously) {
         this.maxCacheSize = maxCacheSize;
-        this.mode = mode;
         this.minSize = minSize;
-        this.maxCostForSimilar = maxCostForSimilar;
-        this.causeToProgram = CacheBuilder.newBuilder().maximumSize(maxCacheSize).build();
-        this.originForSimilars = CacheBuilder.newBuilder().maximumSize(maxCacheSize * 2L).build();
-        this.removedSimilars = new HashSet<>();
+        this.groupToAccess = new HashMap<>();
+        this.groupToProgram = new HashMap<>();
+        this.packetCallToProgram = new HashMap<>();
+        this.programToPacketCall = new HashMap<>();
+        this.sizeToGroupAndAccess = new HashMap<>();
+        this.toAdd = new LinkedBlockingQueue<>();
+        this.addAsynchronously = addAsynchronously;
     }
 
     @Override
     public void accept(Program program) {
         if (isAcceptableProgram(program)) {
-            add(program);
-            originForSimilars.invalidate(program); // ignore equivalent similars
-            removedSimilars.remove(program);
+            if (addAsynchronously) {
+                addAsynchronously(program);
+            } else {
+                add(program);
+            }
         }
+    }
+
+    public void accept(Partition partition) {
+        for (DependencyGraph dependencyGraph : DependencyGraph.compute(partition).splitOnCause()) {
+            accept(Synthesizer.synthesizeProgram(dependencyGraph));
+        }
+    }
+
+    public void addAsynchronously(Program program) {
+        toAdd.add(program);
     }
 
     public boolean isAcceptableProgram(Program program) {
         return program.getNumberOfDistinctCalls() >= minSize;
     }
 
-    private void add(Program program) {
-        assert program.getFirstCallAssignment() != null;
-        var expression = program.getFirstCallAssignment().getExpression();
-        assert expression instanceof PacketCall;
-        var oldProgram = causeToProgram.getIfPresent((PacketCall) expression);
-        var newProgram = program;
-        if (mode == Mode.MERGE && oldProgram != null) {
-            newProgram = oldProgram.merge(program);
+    private void addFromAsync() {
+        if (toAdd.isEmpty()) {
+            return;
         }
-        causeToProgram.put((PacketCall) expression, newProgram);
+        List<Program> added = new ArrayList<>();
+        toAdd.drainTo(added);
+        added.forEach(this::add);
     }
 
-    private Optional<Program> get(PacketCall packetCall) {
-        return Optional.ofNullable(causeToProgram.getIfPresent(packetCall));
+    private void add(Program program) {
+        assert program.getFirstCallAssignment() != null;
+        var packetCall = (PacketCall) program.getFirstCallAssignment().getExpression();
+        var key = AccessPathKey.from(packetCall);
+        programToPacketCall.put(program, packetCall);
+        packetCallToProgram.put(packetCall, program);
+        while (key.size() >= 0) {
+            if (key.size() == 0) {
+                if (groupToProgram.containsKey(key.getGroup())) {
+                    var oldProgram = groupToProgram.get(key.getGroup());
+                    var mergedProgram = merge(oldProgram, program);
+                    if (!oldProgram.equals(mergedProgram)) {
+                        groupToProgram.put(key.getGroup(), mergedProgram);
+                    }
+                } else {
+                    groupToProgram.put(key.getGroup(), program);
+                }
+                break;
+            }
+            if (groupToAccess.containsKey(key)) {
+                var oldProgram = groupToAccess.get(key);
+                Program mergedProgram = merge(oldProgram, program);
+                if (!oldProgram.equals(mergedProgram)) {
+                    groupToAccess.put(key, mergedProgram);
+                } else {
+                    break; // nothing changed
+                }
+            } else {
+                groupToAccess.put(key, program);
+            }
+            key = key.dropLast();
+        }
+    }
+
+    private static Program merge(Program old, Program other) {
+        if (old.equals(other)) {
+            return old;
+        }
+        try {
+            return roundTrip(old).merge(roundTrip(other)); // TODO: pretty printing and parsing works, but could be
+            // improved
+        } catch (Exception e) {
+            LOG.error("Could not merge programs \n{}\nand\n{}", old.toPrettyString(), other.toPrettyString(), e);
+            throw new MergeException(String.format("Could not merge programs \n%s\nand\n%s", old.toPrettyString(),
+                    other.toPrettyString()), e);
+        }
+    }
+
+    private static Program roundTrip(Program program) {
+        return Program.parse(program.toString());
+    }
+
+    public Optional<Program> get(PacketCall packetCall) {
+        return get(AccessPathKey.from(packetCall), packetCall);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Optional<Program> get(AccessPathKey key, PacketCall packetCall) {
+        addFromAsync();
+        var metadata = packetCall.getMetadata();
+        if (metadata.getSplitGraphAt().length() > 0) {
+            var splitGraphAt = new AccessPath(metadata.getSplitGraphAt());
+            var props = packetCall.getPropertiesForListPath(splitGraphAt);
+            if (props.size() > 1) {
+                var nonListPathProps =
+                        packetCall.getProperties().stream().filter(p -> !p.getPath().startsWith(splitGraphAt)).collect(Collectors.toList());
+                List<Statement> statements = new ArrayList<>();
+                for (Integer index : props.keySet()) {
+                    var path = splitGraphAt.append(index);
+                    var indexProps = Util.combine(nonListPathProps,
+                            props.get(index).stream()
+                                    .map(p -> new CallProperty(p.getPath().replace(splitGraphAt.size(), 0),
+                                            p.getAccessor())).collect(Collectors.toList()));
+                    var indexPacketCall = packetCall instanceof RequestCall ?
+                            new RequestCall(packetCall.getCommandSet(), packetCall.getCommand(), indexProps) :
+                            new EventsCall(packetCall.getCommandSet(), packetCall.getCommand(), indexProps);
+                    var indexProgram = get(indexPacketCall);
+                    if (indexProgram.isEmpty()) {
+                        continue;
+                    }
+                    var causeAssignment = new AssignmentStatement(new Identifier("cause"),
+                            new FunctionCall(Functions.OBJECT, (List<Expression>) (List) indexProps));
+                    Body body = indexProgram.get().getBody()
+                            .replaceIdentifiersConv(identifier -> identifier.getName().equals("cause") ?
+                                    causeAssignment.getVariable() : identifier);
+                    var newBody = new Body(Util.combine(List.of(causeAssignment), body.getSubStatements()));
+                    statements.add(new SwitchStatement(new IntegerLiteral((long) (int) index),
+                            List.of(new CaseStatement(null, newBody))));
+                }
+                if (statements.isEmpty()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new Program(statements));
+            }
+        }
+        if (packetCallToProgram.containsKey(packetCall)) {
+            return Optional.of(packetCallToProgram.get(packetCall));
+        }
+        if (groupToAccess.containsKey(key)) {
+            return Optional.ofNullable(groupToProgram.get(key.group).setCause(packetCall));
+        }
+        if (key.size() > 0) {
+            // we try with one less specific path
+            return get(key.dropLast(), packetCall);
+        }
+        return Optional.ofNullable(groupToProgram.get(key.group)).map(p -> p.setCause(packetCall));
     }
 
     public Optional<Program> get(Request<?> request) {
@@ -125,61 +303,38 @@ public class ProgramCache implements Consumer<Program> {
         return Optional.empty();
     }
 
-    /**
-     * returns the program with the most similar cause and alters the obtained program so that the cause
-     * (and if needed the first statement) matches the given packet
-     *
-     * @see PacketCall#computeSimilarity(PacketCall)
-     */
-    public Optional<Program> getSimilar(PacketCall packet) {
-        var best = causeToProgram.asMap().entrySet().stream()
-                .map(e -> p(e, e.getKey().computeSimilarity(packet)))
-                .max((p1, p2) -> Float.compare(p1.second, p2.second));
-        if (best.isPresent() && best.get().second > 0) {
-            var origin = best.get().first.getValue();
-            Program prog;
-            try {
-                prog = origin.setCause(packet);
-            } catch (AssertionError e) {
-                LOG.debug("Failed to set cause " + packet + " for " + origin);
-                return Optional.empty();
-            }
-            // remove statements that are deemed to be to costly
-            /*prog = prog.removeStatementsTransitively(s -> s instanceof AssignmentStatement &&
-                    ((AssignmentStatement) s).getExpression() instanceof RequestCall &&
-                    ((RequestCall) ((AssignmentStatement) s).getExpression()).getCost() > maxCostForSimilar);*/
-            if (removedSimilars.contains(origin)) { // this similar program already failed
-                return Optional.empty();
-            }
-            addSimilar(origin, prog);
-            return Optional.of(prog);
-        }
-        return Optional.empty();
-    }
-
-    public Optional<Program> getSimilar(ParsedPacket packet) {
-        return getSimilar(packet instanceof Events ?
-                EventsCall.create((Events) packet) : RequestCall.create((Request<?>) packet));
-    }
-
-    /**
-     * is this program only a similar program and not a synthesized one?
-     */
-    private boolean isSimilar(Program program) {
-        return originForSimilars.asMap().containsKey(program);
-    }
-
-    private void addSimilar(Program origin, Program program) {
-        originForSimilars.put(origin, program);
-    }
-
     public int size() {
-        return (int) causeToProgram.size();
+        return packetCallToProgram.size();
     }
 
-    public static class DisabledProgramCache extends ProgramCache {
-        @Override
-        public void accept(Program program) {
+    public void tick() {
+        addFromAsync();
+        if (size() > maxCacheSize) {
+            reduceSize((int) (maxCacheSize * 0.9));
+        }
+    }
+
+    private void reduceSize(int maxSize) {
+        var accessPathsSorted =
+                sizeToGroupAndAccess.keySet().stream().sorted(Comparator.comparing(e -> (int) e).reversed())
+                        .flatMap(e -> sizeToGroupAndAccess.get(e).stream())
+                        .collect(Collectors.toList());
+        for (AccessPathKey accessPathKey : accessPathsSorted) {
+            if (size() <= maxSize) {
+                break;
+            }
+            var program = groupToProgram.get(accessPathKey.group);
+            if (programToPacketCall.containsKey(program)) {
+                var packetCall = programToPacketCall.get(program);
+                packetCallToProgram.remove(packetCall);
+                programToPacketCall.remove(program);
+            }
+            if (accessPathKey.size() == 0) {
+                groupToProgram.remove(accessPathKey.group);
+            }
+            sizeToGroupAndAccess.get(accessPathKey.size()).remove(accessPathKey);
+            groupToAccess.remove(accessPathKey);
+
         }
     }
 
@@ -192,8 +347,11 @@ public class ProgramCache implements Consumer<Program> {
             while ((line = reader.readLine()) != null && !line.isBlank()) {
                 program.append(line);
             }
-            accept(Program.parse(program.toString()));
-            count++;
+            var prog = Program.parse(program.toString());
+            if (isAcceptableProgram(prog)) {
+                add(prog);
+                count++;
+            }
         }
         return count;
     }
@@ -208,9 +366,10 @@ public class ProgramCache implements Consumer<Program> {
      * Skip programs that only consist of such statements or whose cause is such a statement
      */
     public void store(OutputStream stream, int minSizeOfStoredProgram) throws IOException {
+        addFromAsync();
         var writer = new OutputStreamWriter(stream);
-        for (Program program : causeToProgram.asMap().values()) {
-            var filtered = program.removeDirectPointerRelatedStatementsTransitively();
+        for (Program program : packetCallToProgram.values()) {
+            var filtered = program.removeDirectPointerRelatedStatementsTransitivelyWithoutCause();
             if (!filtered.hasCause() || filtered.getNumberOfDistinctCalls() < minSizeOfStoredProgram) {
                 continue;
             }
@@ -223,32 +382,31 @@ public class ProgramCache implements Consumer<Program> {
     @Override
     public boolean equals(Object obj) {
         return obj instanceof ProgramCache &&
-                causeToProgram.asMap().equals(((ProgramCache) obj).causeToProgram.asMap());
+                packetCallToProgram.equals(((ProgramCache) obj).packetCallToProgram);
     }
 
     @Override
     public String toString() {
-        return causeToProgram.asMap().toString();
+        return packetCallToProgram.toString();
     }
 
     @Override
     public int hashCode() {
-        return causeToProgram.asMap().hashCode();
+        return packetCallToProgram.hashCode();
     }
-
 
     /**
      * Returns all programs with an event cause
      */
     public Collection<Program> getServerPrograms() {
-        return causeToProgram.asMap().values().stream().filter(Program::isServerProgram).collect(Collectors.toList());
+        return packetCallToProgram.values().stream().filter(Program::isServerProgram).collect(Collectors.toList());
     }
 
     /**
      * Returns all programs with a request cause
      */
     public Collection<Program> getClientPrograms() {
-        return causeToProgram.asMap().values().stream().filter(Program::isClientProgram).collect(Collectors.toList());
+        return packetCallToProgram.values().stream().filter(Program::isClientProgram).collect(Collectors.toList());
     }
 
     /**
@@ -256,20 +414,32 @@ public class ProgramCache implements Consumer<Program> {
      */
     public void remove(Program program) {
         if (program.getFirstCallAssignment() != null) {
-            causeToProgram.invalidate((PacketCall) program.getFirstCallAssignment().getExpression());
-            if (isSimilar(program)) {
-                removedSimilars.add(program);
-                if (removedSimilars.size() > maxCacheSize * 10) {
-                    removedSimilars = removedSimilars.stream().limit(maxCacheSize * 5L)
-                            .collect(Collectors.toCollection(HashSet::new));
-                }
-            }
+            packetCallToProgram.remove(getPacketCall(program));
         }
     }
 
     public void clear() {
-        causeToProgram.invalidateAll();
-        originForSimilars.invalidateAll();
-        removedSimilars.clear();
+        packetCallToProgram.clear();
+        groupToProgram.clear();
+        groupToAccess.clear();
+        sizeToGroupAndAccess.clear();
+    }
+
+    private static PacketCall getPacketCall(Program program) {
+        return (PacketCall) program.getFirstCallAssignment().getExpression();
+    }
+
+    public static class DisabledProgramCache extends ProgramCache {
+        @Override
+        public void accept(Program program) {
+        }
+
+        @Override
+        public void addAsynchronously(Program program) {
+        }
+
+        @Override
+        public void tick() {
+        }
     }
 }

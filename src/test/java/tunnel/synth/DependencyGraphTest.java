@@ -1,18 +1,18 @@
 package tunnel.synth;
 
 import jdwp.*;
+import jdwp.EventRequestCmds.SetReply;
+import jdwp.EventRequestCmds.SetRequest;
+import jdwp.EventRequestCmds.SetRequest.ClassMatch;
 import jdwp.JDWP.Error;
 import jdwp.MethodCmds.VariableTableReply;
 import jdwp.MethodCmds.VariableTableRequest;
-import jdwp.Reference.*;
 import jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest;
 import jdwp.StackFrameCmds.GetValuesReply;
 import jdwp.StackFrameCmds.GetValuesRequest;
 import jdwp.StackFrameCmds.GetValuesRequest.SlotInfo;
-import jdwp.Value.BasicListValue;
-import jdwp.Value.BasicValue;
-import jdwp.Value.ListValue;
-import jdwp.Value.Type;
+import jdwp.ThreadReferenceCmds.FrameCountReply;
+import jdwp.ThreadReferenceCmds.FrameCountRequest;
 import jdwp.util.Pair;
 import jdwp.util.TestReply;
 import jdwp.util.TestRequest;
@@ -34,8 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static jdwp.PrimitiveValue.wrap;
-import static jdwp.Reference.klass;
-import static jdwp.Reference.thread;
+import static jdwp.Reference.*;
 import static jdwp.Value.Type.OBJECT;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.*;
@@ -463,6 +462,77 @@ public class DependencyGraphTest {
         var nodes = layers.getAllNodesWithoutDuplicates();
         assertTrue(nodes.stream().anyMatch(n -> n.getId() == 92461));
     }
+
+    @Test
+    public void testSplitGraphOnEventsCause() {
+        var graph =
+                DependencyGraph.compute(new Partition(Either.right(new jdwp.EventCmds.Events(0, wrap((byte) 2),
+                        new ListValue<>(Type.OBJECT,
+                        List.of(new EventCmds.Events.VMStart(wrap(0), thread(1L)),
+                                new EventCmds.Events.VMStart(wrap(0), thread(2L)))
+                ))), List.of(
+                        p(new FrameCountRequest(4, thread(1L)), new FrameCountReply(4, wrap(1))),
+                        p(new FrameCountRequest(5, thread(2L)), new FrameCountReply(5, wrap(1))),
+                        p(new jdwp.VirtualMachineCmds.IDSizesRequest(1582), new ReplyOrError<>(1582,
+                                new jdwp.VirtualMachineCmds.IDSizesReply(1582, wrap(8), wrap(8), wrap(8), wrap(8),
+                                        wrap(8)))))));
+        var graphs = graph.splitOnCause();
+        assertEquals(2, graphs.size());
+        assertEquals(3, graphs.get(0).getAllNodes().size());
+        assertEquals(3, graphs.get(1).getAllNodes().size());
+        assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")" +
+                "=(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+                "\"thread\")=(wrap \"thread\" 1)))\n" +
+                "  (= var0 (request VirtualMachine IDSizes))\n" +
+                "  (= var1 (request ThreadReference FrameCount (\"thread\")=(get cause \"events\" 0 \"thread\"))))",
+                Synthesizer.synthesizeProgram(graphs.get(0)).toPrettyString());
+        assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")" +
+                "=(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+                "\"thread\")=(wrap \"thread\" 2)))\n" +
+                "  (= var0 (request VirtualMachine IDSizes))\n" +
+                "  (= var1 (request ThreadReference FrameCount (\"thread\")=(get cause \"events\" 0 \"thread\"))))",
+                Synthesizer.synthesizeProgram(graphs.get(1)).toPrettyString());
+    }
+
+    @Test
+    public void testSplitGraphOnRequestCause() {
+        var graph =
+                DependencyGraph.compute(new Partition(Either.left(new SetRequest(0, wrap((byte) 10), wrap((byte) 10),
+                        new ListValue<>(new ClassMatch(wrap("x")), new ClassMatch(wrap("y"))))), List.of(
+                        p(new SetRequest(0, wrap((byte) 10), wrap((byte) 10),
+                                        new ListValue<>(new ClassMatch(wrap("x")), new ClassMatch(wrap("y")))),
+                                new SetReply(0, wrap(10))),
+                        p(new FrameCountRequest(4, thread(1L)), new FrameCountReply(4, wrap(1))),
+                        p(new FrameCountRequest(5, thread(2L)), new FrameCountReply(5, wrap(1))),
+                        p(new jdwp.VirtualMachineCmds.IDSizesRequest(1582),
+                                new ReplyOrError<>(1582, new jdwp.VirtualMachineCmds.IDSizesReply(1582, wrap(8),
+                                        wrap(8), wrap(8), wrap(8), wrap(8)))))));
+        var graphs = graph.splitOnCause();
+        assertEquals(2, graphs.size());
+        assertEquals(5, graphs.get(0).getAllNodes().size());
+        assertEquals(5, graphs.get(1).getAllNodes().size());
+        assertEquals("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 10) (\"suspendPolicy\")=" +
+                "(wrap \"byte\" 10) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"x\") (\"modifiers\" 0 " +
+                "\"kind\")=(wrap \"string\" \"ClassMatch\")))\n" +
+                "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 10) (\"suspendPolicy\")=(wrap " +
+                "\"byte\" 10) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"x\") (\"modifiers\" 0 \"kind\")=" +
+                "(wrap \"string\" \"ClassMatch\")))\n" +
+                "  (= var1 (request VirtualMachine IDSizes))\n" +
+                "  (= var3 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 2)))\n" +
+                "  (= var2 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1))))",
+                Synthesizer.synthesizeProgram(graphs.get(0)).toPrettyString());
+        assertEquals("((= cause (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 10) (\"suspendPolicy\")=" +
+                "(wrap \"byte\" 10) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"y\") (\"modifiers\" 0 " +
+                "\"kind\")=(wrap \"string\" \"ClassMatch\")))\n" +
+                "  (= var0 (request EventRequest Set (\"eventKind\")=(wrap \"byte\" 10) (\"suspendPolicy\")=(wrap " +
+                "\"byte\" 10) (\"modifiers\" 0 \"classPattern\")=(wrap \"string\" \"y\") (\"modifiers\" 0 \"kind\")=" +
+                "(wrap \"string\" \"ClassMatch\")))\n" +
+                "  (= var1 (request VirtualMachine IDSizes))\n" +
+                "  (= var3 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 2)))\n" +
+                "  (= var2 (request ThreadReference FrameCount (\"thread\")=(wrap \"thread\" 1))))",
+                Synthesizer.synthesizeProgram(graphs.get(1)).toPrettyString());
+    }
+
 
     static TestRequest request(int id, Value value) {
         return new TestRequest(id, p("value", value));

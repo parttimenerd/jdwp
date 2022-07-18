@@ -1,9 +1,9 @@
 package jdwp;
 
 import com.google.common.primitives.Bytes;
+import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.EventCommon;
 import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
-import jdwp.PrimitiveValue.*;
 import jdwp.Reference.*;
 import jdwp.exception.PacketError;
 import jdwp.exception.TunnelException.ReflectiveCreationException;
@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static jdwp.JDWP.Tag;
+import static jdwp.PrimitiveValue.*;
 import static jdwp.util.Pair.p;
 
 @SuppressWarnings("ALL")
@@ -400,6 +401,30 @@ public abstract class Value implements ToCode {
 
         public boolean hasNullReference() {
             return getValues().stream().anyMatch(p -> p.second instanceof Reference && ((Reference) p.second).value == 0);
+        }
+
+        public Stream<TaggedBasicValue<?>> getTaggedValueWithKind() {
+            List<TaggedBasicValue<?>> tagged = new ArrayList<>();
+            if (this instanceof EventRequestCmds.SetRequest) {
+                var setRequest = (EventRequestCmds.SetRequest) this;
+                tagged.add(new TaggedBasicValue<>(new AccessPath("eventKind"), setRequest.eventKind));
+                tagged.add(new TaggedBasicValue<>(new AccessPath("suspendPolicy"), setRequest.suspendPolicy));
+                int i = 0;
+                for (ModifierCommon modifier : setRequest.modifiers) {
+                    var prefix = new AccessPath("modifiers", i);
+                    tagged.add(new TaggedBasicValue<>(prefix.append("kind"), wrap(modifier.getClass().getSimpleName())));
+                    modifier.getTaggedValues().forEach(t -> tagged.add(t.prependPath(prefix)));
+                    i++;
+                }
+                return tagged.stream();
+            }
+            if (this instanceof Events) {
+                var events = (ListValue<EventInstance>) this.get("events");
+                return Stream.concat(events.getValues().stream().map(p ->
+                                new TaggedBasicValue<>(new AccessPath("events", p.first, "kind"),
+                                        wrap(p.second.getClass().getSimpleName()))), getTaggedValues());
+            }
+            return getTaggedValues();
         }
     }
 

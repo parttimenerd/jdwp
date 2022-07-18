@@ -224,4 +224,11 @@ public class AccessPath extends AbstractList<Object> implements Comparable<Acces
     public AccessPath dropLast() {
         return subPath(0, size() - 1);
     }
+
+    public AccessPath replace(int index, Object value) {
+        Object[] newPath = new Object[path.length];
+        System.arraycopy(path, 0, newPath, 0, newPath.length);
+        newPath[index] = value;
+        return new AccessPath(newPath);
+    }
 }

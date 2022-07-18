@@ -1,55 +1,39 @@
 package tunnel.synth;
 
+import jdwp.EventCmds;
 import jdwp.EventCmds.Events;
 import jdwp.EventCmds.Events.ClassUnload;
-import jdwp.EventRequestCmds.SetRequest;
-import jdwp.ParsedPacket;
+import jdwp.ReplyOrError;
 import jdwp.Value.ListValue;
 import jdwp.Value.Type;
-import jdwp.VirtualMachineCmds.IDSizesRequest;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 import tunnel.ProgramCache;
-import tunnel.ProgramCache.Mode;
+import tunnel.synth.Partitioner.Partition;
 import tunnel.synth.program.Program;
+import tunnel.util.Either;
+import tunnel.util.Util;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static jdwp.PrimitiveValue.wrap;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static jdwp.Reference.thread;
+import static jdwp.util.Pair.p;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ProgramCacheTest {
-
-    private static Object[][] lastModeTestSource() {
-        return new Object[][] {
-                {new String[] {
-                    "((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)))"
-                }, new IDSizesRequest(10), "((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)))"},
-                {new String[] {
-                        "((= cause (request VirtualMachine IDSizes)) (= var0 (request VirtualMachine IDSizes)))"
-                }, new SetRequest(10, wrap((byte)1), wrap((byte)2), new ListValue<>(Type.OBJECT)), null}
-        };
-    }
-
-    @ParameterizedTest
-    @MethodSource("lastModeTestSource")
-    public void testLastMode(String[] programs, ParsedPacket cause, String expectedProgram) {
-        var cache = new ProgramCache(Mode.LAST, 1);
-        Arrays.stream(programs).forEach(p -> cache.accept(Program.parse(p)));
-        assertEquals(expectedProgram == null ? null : Program.parse(expectedProgram), cache.get(cause).orElse(null));
-    }
 
     @Test
     public void testSmallEventProgramWithSingleAssignmentIsIncluded() {
         var program = "((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 " +
-                "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 " +
+                "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"kind\")=(wrap \"string\" \"ClassUnload\") " +
+                "(\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 " +
                 "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))";
-        var cache = new ProgramCache(Mode.LAST, 2);
+        var cache = new ProgramCache(1, 10, false);
         cache.accept(Program.parse(program));
         assertEquals(1, cache.size());
     }
@@ -61,7 +45,7 @@ public class ProgramCacheTest {
                 "\"kind\")=(wrap \"string\" \"ClassUnload\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) " +
                 "(\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 (request VirtualMachine " +
                 "ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))";
-        var cache = new ProgramCache();
+        var cache = new ProgramCache(1, 10, false);
         cache.accept(Program.parse(program));
         assertEquals(program, cache.get(events).get().toString());
     }
@@ -69,16 +53,17 @@ public class ProgramCacheTest {
     @Test
     @SneakyThrows
     public void testLoadAndStore() {
-        var cache = new ProgramCache();
+        var cache = new ProgramCache(0, 10, false);
         var program = Program.parse("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) " +
                 "(\"events\" 0 " +
-                "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 " +
+                "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"kind\")=(wrap \"string\" \"ClassUnload\")" +
+                "(\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 " +
                 "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))");
         cache.accept(program);
         ByteArrayOutputStream s = new ByteArrayOutputStream();
         cache.store(s, 0);
         var input = new ByteArrayInputStream(s.toByteArray());
-        var newCache = new ProgramCache();
+        var newCache = new ProgramCache(0, 10);
         newCache.load(input);
         assertEquals(cache, newCache);
     }
@@ -86,7 +71,7 @@ public class ProgramCacheTest {
     @Test
     @SneakyThrows
     public void testLoadAndStoreAndCleanUp() {
-        var cache = new ProgramCache();
+        var cache = new ProgramCache(1, 10, false);
         var program = Program.parse("((= cause (request Method VariableTableWithGeneric (\"methodID\")=(wrap " +
                 "\"method\" 105553176478280) (\"refType\")=(wrap \"class-type\" 1129))) (= var0 (request Method " +
                 "VariableTableWithGeneric (\"methodID\")=(wrap " +
@@ -104,7 +89,7 @@ public class ProgramCacheTest {
     @Test
     @SneakyThrows
     public void testLoadAndStoreAndCleanUp2() {
-        var cache = new ProgramCache();
+        var cache = new ProgramCache(1, 10, false);
         var program = Program.parse("((= cause " +
                 "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))) (= var0 " +
                 "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\")))" +
@@ -114,10 +99,10 @@ public class ProgramCacheTest {
         ByteArrayOutputStream s = new ByteArrayOutputStream();
         cache.store(s, 0);
         var input = new ByteArrayInputStream(s.toByteArray());
-        var newCache = new ProgramCache(Mode.LAST, 1);
+        var newCache = new ProgramCache(1);
         newCache.load(input);
         assertEquals(cache.size(), newCache.size());
-        var expected = new ProgramCache(Mode.LAST, 1);
+        var expected = new ProgramCache(1, 10, false);
         expected.accept(Program.parse("((= cause " +
                 "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))) (= var0 " +
                 "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))"));
@@ -126,10 +111,11 @@ public class ProgramCacheTest {
 
     @Test
     public void testEquals() {
-        var cache = new ProgramCache();
+        var cache = new ProgramCache(1, 10, false);
         var program = Program.parse("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) " +
                 "(\"events\" 0 " +
-                "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 " +
+                "\"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"kind\")=(wrap \"string\" \"ClassUnload\") " +
+                "(\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 " +
                 "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))");
         cache.accept(program);
         assertNotEquals(new ProgramCache(), cache);
@@ -138,7 +124,7 @@ public class ProgramCacheTest {
     @Test
     @SneakyThrows
     public void testLoadAndStoreAndCleanUp3() {
-        var cache = new ProgramCache();
+        var cache = new ProgramCache(1, 10, false);
         var program = Program.parse("((= cause (events Event Composite (\"events\" 0 \"kind\")=(wrap \"string\" " +
                 "\"Breakpoint\") (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"requestID\")=(wrap \"int\" 37)" +
                 " (\"events\" 0 \"thread\")=(wrap \"thread\" 1) (\"events\" 0 \"location\" \"declaringType\")=(wrap " +
@@ -172,7 +158,7 @@ public class ProgramCacheTest {
 
     @Test
     public void testGetSimilar() {
-        var cache = new ProgramCache(Mode.LAST, 1);
+        var cache = new ProgramCache(1, 10, false);
         var program = Program.parse("((= cause " +
                 "(request EventRequest Set (\"eventKind\")=( wrap \"byte\" 8) (\"suspendPolicy\")=(wrap \"byte\" 0)))" +
                 "(= var0 (request EventRequest Set (\"eventKind\")=( wrap \"byte\" 8) (\"suspendPolicy\")=(wrap " +
@@ -182,6 +168,54 @@ public class ProgramCacheTest {
                 "(request EventRequest Set (\"eventKind\")=( wrap \"byte\" 9) (\"suspendPolicy\")=(wrap \"byte\" 0)))" +
                 "(= var0 (request EventRequest Set (\"eventKind\")=( wrap \"byte\" 9) (\"suspendPolicy\")=(wrap " +
                 "\"byte\" 0))))");
-        assertEquals(program2, cache.getSimilar(program2.getCause()).get());
+        assertEquals(program2, cache.get(program2.getCause()).get());
+    }
+
+    @Test
+    public void testGetForMultipleEvents() {
+        Function<List<Integer>, Events> eventsCreator = threadIds -> new jdwp.EventCmds.Events(0, wrap((byte) 2),
+                new ListValue<>(Type.OBJECT,
+                threadIds.stream().map(id -> new EventCmds.Events.VMStart(wrap(0), thread(id))).collect(Collectors.toList())
+        ));
+        Function<List<Integer>, Partition> creator =
+                threadIds -> new Partition(Either.right(eventsCreator.apply(threadIds)),
+                Util.combine(List.of(
+                                p(new jdwp.VirtualMachineCmds.IDSizesRequest(1582),
+                                        new ReplyOrError<>(1582, new jdwp.VirtualMachineCmds.IDSizesReply(1582,
+                                                wrap(8), wrap(8), wrap(8), wrap(8), wrap(8))))),
+                        threadIds.stream().map(id -> p(new jdwp.ThreadReferenceCmds.NameRequest(2000 + id, thread(id)),
+                                new ReplyOrError<>(2000 + id, new jdwp.ThreadReferenceCmds.NameReply(2000 + id, wrap(
+                                        "Thread" + id))))).collect(Collectors.toList())));
+        var partition = creator.apply(List.of(1, 2, 3));
+        var cache = new ProgramCache(1, 10, false);
+        cache.accept(partition);
+        assertEquals(3, cache.size());
+        var program = cache.get(eventsCreator.apply(List.of(2))).get();
+        assertTrue(program.hasSingleCauseOrNull());
+        assertEquals("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")" +
+                "=(wrap \"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 " +
+                "\"thread\")=(wrap \"thread\" 2)))\n" +
+                "  (= var0 (request VirtualMachine IDSizes))\n" +
+                "  (= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\"))))",
+                program.toPrettyString());
+        var program2 = cache.get(eventsCreator.apply(List.of(1, 2))).get();
+        assertEquals(3, cache.size()); // the cache size does not change
+        // idea: the resulting program consists of the first event and its program,
+        // followed by all other events (sans overlap)
+        assertEquals("(\n" +
+                "  (switch 0\n" +
+                "    (default\n" +
+                "      (= cause (object (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")=(wrap " +
+                "\"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"thread\")=" +
+                "(wrap \"thread\" 1)))\n" +
+                "      (= var0 (request VirtualMachine IDSizes))\n" +
+                "      (= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\")))))\n" +
+                "  (switch 1\n" +
+                "    (default\n" +
+                "      (= cause (object (\"suspendPolicy\")=(wrap \"byte\" 2) (\"events\" 0 \"kind\")=(wrap " +
+                "\"string\" \"VMStart\") (\"events\" 0 \"requestID\")=(wrap \"int\" 0) (\"events\" 0 \"thread\")=" +
+                "(wrap \"thread\" 2)))\n" +
+                "      (= var0 (request VirtualMachine IDSizes))\n" +
+                "      (= var1 (request ThreadReference Name (\"thread\")=(get cause \"events\" 0 \"thread\"))))))", program2.toPrettyString());
     }
 }

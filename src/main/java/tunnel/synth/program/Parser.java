@@ -134,10 +134,10 @@ public class Parser {
     AssignmentStatement parseAssignment() {
         expect("= ");
         skipWhitespace();
-        var ret = parseIdentifierAndRecord();
+        var ret = parseIdentifierWOPut();
         skipWhitespace();
         var expression = parseExpression(true);
-        var statement = new AssignmentStatement(ret, expression);
+        var statement = new AssignmentStatement(recordIdentifier(ret), expression);
         ret.setSource(statement);
         return statement;
     }
@@ -157,7 +157,7 @@ public class Parser {
     }
 
     Statement parseRecursionRelated() {
-        switch (parseIdentifier().getName()) {
+        switch (parseIdentifierWOPut().getName()) {
             case "rec":
                 return parseRecursion();
             case "reccall":
@@ -169,7 +169,7 @@ public class Parser {
 
     Recursion parseRecursion() {
         skipWhitespace();
-        var name = parseIdentifier();
+        var name = parseIdentifierAndRecord();
         skipWhitespace();
         int maxRec = (int) (long) parseInteger().value;
         identifiers.push();
@@ -194,7 +194,7 @@ public class Parser {
         skipWhitespace();
         var variable = parseIdentifierAndRecord();
         skipWhitespace();
-        var name = parseIdentifier();
+        var name = parseIdentifierAndRecord();
         if (!currentRecs.contains(name.getName())) {
             throw new SyntaxError(line, column, "Unknown recursion " + name);
         }
@@ -206,18 +206,18 @@ public class Parser {
     MapCallStatement parseMapCallStatement() {
         expect("map ");
         skipWhitespace();
-        var variable = parseIdentifierAndRecord();
+        var variable = parseIdentifierWOPut();
         skipWhitespace();
         var iterable = parseExpression();
         skipWhitespace();
         var skip = (int)(long)parseInteger().value;
         skipWhitespace();
         identifiers.push();
-        var iter = parseIdentifier();
+        var iter = parseIdentifierAndRecord();
         skipWhitespace();
         List<CallProperty> arguments = parseCallPropertyList();
         identifiers.pop();
-        return new MapCallStatement(variable, iterable, skip, iter, arguments);
+        return new MapCallStatement(recordIdentifier(variable), iterable, skip, iter, arguments);
     }
 
     SwitchStatement parseSwitchStatement() {
@@ -242,7 +242,7 @@ public class Parser {
     }
 
     CaseStatement parseCaseStatement() {
-        var start = parseIdentifier();
+        var start = parseIdentifierWOPut();
         Expression expression = null;
         if (start.getName().equals("case")) {
             skipWhitespace();
@@ -271,7 +271,7 @@ public class Parser {
     Expression parseFunctionCall(boolean allowPacketCall) {
         expect('(');
         skipWhitespace();
-        var functionName = parseIdentifier().getName();
+        var functionName = parseIdentifierWOPut().getName();
         if (functionName.equals("request") || functionName.equals("events")) {
             if (!allowPacketCall) {
                 throw new SyntaxError(line, column, "request and events are not supported");
@@ -305,9 +305,9 @@ public class Parser {
     /** request/events commandSet command ("p1" p2)=(wrap type primitive) or ... (p1 p2)=(get obj p1 p2) */
     PacketCall parsePacketCall(String name) {
         skipWhitespace();
-        var commandSet = parseIdentifier().getName();
+        var commandSet = parseIdentifierWOPut().getName();
         skipWhitespace();
-        var command = parseIdentifier().getName();
+        var command = parseIdentifierWOPut().getName();
         skipWhitespace();
         List<CallProperty> arguments = parseCallPropertyList();
         expect(')');
@@ -354,7 +354,7 @@ public class Parser {
     }
 
     Identifier parseIdentifierAndRecord() {
-        Identifier identifier = parseIdentifier();
+        Identifier identifier = parseIdentifierWOPut();
         if (identifiers.contains(identifier.getName())) {
             return identifiers.get(identifier.getName());
         }
@@ -362,7 +362,12 @@ public class Parser {
         return identifier;
     }
 
-    Identifier parseIdentifier() {
+    Identifier recordIdentifier(Identifier identifier) {
+        identifiers.put(identifier.getName(), identifier);
+        return identifier;
+    }
+
+    Identifier parseIdentifierWOPut() {
         StringBuilder buf = new StringBuilder();
         while (!isEOF() && current != ' ' && current != ')' && current != '(' && current != '\n') {
             buf.append(currentChar());
@@ -371,13 +376,7 @@ public class Parser {
         if (buf.length() == 0) {
             throw new SyntaxError(line, column, "Empty identifier not supported");
         }
-        var str = buf.toString();
-        if (identifiers.contains(str)) {
-            return identifiers.get(str);
-        }
-        var ident = new Identifier(buf.toString());
-        identifiers.put(str, ident);
-        return ident;
+        return new Identifier(buf.toString());
     }
 
     IntegerLiteral parseInteger() {

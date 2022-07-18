@@ -67,4 +67,11 @@ public class Util {
         ret.addAll(List.of(rest));
         return ret;
     }
+
+    public static <T> List<T> combine(List<T> first, List<T> second) {
+        List<T> ret = new ArrayList<>();
+        ret.addAll(first);
+        ret.addAll(second);
+        return ret;
+    }
 }

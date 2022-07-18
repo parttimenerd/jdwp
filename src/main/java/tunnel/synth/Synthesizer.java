@@ -124,7 +124,7 @@ public class Synthesizer extends Analyser<Synthesizer, Program> implements Consu
         var names = new NodeNames(options);
         var program = processNodes(names, layers, layers.getAllNodesWithoutDuplicates()).first;
         return new Program(graph.hasCauseNode() ? ident(CAUSE_NAME) : null, graph.hasCauseNode() ?
-                names.createPacketCauseCall(graph.getCause()) : null, program.getBody());
+                names.createPacketCauseCall(graph.getCause()) : null, program.getBody()).sort();
     }
 
     @Getter

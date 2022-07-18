@@ -2,6 +2,7 @@ package tunnel.synth.program;
 
 import jdwp.JDWP;
 import jdwp.JDWP.Metadata;
+import jdwp.exception.TunnelException.ProgramHashesException;
 import jdwp.exception.TunnelException.UnsupportedOperationException;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -21,6 +22,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static tunnel.synth.Analyser.LOG;
 import static tunnel.synth.Synthesizer.CAUSE_NAME;
 
 /**
@@ -102,8 +104,12 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     @Override
     public String toString() {
+        return toString(cause, body);
+    }
+
+    private static String toString(@Nullable PacketCall cause, Body body) {
         return String.format("(%s%s%s)", cause != null ? String.format("(= cause %s)", cause) : "",
-                (hasCause() && body.size() > 0) ? " " : "",
+                (cause != null && body.size() > 0) ? " " : "",
                 body.toString());
     }
 
@@ -117,7 +123,33 @@ public class Program extends Statement implements CompoundStatement<Program> {
     }
 
     public Program merge(Program other) {
-        return new Program(body.merge(other.body));
+        var col = new CollectedInfoDuringMerge();
+        var bd = other.setCause(cause);
+        bd.renameVariables(this);
+        bd.initHashes(null);
+        var mergedBody = body.merge(col, bd.body);
+        try {
+            return roundtripCreation(causeIdent, cause, mergedBody);
+        } catch (ProgramHashesException e) {
+            LOG.error("merging {}\nand\n{}\nfailed", toPrettyString(), other.toPrettyString(), e);
+            return this;
+        }
+    }
+
+    public static Program roundtripCreation(@Nullable Identifier causeIdent, @Nullable PacketCall cause, Body body) {
+        return Program.parse(toString(cause, body));
+    }
+
+    public Program removeDirectPointerRelatedStatementsTransitivelyWithoutCause() {
+        var pointerRelated = getDirectPointerRelatedStatements();
+        if (cause instanceof RequestCall) {
+            pointerRelated.remove(body.get(0));
+        }
+        var statements = getDependentStatementsAndAnchors(pointerRelated);
+        if (statements.isEmpty()) {
+            return this;
+        }
+        return removeStatementsTransitively(statements);
     }
 
     public Program overlap(Program other) {
@@ -260,5 +292,15 @@ public class Program extends Statement implements CompoundStatement<Program> {
 
     public @Nullable Metadata getCauseMetadata() {
         return cause == null ? null : JDWP.getMetadata(cause.getCommandSet(), cause.getCommand());
+    }
+
+    /** cause is either null, a request or a single event */
+    public boolean hasSingleCauseOrNull() {
+        return cause == null || cause instanceof RequestCall || ((cause instanceof EventsCall) && ((EventsCall)cause).getNumberOfEvents() == 1);
+    }
+
+    @Override
+    public Program sort() {
+        return new Program(causeIdent, cause, body.sort(hasCause() && !(cause instanceof EventsCall)));
     }
 }

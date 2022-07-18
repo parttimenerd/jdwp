@@ -33,7 +33,7 @@ public class Analyser<S extends Analyser<S, T>, T> {
     }
 
     protected void submit(T result) {
-        LOG.debug("submit: " + result + "   " + this.getClass().getSimpleName());
+        LOG.error("submit: " + result + "   " + this.getClass().getSimpleName());
         listeners.forEach(l -> {
             try {
                 l.accept(result);

@@ -876,6 +876,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads true)
             (AffectedBy time garbageCollectionTime fields)
+            (KeyPath referenceType)
         )
     )
     (Command SourceFile=7
@@ -1303,6 +1304,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (OnlyReads false)
             (AffectedBy everything)
             (Affects time)
+            (KeyPath clazz)
         )
     )
     (Command InvokeMethod=3
@@ -1385,6 +1387,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime)
+            (KeyPath clazz methodID)
         )
     )
     (Command NewInstance=4
@@ -1467,6 +1470,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+            (KeyPath clazz methodID)
         )
     )
 )
@@ -1489,6 +1493,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (OnlyReads false)
             (InvalidatesReplyCache false)
             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime-time)
+            (KeyPath arrayType length)
         )
     )
 )
@@ -1572,6 +1577,7 @@ JDWP "Java(tm) Debug Wire Protocol"
         (Metadata
             (OnlyReads false)
             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+            (KeyPath clazz methodID)
         )
     )
 )
@@ -2899,6 +2905,7 @@ JDWP "Java(tm) Debug Wire Protocol"
             (AffectedBy nothing)
             (Affects events)
             (ReplyLikeErrors NOT_IMPLEMENTED)
+            (SplitGraphAt modifiers)
         )
     )
     (Command Clear=2
@@ -3258,6 +3265,8 @@ JDWP "Java(tm) Debug Wire Protocol"
                             (OnlyReads true)
                             (InvalidatesReplyCache true)
                             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                            (KeyPath location.declaringType location.methodRef location.codeIndex)
+                            (KeyGroup breakpoint)
                         )
                     )
                     (Alt Breakpoint=JDWP.EventKind.BREAKPOINT
@@ -3271,6 +3280,8 @@ JDWP "Java(tm) Debug Wire Protocol"
                             (OnlyReads true)
                             (InvalidatesReplyCache true)
                             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                            (KeyPath location.declaringType location.methodRef location.codeIndex)
+                            (KeyGroup breakpoint)
                         )
                     )
                     (Alt MethodEntry=JDWP.EventKind.METHOD_ENTRY
@@ -3290,6 +3301,8 @@ JDWP "Java(tm) Debug Wire Protocol"
                             (OnlyReads true)
                             (InvalidatesReplyCache true)
                             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                            (KeyPath location.declaringType location.methodRef location.codeIndex)
+                            (KeyGroup breakpoint)
                         )
                     )
                     (Alt MethodExit=JDWP.EventKind.METHOD_EXIT
@@ -3307,6 +3320,8 @@ JDWP "Java(tm) Debug Wire Protocol"
                             (OnlyReads true)
                             (InvalidatesReplyCache true)
                             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                            (KeyPath location.declaringType location.methodRef location.codeIndex)
+                            (KeyGroup breakpoint)
                         )
                     )
                     (Alt MethodExitWithReturnValue=JDWP.EventKind.METHOD_EXIT_WITH_RETURN_VALUE
@@ -3325,6 +3340,8 @@ JDWP "Java(tm) Debug Wire Protocol"
                             (OnlyReads true)
                             (InvalidatesReplyCache true)
                             (Affects everything-threads-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                            (KeyPath location.declaringType location.methodRef location.codeIndex)
+                            (KeyGroup breakpoint)
                         )
                     )
                     (Alt MonitorContendedEnter=JDWP.EventKind.MONITOR_CONTENDED_ENTER
@@ -3449,6 +3466,8 @@ JDWP "Java(tm) Debug Wire Protocol"
                             (OnlyReads true)
                             (InvalidatesReplyCache true)
                             (Affects everything-classes-methods-fields-classPath-modules-classLoadTime-threadLoadTime-garbageCollectionTime)
+                            (KeyPath location.declaringType location.methodRef location.codeIndex)
+                            (KeyGroup breakpoint)
                         )
                     )
                     (Alt ThreadStart=JDWP.EventKind.THREAD_START
@@ -3531,6 +3550,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                              (OnlyReads true)
                              (InvalidatesReplyCache true)
                              (Affects everything-classPath-modules-threadLoadTime-garbageCollectionTime)
+                             (KeyGroup classes)
                          )
                     )
                     (Alt ClassUnload=JDWP.EventKind.CLASS_UNLOAD
@@ -3545,6 +3565,7 @@ JDWP "Java(tm) Debug Wire Protocol"
                             (OnlyReads true)
                             (InvalidatesReplyCache true)
                             (Affects everything-classPath-modules-threadLoadTime-garbageCollectionTime)
+                            (KeyGroup classes)
                         )
                     )
                     (Alt FieldAccess=JDWP.EventKind.FIELD_ACCESS
@@ -3567,6 +3588,8 @@ JDWP "Java(tm) Debug Wire Protocol"
                              (OnlyReads true)
                              (InvalidatesReplyCache true)
                              (Affects everything-classPath-modules-threadLoadTime-garbageCollectionTime-frameValues)
+                             (KeyPath referenceTypeID field location.declaringType location.methodRef location.codeIndex)
+                             (KeyGroup field)
                         )
                     )
                     (Alt FieldModification=JDWP.EventKind.FIELD_MODIFICATION
@@ -3588,6 +3611,8 @@ JDWP "Java(tm) Debug Wire Protocol"
                              (OnlyReads true)
                              (InvalidatesReplyCache true)
                              (Affects everything-classPath-modules-threadLoadTime-garbageCollectionTime-frameValues)
+                             (KeyPath referenceTypeID field location.declaringType location.methodRef location.codeIndex)
+                             (KeyGroup field)
                         )
                     )
                     (Alt VMDeath=JDWP.EventKind.VM_DEATH
@@ -3625,6 +3650,10 @@ JDWP "Java(tm) Debug Wire Protocol"
                     )
                 )
             )
+        )
+        (Metadata
+            (SplitGraphAt events)
+            (OnlyReads true)
         )
     )
 )

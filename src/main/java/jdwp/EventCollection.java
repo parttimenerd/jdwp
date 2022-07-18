@@ -229,7 +229,7 @@ public interface EventCollection extends Request<NullReply>, Reply {
     @Override
     default Metadata getMetadata() {
         return new Metadata(onlyReads(), getCost(), invalidatesReplyCache(), getAffectedBy(), getAffects(),
-                getReplyLikeErrors(), EventCmds.COMMAND_SET, Events.COMMAND, getAffectedByBits(), getAffectsBits(),
-                isAffectedByTime());
+                getReplyLikeErrors(), List.of(), "", "events", EventCmds.COMMAND_SET,
+                Events.COMMAND, getAffectedByBits(), getAffectsBits(), isAffectedByTime());
     }
 }

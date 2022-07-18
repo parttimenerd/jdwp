@@ -296,6 +296,7 @@ internal object CodeGeneration {
             genEquals(name, fields)
             genHashCode(fields)
             genVisitorAccept(replyVisitorName)
+            genMetadataSetterCode(cmd.metadata, null, cmd)
 
             `public`(pt("List", "EventCommon"), "getEvents") {
                 `@Override`()
@@ -727,6 +728,9 @@ internal object CodeGeneration {
             } else if (value is ReplyLikeErrorList) {
                 if (value.errorConstants.isEmpty()) "List.<Integer>of()"
                 else "List.of(${value.errorConstants.joinToString(", ") { "JDWP.Error.${it}" }})"
+            } else if (value is PathList) {
+                if (value.strings.isEmpty()) "List.<AccessPath>of()"
+                else "List.of(${value.strings.joinToString(", ") { "new AccessPath(${it.joinToString(", ") {p -> "\"$p\"" }})" }})"
             } else value.L
         }
     } + extraMetadataFields

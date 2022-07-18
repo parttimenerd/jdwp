@@ -46,7 +46,7 @@ internal class CommandNode : AbstractCommandNode() {
             if (metadata !is MetadataNode) {
                 error("Expected 'Metadata' item, got: $metadata")
             }
-        } else if (components.size == 1) {
+        } else if (components.size == 1 || components.size == 2) {
             val evt = components[0]
             if (evt !is EventNode) {
                 error("Expected 'Event' item, got: $evt")
@@ -71,7 +71,7 @@ internal class CommandNode : AbstractCommandNode() {
     val error: ErrorSetNode
         get() = components[2] as ErrorSetNode
     val metadata: MetadataNode
-        get() = components[3] as MetadataNode
+        get() = components[if (isEventNode) 1 else 3] as MetadataNode
 
     val eventNode: EventNode
         get() = components[0] as EventNode

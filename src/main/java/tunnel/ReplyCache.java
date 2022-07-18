@@ -423,6 +423,9 @@ public class ReplyCache implements Listener {
                 evictLeastRecentlyAdded(removeAtOnce);
             }
             if (cache.containsKey(request)) {
+                if (cache.get(request).reply == reply) {
+                    return; // reply is the cache result
+                }
                 evict(request);
             }
             cache.put(request, new CacheEntry<>(reply, System.currentTimeMillis(), prefetched, 0));

@@ -2,9 +2,8 @@ package tunnel.synth.program;
 
 import jdwp.AccessPath;
 import jdwp.EventCmds.Events;
-import jdwp.EventRequestCmds;
-import jdwp.EventRequestCmds.SetRequest.ModifierCommon;
 import jdwp.JDWP;
+import jdwp.JDWP.Metadata;
 import jdwp.Request;
 import jdwp.Value.TaggedBasicValue;
 import jdwp.exception.TunnelException.MergeException;
@@ -24,14 +23,15 @@ import tunnel.synth.program.Visitors.*;
 import tunnel.util.Util;
 
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static jdwp.PrimitiveValue.wrap;
 import static jdwp.util.Pair.p;
+import static tunnel.synth.Analyser.LOG;
 import static tunnel.synth.Synthesizer.NAME_PREFIX;
 import static tunnel.synth.program.Functions.WRAP;
 import static tunnel.synth.program.Functions.createWrapperFunctionCall;
@@ -321,6 +321,19 @@ public interface AST {
                 }
             });
         }
+
+        /** also in sub statements*/
+        public Set<Identifier> getAllUsedIdentifiers() {
+            return Stream.concat(Stream.of(this), getSubStatements().stream())
+                    .flatMap(s -> s.getUsedIdentifiers().stream())
+                    .collect(Collectors.toSet());
+        }
+
+        /**
+         * returns a sorted version (sorts based on dependency layers and hash functions),
+         * requires initHashes and call initHashes afterwards
+         */
+        public abstract Statement sort();
     }
 
     /** statements that combines other statements */
@@ -437,6 +450,7 @@ public interface AST {
             forEachStatement(s -> {
                 for (Identifier variable : s.getDefinedIdentifiers()) {
                     if (usedIdentifiers.containsKey(variable)) {
+                        LOG.error("Identifier {} has multiple sources in\n{}", variable, s.toPrettyString());
                         throw new ParserException(String.format("Identifier %s has multiple sources", variable));
                     }
                     usedIdentifiers.put(variable, null);
@@ -596,6 +610,10 @@ public interface AST {
         public Set<Identifier> getDefinedIdentifiers() {
             return Set.of(variable);
         }
+
+        public AssignmentStatement sort() {
+            return this; // maybe sort the expression?
+        }
     }
 
     @AllArgsConstructor
@@ -727,6 +745,21 @@ public interface AST {
         }
 
         abstract AST create(String commandSet, String command, List<CallProperty> properties);
+
+        public Metadata getMetadata() {
+            return JDWP.getMetadata(getCommandSet(), getCommand());
+        }
+
+        public Map<Integer, List<CallProperty>> getPropertiesForListPath(AccessPath fieldPath) {
+            Map<Integer, List<CallProperty>> map = new HashMap<>();
+            for (CallProperty property : properties) {
+                if (property.getPath().startsWith(fieldPath)) {
+                    map.computeIfAbsent((int)property.getPath().get(fieldPath.size()),
+                            k -> new ArrayList<>()).add(property);
+                }
+            }
+            return map;
+        }
     }
 
     class RequestCall extends PacketCall {
@@ -758,30 +791,15 @@ public interface AST {
         }
 
         public static RequestCall create(Request<?> request) {
-            if (request instanceof EventRequestCmds.SetRequest) {
-                var setRequest = (EventRequestCmds.SetRequest) request;
-                List<TaggedBasicValue<?>> tagged = new ArrayList<>();
-                tagged.add(new TaggedBasicValue<>(new AccessPath("eventKind"), setRequest.eventKind));
-                tagged.add(new TaggedBasicValue<>(new AccessPath("suspendPolicy"), setRequest.suspendPolicy));
-                int i = 0;
-                for (ModifierCommon modifier : setRequest.modifiers) {
-                    var prefix = new AccessPath("modifiers", i);
-                    tagged.add(new TaggedBasicValue<>(prefix.append("kind"), wrap(modifier.getClass().getSimpleName())));
-                    modifier.getTaggedValues().forEach(t -> tagged.add(t.prependPath(prefix)));
-                    i++;
-                }
-                return create(request.getCommandSetName(), request.getCommandName(), tagged.stream(), List.of());
-            }
             return create(
                     request.getCommandSetName(),
                     request.getCommandName(),
-                    request.asCombined().getTaggedValues(),
+                    request.asCombined().getTaggedValueWithKind(),
                     List.of());
         }
 
         public float getCost() {
-            return JDWP.getMetadata(JDWP.getCommandSetByte(getCommandSet()),
-                    JDWP.getCommandByte(getCommandSet(), getCommand())).getCost();
+            return getMetadata().getCost();
         }
 
         @Override
@@ -827,10 +845,7 @@ public interface AST {
             return create(
                     events.getCommandSetName(),
                     events.getCommandName(),
-                    Stream.concat(events.events.getValues().stream().map(p ->
-                                    new TaggedBasicValue<>(new AccessPath("events", p.first, "kind"),
-                                                wrap(p.second.getClass().getSimpleName()))),
-                            events.asCombined().getTaggedValues()),
+                    events.asCombined().getTaggedValueWithKind(),
                     List.of());
         }
         public float computeSimilarity(PacketCall other) {
@@ -848,9 +863,43 @@ public interface AST {
                     .collect(Collectors.toSet());
         }
 
+        public List<CallProperty> getPropertiesOfEvent(int index, boolean cutIndexPart) {
+            var path = new AccessPath("events", index);
+            return getProperties().stream().filter(p -> p.getPath().startsWith(path))
+                    .map(p -> cutIndexPart ? new CallProperty(p.path.subPath(2, p.path.size()), p.accessor) : p)
+                    .collect(Collectors.toList());
+        }
+
+        public String getKind(int index) {
+            var path = new AccessPath("events", index, "kind");
+            return getProperties().stream().filter(p -> p.path.equals(path))
+                    .map(p -> ((StringLiteral) ((FunctionCall) p.getAccessor()).arguments.get(1)).value)
+                    .findFirst().orElse(null);
+        }
+
+        public @Nullable Metadata getMetadata(int index) {
+            try {
+                return (Metadata) Class.forName("jdwp.EventCmds$Events$" + getKind(index))
+                        .getField("METADATA").get(null);
+            } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
+                return null;
+            }
+        }
+
         @Override
         AST create(String commandSet, String command, List<CallProperty> properties) {
             return new EventsCall(commandSet, command, properties);
+        }
+
+        public int getNumberOfEvents() {
+            return (int)getProperties().stream()
+                    .filter(p -> p.getPath().startsWith(new AccessPath("events")) && p.getPath().endsWith("kind"))
+                    .count();
+        }
+
+        @Override
+        public Metadata getMetadata() {
+            return Events.METADATA;
         }
     }
 
@@ -1001,6 +1050,11 @@ public interface AST {
         public Set<Identifier> getDefinedIdentifiers() {
             return Set.of(iter);
         }
+
+        @Override
+        public Loop sort() {
+            return new Loop(iter, iterable, body.sort());
+        }
     }
 
     @Getter
@@ -1108,6 +1162,11 @@ public interface AST {
         public Set<Identifier> getDefinedIdentifiers() {
             return Set.of(requestVariable);
         }
+
+        @Override
+        public Recursion sort() {
+            return new Recursion(name, maxNumberOfCalls, requestVariable, request, body.sort());
+        }
     }
 
     @Getter
@@ -1160,6 +1219,11 @@ public interface AST {
         @Override
         public Set<Identifier> getDefinedIdentifiers() {
             return Set.of(variable);
+        }
+
+        @Override
+        public RecRequestCall sort() {
+            return this;
         }
     }
 
@@ -1273,6 +1337,22 @@ public interface AST {
                     cases.stream().map(c -> c.<CaseStatement>replaceIdentifiersConv(identifierReplacer))
                             .collect(Collectors.toList()));
         }
+
+        @Override
+        public Statement sort() {
+            return new SwitchStatement(expression, cases.stream()
+                    .sorted((x, y) -> {
+                        if (x.isDefaultCase()) {
+                            return 1;
+                        }
+                        if (y.isDefaultCase()) {
+                            return -1;
+                        }
+                        return Long.compare(x.getHashes().get(x).hash(), y.getHashes().get(y).hash());
+                    })
+                    .map(CaseStatement::sort)
+                    .collect(Collectors.toList()));
+        }
     }
 
     @Getter
@@ -1353,6 +1433,15 @@ public interface AST {
 
         public boolean hasExpression() {
             return expression != null;
+        }
+
+        @Override
+        public CaseStatement sort() {
+            return new CaseStatement(expression, body.sort());
+        }
+
+        public boolean isDefaultCase() {
+            return expression == null;
         }
     }
 
@@ -1443,6 +1532,11 @@ public interface AST {
         @Override
         public Set<Identifier> getDefinedIdentifiers() {
             return Set.of(variable);
+        }
+
+        @Override
+        public MapCallStatement sort() {
+            return this;
         }
     }
 
@@ -1659,7 +1753,11 @@ public interface AST {
         }
 
         public Body merge(Body other) {
-            return merge(new CollectedInfoDuringMerge(), other.renameVariables(this).initHashes(other.getHashes().getParent())).initHashes(getHashes().getParent());
+            if (other.equals(this)) {
+                return this;
+            }
+            var renamed = other.renameVariables(this).<Body>initHashes(other.getHashes().getParent());
+            return merge(new CollectedInfoDuringMerge(), renamed).initHashes(getHashes().getParent());
         }
 
         /**
@@ -1673,6 +1771,9 @@ public interface AST {
             }
             if (isEmpty()) {
                 return other;
+            }
+            if (other.equals(this)) {
+                return this;
             }
             // old statement (of both bodies) -> new statements
             var otherIndexes = other.getHashes().getHashedToIndex();
@@ -1793,6 +1894,50 @@ public interface AST {
         public AST replaceIdentifiers(java.util.function.Function<Identifier, Identifier> identifierReplacer) {
             return new Body(body.stream().map(s -> s.<Statement>replaceIdentifiersConv(identifierReplacer))
                     .collect(Collectors.toList()));
+        }
+
+        /**
+         * compute layers of the body, based on dependencies,
+         * layer 0 depends on nothing in this body, layer n depends only on layers < n
+         */
+        public List<List<Statement>> computeLayers() {
+            Map<Identifier, Statement> definingStatementPerIdent = body.stream()
+                    .flatMap(s -> s.getDefinedIdentifiers().stream().map(i -> Map.entry(i, s)))
+                    .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+            Set<Identifier> definedIdentifiers = definingStatementPerIdent.keySet();
+            Map<Statement, Set<Identifier>> usedPerStatement = body.stream()
+                    .collect(Collectors.toMap(s -> s,
+                            s -> s.getAllUsedIdentifiers().stream().filter(definedIdentifiers::contains)
+                                    .collect(Collectors.toSet())));
+            List<List<Statement>> layers = new ArrayList<>();
+            Set<Identifier> defined = new HashSet<>();
+            while (usedPerStatement.size() > 0) {
+                var newLayerParts = usedPerStatement.entrySet().stream()
+                        .filter(e -> defined.containsAll(e.getValue()))
+                        .collect(Collectors.toList());
+                layers.add(newLayerParts.stream().map(Entry::getKey).collect(Collectors.toList()));
+                newLayerParts.forEach(e -> {
+                    usedPerStatement.remove(e.getKey());
+                    defined.addAll(e.getKey().getDefinedIdentifiers());
+                });
+            }
+            return layers;
+        }
+
+        @Override
+        public Body sort() {
+            return sort(false);
+        }
+
+        public Body sort(boolean keepFirstStatement) {
+            var layers = computeLayers();
+            var sortedStream = layers.stream().flatMap(l -> l.stream().sorted(Comparator.comparing(getHashes()::get)))
+                    .map(Statement::sort)
+                    .filter(s -> !keepFirstStatement || s != get(0));
+            if (keepFirstStatement) {
+                sortedStream = Stream.concat(Stream.of(get(0)), sortedStream);
+            }
+            return new Body(sortedStream.collect(Collectors.toList()));
         }
     }
 }

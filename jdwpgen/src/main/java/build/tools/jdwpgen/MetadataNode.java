@@ -234,6 +234,42 @@ public class MetadataNode extends Node {
         }
     }
 
+    @AllArgsConstructor
+    static class PathList {
+        public final List<List<String>> strings;
+    }
+
+    public static class PathListEntry extends Entry<PathList> {
+
+        public PathListEntry(String name, String constantName, String description,
+                                   Optional<DefaultValue<PathList>> statePropertyDefaultValue) {
+            super(name, constantName, description, PathList.class,
+                    PathListEntry::parsePathList, statePropertyDefaultValue);
+        }
+
+        private static PathList parsePathList(String str) {
+            return new PathList(Arrays.stream(str.split(" ")).map(PathListEntry::parsePath).collect(Collectors.toList()));
+        }
+
+        private static List<String> parsePath(String path) {
+            return Arrays.asList(path.split("\\."));
+        }
+
+        public PathListEntry(String name, String constantName, String description) {
+            this(name, constantName, description, Optional.of(new DefaultValue<>(new PathList(List.of()))));
+        }
+
+        @Override
+        public TypeName getTypeName() {
+            return ParameterizedTypeName.get(ClassName.get(List.class), ClassName.bestGuess("AccessPath"));
+        }
+
+        @Override
+        public TypeName getBoxedTypeName() {
+            return getTypeName();
+        }
+    }
+
     static final List<Entry<?>> entries = List.of(
             new Entry<>("OnlyReads", "ONLY_READS",
                     "Can the request be issued multiple times without affecting the JVM from debugger's perpective",
@@ -257,8 +293,13 @@ public class MetadataNode extends Node {
                             NOTHING : EVERYTHING))))),
             new ReplyLikeErrorEntry("ReplyLikeErrors", "REPLY_LIKE_ERRORS",
                     "List of error constants that are considered to be a reply rather than an error",
-                    Optional.of(new DefaultValue<>(new ReplyLikeErrorList(List.of()))))
-
+                    Optional.of(new DefaultValue<>(new ReplyLikeErrorList(List.of())))),
+            new PathListEntry("KeyPath", "KEY_PATH",
+                    "list of keys from most specific to least specific, that form a path"),
+            new Entry<>("KeyGroup", "KEY_GROUP", "The group that the key belongs to",
+                    String.class, s -> s, Optional.of(new DefaultValue<>(""))),
+            new Entry<>("SplitGraphAt", "SPLIT_GRAPH_AT", "List valued property on which a cause should be split",
+                    String.class, s -> s, Optional.of(new DefaultValue<>("")))
     );
 
     public static final String METADATA_CLASSNAME = "Metadata";

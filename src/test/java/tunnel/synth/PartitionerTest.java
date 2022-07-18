@@ -3,7 +3,9 @@ package tunnel.synth;
 import jdwp.*;
 import jdwp.EventCmds.Events.VMStart;
 import jdwp.JDWP.Error;
-import jdwp.Reference.*;
+import jdwp.Reference.ClassReference;
+import jdwp.Reference.MethodReference;
+import jdwp.Reference.ThreadReference;
 import jdwp.ReferenceTypeCmds.SourceDebugExtensionRequest;
 import jdwp.ThreadReferenceCmds.NameReply;
 import jdwp.ThreadReferenceCmds.NameRequest;
@@ -22,8 +24,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import static jdwp.PrimitiveValue.wrap;
+import static jdwp.Reference.thread;
 import static jdwp.util.Pair.p;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -76,6 +80,7 @@ public class PartitionerTest {
         var partition = partitions.get(0);
         assertTrue(partition.hasCause());
         assertEquals(2, partition.size());
+        assertEquals(List.of(partition), partition.splitOnCause(), "split on cause on splits for multiple events");
     }
 
     @Test
@@ -85,7 +90,9 @@ public class PartitionerTest {
         var state = new State().addListener(partitioner);
         state.addRequest(wp(new jdwp.ThreadReferenceCmds.ResumeRequest(16193, new ThreadReference(1L))));
         state.addReply(wpr(new jdwp.ThreadReferenceCmds.ResumeReply(16193)));
-        state.addEvent(wp(new jdwp.EventCmds.Events(5, PrimitiveValue.wrap((byte)2), new ListValue<>(Type.LIST, List.of(new EventCmds.Events.Breakpoint(PrimitiveValue.wrap(50), Reference.thread(10), new Location(Reference.classType(1), Reference.method(1), wrap(1L))))))));
+        state.addEvent(wp(new jdwp.EventCmds.Events(5, PrimitiveValue.wrap((byte) 2), new ListValue<>(Type.LIST,
+                List.of(new EventCmds.Events.Breakpoint(PrimitiveValue.wrap(50), thread(10),
+                        new Location(Reference.classType(1), Reference.method(1), wrap(1L))))))));
         state.addRequest(wp(new jdwp.ThreadReferenceCmds.FrameCountRequest(16196, new ThreadReference(1L))));
         state.addRequest(wp(new jdwp.ThreadReferenceCmds.NameRequest(16197, new ThreadReference(1L))));
         state.addReply(wpr(new jdwp.ThreadReferenceCmds.FrameCountReply(16196, PrimitiveValue.wrap(1))));
@@ -181,5 +188,24 @@ public class PartitionerTest {
         partitioner.close();
         assertEquals(2, partitions.size());
         assertEquals(3, partitions.get(0).size());
+    }
+
+    @Test
+    public void testSplitPartitionOnCause() {
+        var partition =
+                new Partition(Either.right(new jdwp.EventCmds.Events(0, wrap((byte) 2), new ListValue<>(Type.OBJECT,
+                        List.of(new EventCmds.Events.VMStart(wrap(0), thread(1L)),
+                                new EventCmds.Events.VMStart(wrap(0), thread(2L)))
+                ))), List.of(
+                        p(new jdwp.VirtualMachineCmds.IDSizesRequest(1582), new ReplyOrError<>(1582,
+                                new jdwp.VirtualMachineCmds.IDSizesReply(1582, wrap(8), wrap(8), wrap(8), wrap(8),
+                                        wrap(8))))));
+        Function<Integer, Partition> creator = threadId -> new Partition(Either.right(new jdwp.EventCmds.Events(0,
+                wrap((byte) 2), new ListValue<>(Type.OBJECT,
+                List.of(new EventCmds.Events.VMStart(wrap(0), thread(threadId)))
+        ))), List.of(
+                p(new jdwp.VirtualMachineCmds.IDSizesRequest(1582), new ReplyOrError<>(1582,
+                        new jdwp.VirtualMachineCmds.IDSizesReply(1582, wrap(8), wrap(8), wrap(8), wrap(8), wrap(8))))));
+        assertEquals(List.of(creator.apply(1), creator.apply(2)), partition.splitOnCause());
     }
 }

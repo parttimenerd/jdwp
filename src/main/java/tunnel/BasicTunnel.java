@@ -77,6 +77,8 @@ public class BasicTunnel {
      */
     @Setter
     private int minSizeOfPreferredCachedProgram = 2;
+    @Setter
+    private boolean preferCachedProgram = false;
     /**
      * maximum number of handleEvaluateProgramRequest on call stack
      */
@@ -160,19 +162,20 @@ public class BasicTunnel {
                 if (clientRequest.isPresent()) {
                     var request = clientRequest.get();
                     currentId = request.getId();
-                    ReducedProgram reducedProgram;
+                    ReducedProgram reducedProgram = null;
                     if (request instanceof EvaluateProgramRequest) { // handle evaluation requests
                         handleEvaluateProgramRequest(io, (EvaluateProgramRequest) request);
                     } else if (request instanceof UpdateCacheRequest) { // handle program cache update requests
                         state.updateProgramCache(((UpdateCacheRequest) request).programs
                                 .asList().stream().map(StringValue::getValue).collect(Collectors.toList()));
                         state.getUnfinished().remove(request.getId());
-                    } else if ((reducedProgram = getReducedCachedProgram(request)) != null &&
+                    } else if (preferCachedProgram && (reducedProgram = getReducedCachedProgram(request)) != null &&
                             reducedProgram.getProgram().getBodySize() >= minSizeOfPreferredCachedProgram) {
                         handleReducedProgramForRequest(io, request, reducedProgram);
                     } else if (state.hasCachedReply(request)) {
                         handleRequestWithCachedReply(io, request);
-                    } else if (reducedProgram != null) {
+                    } else if ((reducedProgram = reducedProgram == null ? getReducedCachedProgram(request) :
+                            reducedProgram) != null) {
                         handleReducedProgramForRequest(io, request, reducedProgram);
                     } else {
                         state.writeRequest(io.jvmOutputStream, request);
@@ -268,8 +271,8 @@ public class BasicTunnel {
     private void handleRequestWithCachedReply(IO io, Request<?> request) {
         var reply = state.getCachedReply(request);
         assert reply != null;
-        LOG.info("Cached reply for  {}: {}", formatter.format(request), formatter.format(reply));
-        state.addReply(new WrappedPacket<>(reply));
+        LOG.info("Using cached reply for  {}: {}", formatter.format(request), formatter.format(reply));
+        state.addReply(new WrappedPacket<>(reply), false);
         writeClientReply(io.clientOutputStream, Either.right(reply));
     }
 

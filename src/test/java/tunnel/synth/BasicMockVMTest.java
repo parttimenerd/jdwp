@@ -288,8 +288,8 @@ public class BasicMockVMTest {
             // this should terminate the vm
             assertTrue(tp.vm.isDisposed());
             // and both tunnels
-            assertEqualsTimeout(false, tp.serverTunnelThreaded::isAlive);
-            assertEqualsTimeout(false, tp.clientTunnelThreaded::isAlive);
+            assertEqualsTimeout(false, tp.serverTunnelThreaded::isAlive, Duration.ofSeconds(1));
+            assertEqualsTimeout(false, tp.clientTunnelThreaded::isAlive, Duration.ofSeconds(1));
         }
     }
 
@@ -484,7 +484,10 @@ public class BasicMockVMTest {
             assertEquals(List.of(classesRequest), tp.vm.getReceivedRequests());
             tp.vm.sendEvent(100, death); // should break the partition at the client tunnel
             assertEquals(death, tp.client.readEvents().events.get(0));
-            assertEqualsTimeout(1, () -> tp.serverTunnel.getState().getProgramCache().size());
+            assertEqualsTimeout(1, () -> {
+                System.out.println(tp.serverTunnel.getState().getProgramCache().size());
+                return tp.serverTunnel.getState().getProgramCache().size();
+            });
             tp.vm.sendEvent(events);
             assertEquals(events, tp.client.readEvents());
             assertEquals(0, tp.clientTunnel.getState().getProgramCache().getClientPrograms().size());
@@ -545,10 +548,12 @@ public class BasicMockVMTest {
             // the old program has been overridden by the new one in the server cache
             assertEquals(1, tp.serverTunnel.getState().getProgramCache().size());
 
-            assertEqualsTimeout(new Program(ident("cause"), EventsCall.create(events),
-                            List.of(new AssignmentStatement(ident("var0"),
-                            RequestCall.create(classesRequest)), new AssignmentStatement(ident("var1"),
-                            RequestCall.create(new IDSizesRequest(0))))),
+            assertEqualsTimeout(Program.parse("((= cause (events Event Composite (\"suspendPolicy\")=(wrap \"byte\" " +
+                            "2) " +
+                            "(\"events\" 0 \"kind\")=(wrap \"string\" \"ClassUnload\") (\"events\" 0 \"requestID\")=" +
+                            "(wrap \"int\" 0) (\"events\" 0 \"signature\")=(wrap \"string\" \"sig\"))) (= var0 " +
+                            "(request VirtualMachine ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))) " +
+                            "(= var1 (request VirtualMachine IDSizes)))"),
                     () -> tp.serverTunnel.getState().getProgramCache().get(events).get());
             assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());
         }
@@ -667,7 +672,7 @@ public class BasicMockVMTest {
                         "(\"events\" 0 \"signature\")=(wrap \"string\" \"x\"))) (= var0 (request VirtualMachine " +
                         "ClassesBySignature (\"signature\")=(wrap \"string\" \"test\"))))"));
             }
-            assertEquals(1, tp.clientTunnel.getState().getProgramCache().size());
+            assertEqualsTimeout(1, () -> tp.clientTunnel.getState().getProgramCache().size());
             var nameRequest = new NameRequest(0, threadGroup(1));
             tp.client.query(nameRequest);
             // partition on client now should consist of this request
@@ -726,12 +731,6 @@ public class BasicMockVMTest {
                     tp.vm.getAllReceivedRequests().size());
             assertEquals((cachedProgramForEvent || sendEventMidway) ? 4 : 5,
                     tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().size());
-           /* assertEquals(cachedProgramForEvent ?
-                            List.of(new VersionRequest(10), sourceDebugRequest,
-                                    classesBySignatureRequest, classesBySignatureRequest2) :
-                            List.of(setRequest, new VersionRequest(10), sourceDebugRequest,
-                                    classesBySignatureRequest, classesBySignatureRequest2),
-                    tp.clientTunnel.getState().getClientPartitioner().getCurrentPartition().getRequests());*/
 
             tp.vm.sendEvent(10, new VMDeath(wrap(2))); // trigger the partition
             if (cachedProgramForEvent) {
@@ -777,6 +776,6 @@ public class BasicMockVMTest {
     private void assertEqualsTimeout(Object expected, SupplierWithError<Object> actual, Duration timeout) {
         Assertions.assertTimeoutPreemptively(timeout, () -> {
             while (!expected.equals(actual.call())) Thread.yield();
-        }, () -> "expected: " + expected + ", actual: " + actual.call());
+        }, () -> String.format("expected: %s but was: %s", expected, actual.call()));
     }
 }
