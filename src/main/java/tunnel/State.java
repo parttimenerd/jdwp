@@ -850,7 +850,7 @@ public class State {
     public void onDispose() {
         tick();
         replyCache.close();
-        if (LOG.isInfoEnabled() && getReplyCache().size() > 0) {
+        if (LOG.isInfoEnabled()) {
             LOG.info("\n" + getReplyCache().getStatistics().toLongTable());
         }
         if (mode == CLIENT) {

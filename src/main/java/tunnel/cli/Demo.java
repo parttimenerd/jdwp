@@ -74,5 +74,13 @@ public class Demo implements Runnable {
         System.out.println("Start " + String.join(" ", processParts));
         var process = new ProcessBuilder(processParts).inheritIO().start();
         Runtime.getRuntime().addShutdownHook(new Thread(process::destroyForcibly));
+        new Thread(() -> {
+            try {
+                process.waitFor();
+                System.err.println("JVM process exited");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
     }
 }

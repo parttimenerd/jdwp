@@ -557,6 +557,9 @@ public class BasicTunnel {
             protected Optional<Value> processRequest(Request<?> request) {
                 var requestId = id++;
                 var usedRequest = request.withNewId(requestId);
+                if (request.hasNullReference()) {
+                    return Optional.empty();
+                }
                 writeJvmRequest(io.jvmOutputStream, usedRequest);
                 var optReply =
                         readJvmReply(io, true);

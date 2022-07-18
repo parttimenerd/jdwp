@@ -248,4 +248,9 @@ public interface EventCollection extends Request<NullReply>, Reply {
                 alwaysSplitPartitionAfter(), ignoreForPartitioning(), EventCmds.COMMAND_SET,
                 Events.COMMAND, getAffectedByBits(), getAffectsBits(), isAffectedByTime());
     }
+
+    @Override
+    default boolean hasNullReference() {
+        return false;
+    }
 }

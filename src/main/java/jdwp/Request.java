@@ -55,4 +55,8 @@ public interface Request<R extends Value & Reply> extends ParsedPacket, WithMeta
     default <R> R accept(ReturningRequestVisitor<R> visitor) {
         return null;
     }
+
+    default boolean hasNullReference() {
+        return asCombined().getTaggedValues().anyMatch(v -> v.getValue().isDirectPointer() && v.getValue() instanceof Reference && ((Reference)v.getValue()).value == 0);
+    }
 }
