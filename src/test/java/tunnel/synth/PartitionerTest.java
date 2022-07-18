@@ -101,7 +101,7 @@ public class PartitionerTest {
         assertEquals(2, partitions.size());
         assertTrue(partitions.get(0).hasCause());
         assertTrue(partitions.get(1).hasCause());
-        assertEquals(1, partitions.get(0).size());
+        assertEquals(0, partitions.get(0).size());
         assertEquals(2, partitions.get(1).size());
     }
 
@@ -118,12 +118,13 @@ public class PartitionerTest {
         var sdbg = new SourceDebugExtensionRequest(16198, Reference.klass(1));
         state.addRequest(wp(sdbg));
         state.addReply(new WrappedPacket<>(new ReplyOrError<>(sdbg, (short) Error.ABSENT_INFORMATION)));
-        assertEquals(0, partitions.size());
+        assertEquals(1, partitions.size());
         state.addRequest(wp(sdbg));
         state.addReply(new WrappedPacket<>(new ReplyOrError<>(sdbg, (short)Error.VM_DEAD)));
         partitioner.close();
-        assertEquals(1, partitions.size());
-        assertEquals(2, partitions.get(0).size());
+        assertEquals(2, partitions.size());
+        assertEquals(0, partitions.get(0).size());
+        assertEquals(1, partitions.get(1).size());
     }
 
     private void addRequest(State state, int id, long time) {

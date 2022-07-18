@@ -78,4 +78,5 @@ internal class CommandNode : AbstractCommandNode() {
 
     val isEventNode: Boolean
         get() = components[0] is EventNode
+
 }

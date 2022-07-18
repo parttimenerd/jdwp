@@ -28,6 +28,7 @@ package build.tools.jdwpgen;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.List;
 
 interface TypeNode {
 
@@ -42,6 +43,10 @@ interface TypeNode {
                              String readLabel) {
         writer.print(readLabel);
         writer.print(" = " + name() + ".parse(ps);");
+    }
+
+    default List<List<String>> getNonListPaths() {
+        return List.of(List.of());
     }
 
    default void genJavaDeclaration(PrintWriter writer, int depth) {}

@@ -25,6 +25,17 @@
 
 package build.tools.jdwpgen;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 class GroupNode extends AbstractGroupNode implements TypeNode {
 
+    @Override
+    public List<List<String>> getNonListPaths() {
+        return components.stream().filter(n -> n instanceof TypeNode)
+                .flatMap(x -> ((TypeNode) x).getNonListPaths().stream()
+                        .map(n -> Stream.concat(Stream.of(name), n.stream()).collect(Collectors.toList())))
+                .collect(Collectors.toList());
+    }
 }

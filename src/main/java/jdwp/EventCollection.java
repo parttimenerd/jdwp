@@ -227,9 +227,25 @@ public interface EventCollection extends Request<NullReply>, Reply {
     }
 
     @Override
+    default boolean alwaysSplitPartition() {
+        return getEvents().stream().anyMatch(WithMetadata::alwaysSplitPartition);
+    }
+
+    @Override
+    default boolean alwaysSplitPartitionAfter() {
+        return getEvents().stream().anyMatch(WithMetadata::alwaysSplitPartitionAfter);
+    }
+
+    @Override
+    default boolean ignoreForPartitioning() {
+        return getEvents().stream().anyMatch(WithMetadata::ignoreForPartitioning);
+    }
+
+    @Override
     default Metadata getMetadata() {
         return new Metadata(onlyReads(), getCost(), invalidatesReplyCache(), getAffectedBy(), getAffects(),
-                getReplyLikeErrors(), List.of(), "", "events", EventCmds.COMMAND_SET,
+                getReplyLikeErrors(), List.of(), "", "events", alwaysSplitPartition(),
+                alwaysSplitPartitionAfter(), ignoreForPartitioning(), EventCmds.COMMAND_SET,
                 Events.COMMAND, getAffectedByBits(), getAffectsBits(), isAffectedByTime());
     }
 }

@@ -352,6 +352,9 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             return;
         }
         var request = requestPacket.getPacket();
+        if (request.ignoreForPartitioning()) {
+            return;
+        }
         boolean affected = false;
         if (request instanceof EvaluateProgramRequest) {
             if (currentPartition != null) {
@@ -361,9 +364,19 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
             currentPartition = null;
             return;
         }
-        if (currentPartition == null || (affected = currentPartition.isAffectedBy(request))) {
-            startNewPartition(affected ? "current partition is affected by request" : "current partition is empty",
+        if (currentPartition == null ||
+                request.alwaysSplitPartition() ||
+                (affected = currentPartition.isAffectedBy(request))) {
+            startNewPartition(affected ? "current partition is affected by request" :
+                            (currentPartition == null ? "current partition is empty" :
+                                    "current request is required to split partition"),
                     Either.left(request));
+        }
+        if (request.alwaysSplitPartitionAfter()) {
+            if (currentPartition != null) {
+                submit(currentPartition);
+            }
+            currentPartition = null;
         }
         if (timings.addRequestTimeAndCheckShouldBreak(requestPacket.getTime())) {
             startNewPartition("???", Either.left(request)); // but this should only happen in tests
@@ -379,9 +392,16 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         if (events.events.size() == 0) {
             return;
         }
+        if (events.ignoreForPartitioning()) {
+            return;
+        }
         assert !(events.events.get(0) instanceof TunnelRequestReplies);
-        if (currentPartition == null || (affected = currentPartition.isAffectedBy(events))) {
-            startNewPartition(affected ? "current partition is affected by event" : "current partition is empty",
+        if (currentPartition == null ||
+                events.getMetadata().alwaysSplitPartition ||
+                (affected = currentPartition.isAffectedBy(events))) {
+            startNewPartition(affected ? "current partition is affected by event" :
+                            (currentPartition == null ? "current partition is empty" :
+                                    "current event is required to split partition"),
                     Either.right(events));
         }
     }
@@ -393,12 +413,18 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
         }
         var request = requestPacket.getPacket();
         var reply = replyPacket.getPacket();
+        if (request.ignoreForPartitioning()) {
+            return;
+        }
         if (reply.isNonReplyLikeError()) {  // start a new partition on error
             LOG.error("partition {} ended with error reply {} for request {}", currentPartition, reply, request);
             removeRequestFromPartition(request);
             startNewPartition(String.format("last reply was an error (%d for request %s)",
                     reply.getErrorCode(), request), null);
         } else {
+            if (request.alwaysSplitPartitionAfter()) {
+                return;
+            }
             if (currentPartition == null) {
                 startNewPartition("current partition is empty", null);
             } else if ((!request.equals(currentPartition.getCausePacket()) && currentPartition.isAffectedBy(request)) ||
@@ -450,7 +476,7 @@ public class Partitioner extends Analyser<Partitioner, Partition> implements Lis
 
     @Override
     public void close() {
-        if (currentPartition != null) {
+        if (currentPartition != null && currentPartition.size() > 0) {
             submit(currentPartition);
         }
     }

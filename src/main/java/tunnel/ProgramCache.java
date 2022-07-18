@@ -87,9 +87,13 @@ public class ProgramCache implements Consumer<Program> {
                 if (metadata.getKeyGroup().isEmpty()) {
                     keyGroup = metadata.getCommandSet() + "." + metadata.getCommand();
                 }
-                return new AccessPathKey(keyGroup, metadata.getKeyPath().stream()
-                        .map(p -> req.getProperties().stream().filter(c -> c.getPath().equals(p)).findFirst().get())
-                        .collect(Collectors.toList()));
+                try {
+                    return new AccessPathKey(keyGroup, metadata.getKeyPath().stream()
+                            .map(p -> req.getProperties().stream().filter(c -> c.getPath().equals(p)).findFirst().get())
+                            .collect(Collectors.toList()));
+                } catch (NoSuchElementException e) {
+                    throw new IllegalArgumentException("no property found for key path " + metadata.getKeyPath());
+                }
             }
         }
     }

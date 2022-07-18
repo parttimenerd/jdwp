@@ -714,6 +714,7 @@ internal object CodeGeneration {
             entry.typeName, entry.nodeName.lowercaseFirstCharacter(), entry.description,
             (if (entry.typeName == TypeName.BOOLEAN) entry.nodeName.lowercaseFirstCharacter() else "get" + entry.nodeName)
         ) { cmd, md ->
+            entry.check(md.get(entry.nodeName), cmd)
             val value = md.get(entry.nodeName) as Any
             if (entry.nodeName.equals("Cost")) {
                 (if (costFile == null) "0"

@@ -5,6 +5,7 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.PrintWriter;
 import java.util.*;
@@ -86,6 +87,10 @@ public class MetadataNode extends Node {
 
         public TypeName getBoxedTypeName() {
             return ClassName.bestGuess(resultType.getSimpleName());
+        }
+
+        public void check(T value, CommandNode cmd) {
+
         }
     }
 
@@ -268,6 +273,18 @@ public class MetadataNode extends Node {
         public TypeName getBoxedTypeName() {
             return getTypeName();
         }
+
+        @Override
+        public void check(PathList value, @Nullable CommandNode cmd) {
+            if (cmd == null || cmd.isEventNode()) {
+                return;
+            }
+            var nonListPaths = cmd.getOut().getNonListPaths();
+            if (!nonListPaths.containsAll(value.strings)) {
+                throw new IllegalArgumentException(String.format("Paths of %s for %s not found: %s", getNodeName(),
+                        cmd.getCommandClassName(), value.strings.stream().filter(x -> !nonListPaths.contains(x)).collect(Collectors.toList())));
+            }
+        }
     }
 
     static final List<Entry<?>> entries = List.of(
@@ -299,7 +316,16 @@ public class MetadataNode extends Node {
             new Entry<>("KeyGroup", "KEY_GROUP", "The group that the key belongs to",
                     String.class, s -> s, Optional.of(new DefaultValue<>(""))),
             new Entry<>("SplitGraphAt", "SPLIT_GRAPH_AT", "List valued property on which a cause should be split",
-                    String.class, s -> s, Optional.of(new DefaultValue<>("")))
+                    String.class, s -> s, Optional.of(new DefaultValue<>(""))),
+            new Entry<>("AlwaysSplitPartition", "ALWAYS_SPLIT_PARTITION",
+                    "Whether the partition should always be split before the request",
+                    Boolean.class, Boolean::parseBoolean, Optional.of(new DefaultValue<>(false))),
+            new Entry<>("AlwaysSplitPartitionAfter", "ALWAYS_SPLIT_PARTITION_AFTER",
+                    "Whether the partition should always be split after this request",
+                    Boolean.class, Boolean::parseBoolean, Optional.of(new DefaultValue<>(false))),
+            new Entry<>("IgnoreForPartitioning", "IGNORE_FOR_PARTITIONING",
+                    "Ignore for partitioning, the request will not split any partition",
+                    Boolean.class, Boolean::parseBoolean, Optional.of(new DefaultValue<>(false)))
     );
 
     public static final String METADATA_CLASSNAME = "Metadata";

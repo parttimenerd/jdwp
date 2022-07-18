@@ -1,6 +1,9 @@
 package build.tools.jdwpgen;
 
 import java.io.PrintWriter;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class AbstractTypeListNode extends AbstractNamedNode {
 
@@ -33,5 +36,12 @@ public abstract class AbstractTypeListNode extends AbstractNamedNode {
             writer.println("</table>");
         }
         writer.println("</dd>");
+    }
+
+    public List<List<String>> getNonListPaths() {
+        return components.stream().filter(n -> n instanceof TypeNode)
+                .flatMap(x -> ((TypeNode) x).getNonListPaths().stream()
+                        .map(n -> Stream.concat(Stream.of(x.name()), n.stream()).collect(Collectors.toList())))
+                .collect(Collectors.toList());
     }
 }
