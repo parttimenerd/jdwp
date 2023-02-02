@@ -1,6 +1,36 @@
 Tunnel Experiments
 ==================
-Code based on the JDI implementation in OpenJDK
+This code has been previously created to implement
+a JDWP proxy to improve debugging performance.
+But this turned out to be too difficult to implement properly, especially regarding edge cases.
+
+This code contains a well tested and working parser and
+generator for JDWP packages. This might be useful in the future.
+It also contains code to log the JDWP traffic, which I
+used in the blog post "[A short primer on Java debugging internals](https://mostlynerdless.de/blog/2022/12/27/a-short-primer-on-java-debugging-internals/)".
+
+The code is tested by using the OpenJDK implementation as an oracle. This is reason why large parts of the
+OpenJDK implementation are included in the tests of this project.
+
+Tested with JDK 11, JDK 17 and JDK 20.
+
+Features
+--------
+- Request, Reply and Event packet classes that can parse and generate JDWP packets
+  - this is really well tested and can be used as a base for future projects
+- These packets
+  - have a basic side-effect model (e.g. influenced by and modifying what state), see the `StateProperty` enum for details
+  - have a basic cost model (e.g. how much time does it take to execute the command)
+  - can be accessed as a generic data structure, not dissimilar from typical JSON libraries
+  - have pretty-printers for debugging
+  - all this is well tested
+- The packets can then be heuristically partitioned into groups
+  - only the first command (the cause) might have a side effect
+  - this works okayish
+- These groups can then be used to synthesize debugging programs, written in a small custom language
+  - still a long way to go, but the general concept works
+- It contains an immature implementation of JDWP packet caching
+  - this is a very early prototype and does only work for small examples
 
 Build
 -----
@@ -107,8 +137,8 @@ Ideas that did not work
     which where hard to debug
   - solution: use a single thread and poll the two input streams in sequence
 
-TODO
-----
+Ideas
+-----
 
 - look into generated programs and add sanity checks
   - i.e. ResumeRequests can never be the cause for something
