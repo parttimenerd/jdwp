@@ -10,8 +10,8 @@ public class EndlessLoop {
         int j = i + 1;
         i++;
         Program.parse("((= i 0))");
-        while (true) {
-            i++;
+        while (i < 100) {
+           i++;
         }
     }
 }
