@@ -3,7 +3,7 @@ jdwpgen
 
 This is a tool to parse the annotated `jdwp.spec` and output Java classes for parsing and generating JDWP packets.
 
-This tool is based on the [jdwp-spec-parser](https://github.com/openjdk/jdk/tree/6794a686819554742ec906bbbc749a9241f7e452/make/jdk/src/classes/build/tools/jdwpgen)
+This tool is based on the [jdwp-spec-parser](https://github.com/openjdk/jdk/tree/master/make/jdk/src/classes/build/tools/jdwpgen)
 from the OpenJDK project. The original only created basic classes to read events and responses and generate requests.
 My modified version creates both and adds lots of helper methods to make it easier to work with the packets.
 
