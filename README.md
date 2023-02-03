@@ -1,5 +1,5 @@
-Tunnel Experiments
-==================
+Tunnel
+======
 This code has been previously created to implement
 a JDWP proxy to improve debugging performance.
 But this turned out to be too difficult to implement properly, especially regarding edge cases.
@@ -8,9 +8,15 @@ This code contains a well tested and working parser and
 generator for JDWP packages. This might be useful in the future.
 It also contains code to log the JDWP traffic, which I
 used in the blog post "[A short primer on Java debugging internals](https://mostlynerdless.de/blog/2022/12/27/a-short-primer-on-java-debugging-internals/)".
+Please write an issue if you want to use specific functionality as a library,
+I package it properly then.
 
 The code is tested by using the OpenJDK implementation as an oracle. This is reason why large parts of the
 OpenJDK implementation are included in the tests of this project.
+
+The packet specification in `data/jdwp.spec` is taken from
+[OpenJDK](https://github.com/openjdk/jdk/blob/master/src/java.se/share/data/jdwp/jdwp.spec) and extended with side effects,
+see the `jdwpgen` README for more information.
 
 Tested with JDK 11, JDK 17 and JDK 20.
 
@@ -18,9 +24,10 @@ Features
 --------
 - Request, Reply and Event packet classes that can parse and generate JDWP packets
   - this is really well tested and can be used as a base for future projects
+  - using a highly modified jdwpgen from OpenJDK to generate the classes
 - These packets
   - have a basic side-effect model (e.g. influenced by and modifying what state), see the `StateProperty` enum for details
-  - have a basic cost model (e.g. how much time does it take to execute the command)
+  - have a basic cost model (e.g. how much time does it take to execute the command), based on `data/costs.csv`
   - can be accessed as a generic data structure, not dissimilar from typical JSON libraries
   - have pretty-printers for debugging
   - all this is well tested
@@ -56,7 +63,7 @@ Logger (print all packets):
 
 ... print all packets with the resulting partitions and synthesized programs:
 ```sh
-  > java -javaagent:target/tunnel.jar=address=5015,verbose=warn,logger,mode=code,--packets,--partitions,--programs \
+  > java -javaagent:target/tunnel.jar=address=5015,verbose=warn,logger,packet-mode=code,,--packets,--partitions,--programs \
        -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 \
        -cp target/tunnel.jar tunnel.EndlessLoop
 
@@ -77,7 +84,7 @@ Logger (print all packets):
 ... print all programs for which we already created a previous program with the same cause 
 and at least 70% matching statements:
 ```sh
-  > java -javaagent:target/tunnel.jar=address=5015,verbose=warn,logger,mode=code,--packets,--overlaps \
+  > java -javaagent:target/tunnel.jar=address=5015,verbose=warn,logger,--packets,--overlaps \
        -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 \
        -cp target/tunnel.jar tunnel.EndlessLoop
        
@@ -100,7 +107,7 @@ and at least 70% matching statements:
   ----- #programs =  2531  #(> 1 stmt)programs =  1054  #overlaps =  1039 (98,58%) 
 ```
 
-... run the two tunnel configuration (client tunnel and server tunnel):
+... run the two tunnel configuration (client tunnel and server tunnel), this might not work properly
 ```sh
   > mvn package > /dev/null && java -javaagent:target/tunnel.jar=verbose=debug,logger,tunnel=server:address=5015,verbose=debug,logger,tunnel=client\
     -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8001 -cp target/tunnel.jar tunnel.EndlessLoop
@@ -114,28 +121,9 @@ java -jar target/tunnel.jar demo --run "-cp target/tunnel.jar tunnel.EndlessLoop
   --tunnel "logger --tunnel=client --packet-mode=short --cache-file=client.txt --log-columns=none"
 ```
 
-What is done
-------------
-- Generation of basic JDWP command classes for all commands of the JDK 17 spec
-  - tested using the JDI code as an oracle
-- PacketLogger tunnel that logs everything
-- Two tunnel configuration works (kind of)
-
 License
 -------
 GPLv2
-
-Ideas that did not work
------------------------
-... and why, so I don't wonder later
-
-- running the JVM endpoint of the tunnel directly as a javaagent
-  - it does not work because stopping the JVM stops the debugging threads too
-  - solution: run the tunnel as a separate Java process
-- running the tunnel in two separate threads (one for the JVM and one for the client side)
-  - it introduces the need for synchronization between two threads which lead to bugs in the
-    which where hard to debug
-  - solution: use a single thread and poll the two input streams in sequence
 
 Ideas
 -----
